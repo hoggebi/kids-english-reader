@@ -43,27 +43,48 @@ export default function ChapterUpload({
     return { title: data.title, sentences: data.sentences };
   }
 
+  // 사진들을 순서대로 하나씩이 아니라, 한꺼번에 동시에 처리해서 훨씬 빠르게 만듦
   async function handleFiles(files: FileList) {
     setError(null);
     setLoading(true);
     const list = Array.from(files);
-    const results: ExtractedPage[] = [];
+    let completed = 0;
+    setStatus(`0/${list.length} 완료`);
 
-    for (let i = 0; i < list.length; i++) {
-      setStatus(`사진 ${i + 1}/${list.length} 읽는 중...`);
-      try {
-        const page = await extractOne(list[i]);
-        results.push(page);
-      } catch (e) {
-        setError(
-          `${i + 1}번째 사진에서 오류가 났어요: ${
-            e instanceof Error ? e.message : "알 수 없는 오류"
-          } (나머지는 계속 처리했어요)`
-        );
-      }
-    }
+    const settled = await Promise.all(
+      list.map((file) =>
+        extractOne(file)
+          .then((page) => {
+            completed++;
+            setStatus(`${completed}/${list.length} 완료`);
+            return { ok: true as const, page };
+          })
+          .catch((e) => {
+            completed++;
+            setStatus(`${completed}/${list.length} 완료`);
+            return {
+              ok: false as const,
+              message: e instanceof Error ? e.message : "알 수 없는 오류",
+            };
+          })
+      )
+    );
 
     setLoading(false);
+
+    const results: ExtractedPage[] = [];
+    const failedNumbers: number[] = [];
+    settled.forEach((r, i) => {
+      if (r.ok) results.push(r.page);
+      else failedNumbers.push(i + 1);
+    });
+
+    if (failedNumbers.length > 0) {
+      setError(
+        `${failedNumbers.join(", ")}번째 사진에서 글자를 읽지 못했어요. (나머지는 정상 처리됐어요)`
+      );
+    }
+
     if (results.length === 0) {
       setError("어떤 사진에서도 글자를 읽지 못했어요. 다시 시도해주세요.");
       return;
