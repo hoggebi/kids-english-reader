@@ -1,22 +1,36 @@
 "use client";
 
-import { useState } from "react";
-import PhotoUpload from "@/components/PhotoUpload";
-import ReadingPractice from "@/components/ReadingPractice";
-import QuizSection from "@/components/QuizSection";
-import type { ExtractedPage } from "@/lib/types";
+import { useEffect, useState } from "react";
+import type { Chapter } from "@/lib/types";
+import { loadChapters, addChapter, deleteChapter } from "@/lib/storage";
+import ChapterList from "@/components/ChapterList";
+import ChapterUpload from "@/components/ChapterUpload";
+import ChapterReader from "@/components/ChapterReader";
 
-type Step = "upload" | "read" | "quiz";
+type View = "list" | "add" | "read";
 
 export default function Home() {
-  const [step, setStep] = useState<Step>("upload");
-  const [page, setPage] = useState<ExtractedPage | null>(null);
+  const [view, setView] = useState<View>("list");
+  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [activeChapter, setActiveChapter] = useState<Chapter | null>(null);
 
-  const passage = page?.sentences.join(" ") ?? "";
+  useEffect(() => {
+    setChapters(loadChapters());
+  }, []);
 
-  function reset() {
-    setStep("upload");
-    setPage(null);
+  function handleCreated(chapter: Chapter) {
+    setChapters(addChapter(chapter));
+    setActiveChapter(chapter);
+    setView("read");
+  }
+
+  function handleDelete(id: string) {
+    setChapters(deleteChapter(id));
+  }
+
+  function handleSelect(chapter: Chapter) {
+    setActiveChapter(chapter);
+    setView("read");
   }
 
   return (
@@ -24,54 +38,27 @@ export default function Home() {
       <header className="w-full max-w-md flex items-center justify-between">
         <h1
           className="text-2xl font-extrabold text-orange-500 cursor-pointer"
-          onClick={reset}
+          onClick={() => setView("list")}
         >
           📚 리틀 리더
         </h1>
-        {page && (
-          <button onClick={reset} className="text-sm text-gray-400 underline">
-            새 페이지
-          </button>
-        )}
       </header>
 
-      {step === "upload" && (
-        <PhotoUpload
-          onExtracted={(extracted) => {
-            setPage(extracted);
-            setStep("read");
-          }}
+      {view === "list" && (
+        <ChapterList
+          chapters={chapters}
+          onSelect={handleSelect}
+          onAdd={() => setView("add")}
+          onDelete={handleDelete}
         />
       )}
 
-      {step !== "upload" && page && (
-        <>
-          <h2 className="w-full max-w-md text-lg font-bold text-gray-700">
-            {page.title}
-          </h2>
+      {view === "add" && (
+        <ChapterUpload onCreated={handleCreated} onCancel={() => setView("list")} />
+      )}
 
-          <div className="w-full max-w-md flex rounded-full bg-white shadow p-1">
-            <button
-              onClick={() => setStep("read")}
-              className={`flex-1 py-2 rounded-full font-bold transition ${
-                step === "read" ? "bg-blue-500 text-white" : "text-gray-500"
-              }`}
-            >
-              🗣️ 따라 읽기
-            </button>
-            <button
-              onClick={() => setStep("quiz")}
-              className={`flex-1 py-2 rounded-full font-bold transition ${
-                step === "quiz" ? "bg-green-500 text-white" : "text-gray-500"
-              }`}
-            >
-              🧠 퀴즈
-            </button>
-          </div>
-
-          {step === "read" && <ReadingPractice sentences={page.sentences} />}
-          {step === "quiz" && <QuizSection passage={passage} />}
-        </>
+      {view === "read" && activeChapter && (
+        <ChapterReader chapter={activeChapter} onBack={() => setView("list")} />
       )}
     </div>
   );
