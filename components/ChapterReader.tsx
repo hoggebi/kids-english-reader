@@ -23,7 +23,7 @@ export default function ChapterReader({
         <button onClick={onBack} className="text-sm text-gray-400 underline">
           ← 챕터 목록
         </button>
-        <h2 className="text-lg font-bold text-gray-700">{chapter.title}</h2>
+        <h2 className="font-title text-lg font-bold text-gray-700">{chapter.title}</h2>
         <span className="text-xs text-gray-400">
           {pageIndex + 1}/{chapter.pages.length}쪽
         </span>
@@ -33,7 +33,7 @@ export default function ChapterReader({
         <button
           onClick={() => setMode("read")}
           className={`flex-1 py-2 rounded-full font-bold transition ${
-            mode === "read" ? "bg-blue-500 text-white" : "text-gray-500"
+            mode === "read" ? "bg-green-600 text-white" : "text-gray-500"
           }`}
         >
           🗣️ 따라 읽기
@@ -41,7 +41,7 @@ export default function ChapterReader({
         <button
           onClick={() => setMode("quiz")}
           className={`flex-1 py-2 rounded-full font-bold transition ${
-            mode === "quiz" ? "bg-green-500 text-white" : "text-gray-500"
+            mode === "quiz" ? "bg-green-800 text-white" : "text-gray-500"
           }`}
         >
           🧠 챕터 전체 퀴즈
