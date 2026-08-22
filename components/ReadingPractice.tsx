@@ -45,9 +45,6 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
   const speechSupported = useSpeechSupported();
   const [error, setError] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const streamRef = useRef<MediaStream | null>(null);
   const passageRef = useRef<HTMLDivElement | null>(null);
 
   function createRecognition(): SpeechRecognitionLike | null {
@@ -119,31 +116,6 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
     recognitionRef.current = recognition;
     setError(null);
     setListening(true);
-    audioChunksRef.current = [];
-
-    let stream: MediaStream | null = null;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-      const recorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = recorder;
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
-      };
-      recorder.start();
-    } catch {
-      setError("마이크 접근 권한이 필요해요.");
-    }
-
-    function stopRecording(): string | null {
-      const recorder = mediaRecorderRef.current;
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-      if (recorder && recorder.state !== "inactive") recorder.stop();
-      if (audioChunksRef.current.length === 0) return null;
-      const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-      return URL.createObjectURL(blob);
-    }
 
     let gotResult = false;
 
@@ -151,9 +123,8 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
       gotResult = true;
       const heard = event.results[0]?.[0]?.transcript ?? "";
       const score = scorePronunciation(sentence, heard);
-      const audioUrl = stopRecording();
       setAttempts((prev) => {
-        const next = [...(prev[index] ?? []), { heard, score, audioUrl }];
+        const next = [...(prev[index] ?? []), { heard, score, audioUrl: null }];
         setJustCompletedRound(next.length);
         if (next.length >= REQUIRED_ROUNDS && index < sentences.length - 1) {
           setTimeout(() => goToSentence(index + 1), 1200);
@@ -163,21 +134,19 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
     };
     recognition.onerror = (event: { error?: string }) => {
       gotResult = true;
-      stopRecording();
       const reason = event?.error;
       setError(
         reason === "no-speech"
           ? "목소리가 안 들렸어요. 마이크에 조금 더 가까이 대고 다시 눌러주세요."
           : reason === "not-allowed"
           ? "마이크 권한이 꺼져있어요. 브라우저 설정에서 마이크 권한을 켜주세요."
-          : "음성을 인식하지 못했어요. 다시 시도해주세요."
+          : `음성을 인식하지 못했어요 (${reason ?? "알 수 없는 오류"}). 다시 시도해주세요.`
       );
       setListening(false);
     };
     recognition.onend = () => {
       setListening(false);
       if (!gotResult) {
-        stopRecording();
         setError((prev) => prev ?? "목소리가 안 들렸어요. 다시 눌러서 시도해주세요.");
       }
     };
@@ -186,7 +155,6 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
       recognition.start();
     } catch {
       setListening(false);
-      stopRecording();
       setError("음성 인식을 시작하지 못했어요. 다시 눌러주세요.");
     }
   }
@@ -310,11 +278,6 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
                 {a.score}점
               </span>
             </div>
-            {a.audioUrl && (
-              <audio controls src={a.audioUrl} className="w-full h-8">
-                <track kind="captions" />
-              </audio>
-            )}
           </div>
         ))}
       </div>
@@ -327,3 +290,4 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
     </div>
   );
 }
+
