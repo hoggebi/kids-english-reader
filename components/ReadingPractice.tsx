@@ -114,13 +114,13 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
     const recognition = createRecognition();
     if (!recognition) return;
     recognitionRef.current = recognition;
-    setError(null);
     setListening(true);
 
     let gotResult = false;
 
     recognition.onresult = (event) => {
       gotResult = true;
+      setError(null);
       const heard = event.results[0]?.[0]?.transcript ?? "";
       const score = scorePronunciation(sentence, heard);
       setAttempts((prev) => {
@@ -257,7 +257,18 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
         </p>
       )}
 
-      {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+      {error && (
+        <div className="rounded-2xl bg-red-50 border-2 border-red-300 p-4 flex items-start justify-between gap-3">
+          <p className="text-red-600 font-bold text-base leading-snug">{error}</p>
+          <button
+            onClick={() => setError(null)}
+            className="text-red-400 font-bold text-lg leading-none px-1"
+            aria-label="닫기"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-col gap-2">
         {currentAttempts.map((a, i) => (
