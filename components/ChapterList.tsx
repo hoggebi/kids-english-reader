@@ -17,7 +17,7 @@ export default function ChapterList({
     <div className="w-full max-w-md flex flex-col gap-4">
       <button
         onClick={onAdd}
-        className="w-full py-3 rounded-full bg-orange-500 text-white font-bold text-lg active:scale-95 transition"
+        className="w-full py-3 rounded-full bg-green-600 text-white font-bold text-lg active:scale-95 transition"
       >
         📚 새 챕터 만들기
       </button>
@@ -31,11 +31,11 @@ export default function ChapterList({
           {chapters.map((c) => (
             <div
               key={c.id}
-              className="rounded-2xl bg-orange-50 p-4 flex items-center justify-between cursor-pointer active:scale-[0.98] transition"
+              className="rounded-2xl bg-green-50 p-4 flex items-center justify-between cursor-pointer active:scale-[0.98] transition"
               onClick={() => onSelect(c)}
             >
               <div>
-                <div className="font-bold text-gray-700">{c.title}</div>
+                <div className="font-title font-bold text-gray-700">{c.title}</div>
                 <div className="text-xs text-gray-400">{c.pages.length}쪽</div>
               </div>
               <button
