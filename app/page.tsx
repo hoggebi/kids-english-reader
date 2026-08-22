@@ -37,7 +37,7 @@ export default function Home() {
     <div className="min-h-screen bg-white flex flex-col items-center px-4 py-8 gap-6">
       <header className="w-full max-w-md flex items-center justify-between">
         <h1
-          className="text-2xl font-extrabold text-orange-500 cursor-pointer"
+          className="font-title text-2xl font-extrabold text-green-600 cursor-pointer"
           onClick={() => setView("list")}
         >
           📚 리틀 리더
