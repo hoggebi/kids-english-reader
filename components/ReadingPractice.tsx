@@ -50,8 +50,7 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
   const streamRef = useRef<MediaStream | null>(null);
   const passageRef = useRef<HTMLDivElement | null>(null);
 
-  function getRecognition(): SpeechRecognitionLike | null {
-    if (recognitionRef.current) return recognitionRef.current;
+  function createRecognition(): SpeechRecognitionLike | null {
     const Ctor = getRecognitionCtor();
     if (!Ctor) return null;
     const recognition = new Ctor();
@@ -59,7 +58,6 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
-    recognitionRef.current = recognition;
     return recognition;
   }
 
@@ -116,8 +114,9 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
   }
 
   async function listen() {
-    const recognition = getRecognition();
+    const recognition = createRecognition();
     if (!recognition) return;
+    recognitionRef.current = recognition;
     setError(null);
     setListening(true);
     audioChunksRef.current = [];
@@ -146,7 +145,10 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
       return URL.createObjectURL(blob);
     }
 
+    let gotResult = false;
+
     recognition.onresult = (event) => {
+      gotResult = true;
       const heard = event.results[0]?.[0]?.transcript ?? "";
       const score = scorePronunciation(sentence, heard);
       const audioUrl = stopRecording();
@@ -159,18 +161,33 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
         return { ...prev, [index]: next };
       });
     };
-    recognition.onerror = () => {
+    recognition.onerror = (event: { error?: string }) => {
+      gotResult = true;
       stopRecording();
-      setError("음성을 인식하지 못했어요. 다시 시도해주세요.");
+      const reason = event?.error;
+      setError(
+        reason === "no-speech"
+          ? "목소리가 안 들렸어요. 마이크에 조금 더 가까이 대고 다시 눌러주세요."
+          : reason === "not-allowed"
+          ? "마이크 권한이 꺼져있어요. 브라우저 설정에서 마이크 권한을 켜주세요."
+          : "음성을 인식하지 못했어요. 다시 시도해주세요."
+      );
       setListening(false);
     };
-    recognition.onend = () => setListening(false);
+    recognition.onend = () => {
+      setListening(false);
+      if (!gotResult) {
+        stopRecording();
+        setError((prev) => prev ?? "목소리가 안 들렸어요. 다시 눌러서 시도해주세요.");
+      }
+    };
 
     try {
       recognition.start();
     } catch {
       setListening(false);
       stopRecording();
+      setError("음성 인식을 시작하지 못했어요. 다시 눌러주세요.");
     }
   }
 
