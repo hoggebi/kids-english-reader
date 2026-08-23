@@ -217,15 +217,14 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
         <span className="text-sm text-gray-500">
           문장 {index + 1} / {sentences.length}
         </span>
-        <div className="flex items-baseline gap-1 bg-gray-100 rounded-full px-4 py-1">
-          <span className="text-2xl font-extrabold text-sky-700">{roundsDone}</span>
-          <span className="text-sm text-sky-600 font-bold">번 읽음</span>
-        </div>
       </div>
 
-      <p className="text-center text-sm text-gray-500 font-bold">
-        이 페이지를 3번 읽어보세요.
-      </p>
+      <div className="flex flex-col items-center gap-1">
+        <p className="text-center text-sm text-gray-500 font-bold">
+          이 페이지를 3번 읽어보세요.
+        </p>
+        <p className="text-sky-600 font-bold text-sm">{roundsDone}번 읽음</p>
+      </div>
 
       <div
         ref={passageRef}
