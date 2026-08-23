@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
-const NORMAL_RATE = 0.6;
-const SLOW_RATE = 0.4;
+const NORMAL_RATE = 0.45;
+const SLOW_RATE = 0.3;
 const REQUIRED_PAGE_ROUNDS = 3;
 
 // 무음이 이만큼 이어지면 다 읽은 것으로 보고 자동 종료
@@ -46,6 +46,16 @@ export default function ReadingPractice({
   }, [index]);
 
   const pageDone = sentences.every((_, i) => readSet[i]);
+
+  useEffect(() => {
+    // 브라우저 음성 엔진을 미리 한 번 "깨워둬서", 실제 재생 시 앞부분이
+    // 잘리는 문제를 줄임
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      const warmup = new SpeechSynthesisUtterance(" ");
+      warmup.volume = 0;
+      window.speechSynthesis.speak(warmup);
+    }
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -94,12 +104,14 @@ export default function ReadingPractice({
     window.speechSynthesis.cancel();
     const wasRecording = recording;
     if (wasRecording) pauseRecordingForListen();
-    speak(sentences[index], slowMode ? SLOW_RATE : NORMAL_RATE, () => {
-      if (wasRecording) {
-        setPausedForListen(false);
-        startListening();
-      }
-    });
+    setTimeout(() => {
+      speak(sentences[index], slowMode ? SLOW_RATE : NORMAL_RATE, () => {
+        if (wasRecording) {
+          setPausedForListen(false);
+          startListening();
+        }
+      });
+    }, 150);
   }
 
   function speakAll() {
@@ -124,7 +136,9 @@ export default function ReadingPractice({
       speak(sentences[i], rate, () => playFrom(i + 1));
     }
 
-    playFrom(0);
+    // cancel() 직후 바로 speak()을 부르면 첫 문장 앞부분이 브라우저에서 잘리는
+    // 문제가 있어서, 지연시킨 뒤 재생을 시작함
+    setTimeout(() => playFrom(0), 150);
   }
 
   function stopAll() {
@@ -434,3 +448,4 @@ export default function ReadingPractice({
     </div>
   );
 }
+
