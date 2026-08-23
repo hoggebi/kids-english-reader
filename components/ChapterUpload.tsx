@@ -105,7 +105,7 @@ export default function ChapterUpload({
 
   if (step === "confirm") {
     return (
-      <div className="flex flex-col gap-4 w-full max-w-md">
+      <div className="flex flex-col gap-4 w-full max-w-4xl">
         <h2 className="text-lg font-bold text-gray-800">챕터 확인</h2>
         <label className="text-sm text-gray-500">챕터 제목</label>
         <input
@@ -116,7 +116,7 @@ export default function ChapterUpload({
         <p className="text-sm text-gray-500">
           총 {pages.length}장이 인식됐어요. 페이지별로 내용을 확인해보세요.
         </p>
-        <div className="flex flex-col gap-3 max-h-80 overflow-y-auto">
+        <div className="flex flex-col gap-3 max-h-80 lg:max-h-[32rem] overflow-y-auto lg:grid lg:grid-cols-2 lg:gap-4">
           {pages.map((p, i) => (
             <div key={i} className="rounded-xl bg-gray-50 p-3 text-sm">
               <div className="font-bold text-sky-600 mb-1">
@@ -156,7 +156,7 @@ export default function ChapterUpload({
   }
 
   return (
-    <div className="flex flex-col items-center gap-4 w-full max-w-md">
+    <div className="flex flex-col items-center gap-4 w-full max-w-4xl">
       <div
         className="w-full aspect-[4/3] rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center overflow-hidden cursor-pointer hover:bg-gray-100 transition"
         onClick={() => inputRef.current?.click()}
