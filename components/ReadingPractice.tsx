@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
-const NORMAL_RATE = 0.45;
-const SLOW_RATE = 0.3;
+const NORMAL_RATE = 0.75;
+const SLOW_RATE = 0.55;
 const REQUIRED_PAGE_ROUNDS = 3;
 
 // 무음이 이만큼 이어지면 다 읽은 것으로 보고 자동 종료
@@ -448,4 +448,3 @@ export default function ReadingPractice({
     </div>
   );
 }
-
