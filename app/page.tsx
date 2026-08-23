@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Chapter } from "@/lib/types";
-import { loadChapters, addChapter, deleteChapter } from "@/lib/storage";
+import { loadChapters, addChapter, deleteChapter, saveChapters } from "@/lib/storage";
 import { loadPet, type PetState } from "@/lib/pet";
 import ChapterList from "@/components/ChapterList";
 import ChapterUpload from "@/components/ChapterUpload";
@@ -37,6 +37,11 @@ export default function Home() {
     setChapters(deleteChapter(id));
   }
 
+  function handleReorder(newOrder: Chapter[]) {
+    saveChapters(newOrder);
+    setChapters(newOrder);
+  }
+
   function handleSelect(chapter: Chapter) {
     setActiveChapter(chapter);
     setView("read");
@@ -61,6 +66,7 @@ export default function Home() {
             onSelect={handleSelect}
             onAdd={() => setView("add")}
             onDelete={handleDelete}
+            onReorder={handleReorder}
           />
         </>
       )}
