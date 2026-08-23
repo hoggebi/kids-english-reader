@@ -19,10 +19,12 @@ function normalize(s: string) {
 function speak(text: string) {
   if (typeof window === "undefined" || !window.speechSynthesis) return;
   window.speechSynthesis.cancel();
-  const utter = new SpeechSynthesisUtterance(text);
-  utter.lang = "en-US";
-  utter.rate = 0.9;
-  window.speechSynthesis.speak(utter);
+  setTimeout(() => {
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = "en-US";
+    utter.rate = 0.6;
+    window.speechSynthesis.speak(utter);
+  }, 60);
 }
 
 type PreparedItem = QuizItem & {
@@ -161,7 +163,7 @@ export default function QuizSection({
 
   if (!started) {
     return (
-      <div className="w-full max-w-md flex flex-col items-center gap-4 py-10">
+      <div className="w-full max-w-4xl flex flex-col items-center gap-4 py-10">
         <p className="text-lg text-gray-700 text-center">
           방금 읽은 문장과 단어를 다시 복습해봐요.
         </p>
@@ -177,7 +179,7 @@ export default function QuizSection({
 
   if (loading) {
     return (
-      <div className="w-full max-w-md flex flex-col items-center gap-3 py-10">
+      <div className="w-full max-w-4xl flex flex-col items-center gap-3 py-10">
         <p className="text-gray-500">퀴즈를 만드는 중이에요...</p>
       </div>
     );
@@ -185,7 +187,7 @@ export default function QuizSection({
 
   if (error) {
     return (
-      <div className="w-full max-w-md flex flex-col items-center gap-4 py-10">
+      <div className="w-full max-w-4xl flex flex-col items-center gap-4 py-10">
         <div className="rounded-2xl bg-red-50 border-2 border-red-300 p-4 w-full text-center">
           <p className="text-red-600 font-bold">{error}</p>
         </div>
@@ -203,7 +205,7 @@ export default function QuizSection({
     const isLastSet = setNumber >= TOTAL_SETS;
     if (allSetsDone) return null;
     return (
-      <div className="w-full max-w-md flex flex-col items-center gap-4 py-10">
+      <div className="w-full max-w-4xl flex flex-col items-center gap-4 py-10">
         <p className="text-xl font-bold text-gray-800">
           {setNumber}세트 완료! {items.length}문제 중 {score}문제를 맞혔어요
         </p>
@@ -229,7 +231,7 @@ export default function QuizSection({
   if (!current) return null;
 
   return (
-    <div className="w-full max-w-md flex flex-col gap-4">
+    <div className="w-full max-w-4xl flex flex-col gap-4">
       <div className="flex items-center justify-between text-sm text-gray-500">
         <span>{setNumber}세트 · 문제 {index + 1} / {items.length}</span>
         <span className="font-bold text-sky-600">맞은 개수 {score}</span>
