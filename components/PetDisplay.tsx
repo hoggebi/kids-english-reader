@@ -62,7 +62,7 @@ export default function PetDisplay({
 
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={`/fox/${pet.stage}.png`}
+        src={`/${pet.stage}.png`}
         alt={info.name}
         className={`${imgSize} object-contain ${justGrew ? "pet-pop" : "pet-bob"}`}
       />
@@ -91,4 +91,3 @@ export default function PetDisplay({
     </div>
   );
 }
-
