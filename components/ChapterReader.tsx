@@ -50,7 +50,12 @@ export default function ChapterReader({
 
       {mode === "read" && (
         <>
-          <ReadingPractice key={pageIndex} sentences={page.sentences} />
+          <ReadingPractice
+            key={pageIndex}
+            sentences={page.sentences}
+            hasNextPage={pageIndex < chapter.pages.length - 1}
+            onNextPage={() => setPageIndex((i) => Math.min(chapter.pages.length - 1, i + 1))}
+          />
           <div className="flex justify-between pt-2">
             <button
               onClick={() => setPageIndex((i) => Math.max(0, i - 1))}
