@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import type { Chapter } from "@/lib/types";
 import { loadChapters, addChapter, deleteChapter } from "@/lib/storage";
+import { loadPet, type PetState } from "@/lib/pet";
 import ChapterList from "@/components/ChapterList";
 import ChapterUpload from "@/components/ChapterUpload";
 import ChapterReader from "@/components/ChapterReader";
+import PetDisplay from "@/components/PetDisplay";
 
 type View = "list" | "add" | "read";
 
@@ -13,10 +15,17 @@ export default function Home() {
   const [view, setView] = useState<View>("list");
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [activeChapter, setActiveChapter] = useState<Chapter | null>(null);
+  const [pet, setPet] = useState<PetState | null>(null);
 
   useEffect(() => {
     setChapters(loadChapters());
+    setPet(loadPet());
   }, []);
+
+  function goToList() {
+    setView("list");
+    setPet(loadPet());
+  }
 
   function handleCreated(chapter: Chapter) {
     setChapters(addChapter(chapter));
@@ -37,7 +46,7 @@ export default function Home() {
     <div className="min-h-screen bg-white flex flex-col items-center px-4 py-8 gap-6">
       <header
         className="w-full max-w-md flex flex-col items-center gap-2 cursor-pointer"
-        onClick={() => setView("list")}
+        onClick={goToList}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/character.png" alt="캐릭터" className="w-24 h-24 object-contain" />
@@ -45,20 +54,23 @@ export default function Home() {
       </header>
 
       {view === "list" && (
-        <ChapterList
-          chapters={chapters}
-          onSelect={handleSelect}
-          onAdd={() => setView("add")}
-          onDelete={handleDelete}
-        />
+        <>
+          {pet && <PetDisplay pet={pet} />}
+          <ChapterList
+            chapters={chapters}
+            onSelect={handleSelect}
+            onAdd={() => setView("add")}
+            onDelete={handleDelete}
+          />
+        </>
       )}
 
       {view === "add" && (
-        <ChapterUpload onCreated={handleCreated} onCancel={() => setView("list")} />
+        <ChapterUpload onCreated={handleCreated} onCancel={goToList} />
       )}
 
       {view === "read" && activeChapter && (
-        <ChapterReader chapter={activeChapter} onBack={() => setView("list")} />
+        <ChapterReader chapter={activeChapter} onBack={goToList} />
       )}
     </div>
   );
