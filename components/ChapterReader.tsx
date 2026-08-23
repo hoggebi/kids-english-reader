@@ -55,6 +55,7 @@ export default function ChapterReader({
             sentences={page.sentences}
             hasNextPage={pageIndex < chapter.pages.length - 1}
             onNextPage={() => setPageIndex((i) => Math.min(chapter.pages.length - 1, i + 1))}
+            onGoToQuiz={() => setMode("quiz")}
           />
           <div className="flex justify-between pt-2">
             <button
