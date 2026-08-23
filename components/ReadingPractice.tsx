@@ -223,12 +223,8 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
         </div>
       </div>
 
-      <p className="text-center text-sm text-gray-500">
-        이 문장을 3번 따라 읽어보세요.
-      </p>
-
       <p className="text-center text-sm text-gray-500 font-bold">
-        한 문장을 3번씩 따라 읽어보세요.
+        이 페이지를 3번 읽어보세요.
       </p>
 
       <div
