@@ -43,7 +43,6 @@ export default function ChapterUpload({
     return { title: data.title, sentences: data.sentences };
   }
 
-  // 사진들을 순서대로 하나씩이 아니라, 한꺼번에 동시에 처리해서 훨씬 빠르게 만듦
   async function handleFiles(files: FileList) {
     setError(null);
     setLoading(true);
@@ -107,20 +106,20 @@ export default function ChapterUpload({
   if (step === "confirm") {
     return (
       <div className="flex flex-col gap-4 w-full max-w-md">
-        <h2 className="font-title text-lg font-bold text-gray-700">챕터 확인</h2>
+        <h2 className="text-lg font-bold text-gray-800">챕터 확인</h2>
         <label className="text-sm text-gray-500">챕터 제목</label>
         <input
           value={chapterTitle}
           onChange={(e) => setChapterTitle(e.target.value)}
-          className="font-title border-2 border-green-200 rounded-xl px-4 py-2 font-bold"
+          className="border-2 border-gray-200 rounded-xl px-4 py-2 font-bold"
         />
         <p className="text-sm text-gray-500">
           총 {pages.length}장이 인식됐어요. 페이지별로 내용을 확인해보세요.
         </p>
         <div className="flex flex-col gap-3 max-h-80 overflow-y-auto">
           {pages.map((p, i) => (
-            <div key={i} className="rounded-xl bg-green-50 p-3 text-sm">
-              <div className="font-bold text-green-600 mb-1">
+            <div key={i} className="rounded-xl bg-gray-50 p-3 text-sm">
+              <div className="font-bold text-sky-600 mb-1">
                 {i + 1}쪽 · {p.title}
               </div>
               <textarea
@@ -135,7 +134,7 @@ export default function ChapterUpload({
                   );
                 }}
                 rows={3}
-                className="w-full rounded-lg border border-green-200 p-2 text-sm"
+                className="w-full rounded-lg border border-gray-200 p-2 text-sm"
               />
             </div>
           ))}
@@ -147,7 +146,7 @@ export default function ChapterUpload({
           </button>
           <button
             onClick={confirmChapter}
-            className="flex-1 py-3 rounded-full bg-green-600 text-white font-bold"
+            className="flex-1 py-3 rounded-full bg-sky-600 text-white font-bold"
           >
             챕터 저장하기
           </button>
@@ -159,11 +158,10 @@ export default function ChapterUpload({
   return (
     <div className="flex flex-col items-center gap-4 w-full max-w-md">
       <div
-        className="w-full aspect-[4/3] rounded-2xl border-2 border-dashed border-green-300 bg-green-50 flex items-center justify-center overflow-hidden cursor-pointer hover:bg-green-100 transition"
+        className="w-full aspect-[4/3] rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center overflow-hidden cursor-pointer hover:bg-gray-100 transition"
         onClick={() => inputRef.current?.click()}
       >
-        <div className="text-center text-green-500 px-6">
-          <div className="text-5xl mb-2">📚</div>
+        <div className="text-center text-gray-500 px-6">
           <p className="font-semibold">챕터에 넣을 페이지 사진들을 한 번에 선택하세요</p>
         </div>
       </div>
@@ -182,9 +180,9 @@ export default function ChapterUpload({
       <button
         onClick={() => inputRef.current?.click()}
         disabled={loading}
-        className="w-full py-3 rounded-full bg-green-600 text-white font-bold text-lg disabled:opacity-50 active:scale-95 transition"
+        className="w-full py-3 rounded-full bg-sky-600 text-white font-bold text-lg disabled:opacity-50 active:scale-95 transition"
       >
-        {loading ? "지문 읽는 중... 📖" : "사진 여러 장 선택하기"}
+        {loading ? "지문 읽는 중..." : "사진 여러 장 선택하기"}
       </button>
 
       {loading && <p className="text-xs text-gray-400 text-center">{status}</p>}
