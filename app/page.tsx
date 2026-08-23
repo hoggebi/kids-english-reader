@@ -54,7 +54,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-white flex flex-col items-center px-4 py-8 gap-6">
       <header
-        className="w-full max-w-md flex flex-col items-center gap-2 cursor-pointer"
+        className="w-full max-w-4xl flex flex-col items-center gap-2 cursor-pointer"
         onClick={goToList}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
