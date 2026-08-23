@@ -40,7 +40,7 @@ export default function Home() {
         onClick={() => setView("list")}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/character.png" alt="캐릭터" className="w-16 h-16 object-contain" />
+        <img src="/character.png" alt="캐릭터" className="w-32 h-32 object-contain" />
         <h1 className="font-title text-black text-4xl text-center">오늘도 호 English</h1>
       </header>
 
