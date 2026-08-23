@@ -275,7 +275,7 @@ export default function ReadingPractice({
   }
 
   return (
-    <div className="w-full max-w-md flex flex-col gap-4 relative">
+    <div className="w-full max-w-4xl flex flex-col gap-4 relative">
       {showRoundBanner && (
         <div className="absolute inset-x-0 -top-2 flex justify-center z-10 pointer-events-none">
           <div className="bg-sky-600 text-white text-xl font-bold px-6 py-2 rounded-full shadow-lg animate-bounce">
@@ -290,114 +290,126 @@ export default function ReadingPractice({
         </span>
       </div>
 
-      <div className="flex flex-col items-center gap-1">
+      <div className="flex flex-col items-center gap-1 lg:hidden">
         <p className="text-center text-lg text-gray-700 font-bold">
           이 페이지를 3번 읽어보세요.
         </p>
         <p className="text-sky-600 font-bold text-sm">{roundsDone}번 읽음</p>
       </div>
 
-      <div
-        ref={passageRef}
-        className="rounded-2xl bg-gray-50 p-5 max-h-72 overflow-y-auto leading-relaxed text-lg"
-      >
-        {sentences.map((s, i) => {
-          const isCurrent = i === index;
-          const isPlayingNow = i === playingIndex;
+      {/* 아이패드 가로 화면: 지문(왼쪽) + 컨트롤(오른쪽) 2단 구성. 좁은 화면에서는 위아래로 쌓임 */}
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[3fr_2fr] lg:gap-6 lg:items-start">
+        <div
+          ref={passageRef}
+          className="rounded-2xl bg-gray-50 p-5 max-h-72 lg:max-h-[28rem] overflow-y-auto leading-relaxed text-lg lg:text-xl"
+        >
+          {sentences.map((s, i) => {
+            const isCurrent = i === index;
+            const isPlayingNow = i === playingIndex;
 
-          let colorClass = "text-gray-400";
-          if (isPlayingNow) colorClass = "text-sky-600 font-bold";
-          else if (isCurrent && recording) colorClass = "text-sky-500 font-bold";
-          else if (isCurrent) colorClass = "text-gray-800 font-bold underline decoration-gray-300";
-          else if (readSet[i]) colorClass = "text-gray-500";
+            let colorClass = "text-gray-400";
+            if (isPlayingNow) colorClass = "text-sky-600 font-bold";
+            else if (isCurrent && recording) colorClass = "text-sky-500 font-bold";
+            else if (isCurrent) colorClass = "text-gray-800 font-bold underline decoration-gray-300";
+            else if (readSet[i]) colorClass = "text-gray-500";
 
-          return (
-            <span
-              key={i}
-              data-sentence-idx={i}
-              onClick={() => !playingAll && !recording && goToSentence(i)}
-              className={`cursor-pointer transition-colors duration-200 rounded px-0.5 ${colorClass}`}
+            return (
+              <span
+                key={i}
+                data-sentence-idx={i}
+                onClick={() => !playingAll && !recording && goToSentence(i)}
+                className={`cursor-pointer transition-colors duration-200 rounded px-0.5 ${colorClass}`}
+              >
+                {s}{" "}
+              </span>
+            );
+          })}
+        </div>
+
+        <div className="flex flex-col gap-4">
+          <div className="hidden lg:flex flex-col items-center gap-1">
+            <p className="text-center text-lg text-gray-700 font-bold">
+              이 페이지를 3번 읽어보세요.
+            </p>
+            <p className="text-sky-600 font-bold text-sm">{roundsDone}번 읽음</p>
+          </div>
+
+          <label className="flex items-center gap-2 text-sm text-gray-500 justify-center">
+            <input
+              type="checkbox"
+              checked={slowMode}
+              onChange={(e) => setSlowMode(e.target.checked)}
+            />
+            느리게 읽기
+          </label>
+
+          <div className="flex gap-2">
+            <button
+              onClick={speakSentence}
+              disabled={playingAll || pausedForListen}
+              className="flex-1 py-3 rounded-full bg-gray-700 text-white font-bold active:scale-95 transition disabled:opacity-50"
             >
-              {s}{" "}
-            </span>
-          );
-        })}
-      </div>
+              이 문장 듣기
+            </button>
+            <button
+              onClick={playingAll ? stopAll : speakAll}
+              disabled={pausedForListen}
+              className="flex-1 py-3 rounded-full bg-gray-500 text-white font-bold active:scale-95 transition disabled:opacity-50"
+            >
+              {playingAll ? "멈추기" : "전체 듣기"}
+            </button>
+          </div>
 
-      <label className="flex items-center gap-2 text-sm text-gray-500 justify-center">
-        <input
-          type="checkbox"
-          checked={slowMode}
-          onChange={(e) => setSlowMode(e.target.checked)}
-        />
-        느리게 읽기
-      </label>
-
-      <div className="flex gap-2">
-        <button
-          onClick={speakSentence}
-          disabled={playingAll || pausedForListen}
-          className="flex-1 py-3 rounded-full bg-gray-700 text-white font-bold active:scale-95 transition disabled:opacity-50"
-        >
-          이 문장 듣기
-        </button>
-        <button
-          onClick={playingAll ? stopAll : speakAll}
-          disabled={pausedForListen}
-          className="flex-1 py-3 rounded-full bg-gray-500 text-white font-bold active:scale-95 transition disabled:opacity-50"
-        >
-          {playingAll ? "멈추기" : "전체 듣기"}
-        </button>
-      </div>
-
-      <button
-        onClick={recording ? stopAuto : startFromCurrent}
-        disabled={playingAll || pausedForListen || (pageDone && !recording)}
-        className={`w-full py-4 rounded-full text-white text-xl font-bold disabled:opacity-50 active:scale-95 transition ${
-          recording ? "bg-sky-700 animate-pulse" : "bg-sky-600"
-        }`}
-      >
-        {pausedForListen
-          ? "듣는 중... 곧 이어서 시작해요"
-          : recording
-          ? "듣고 있어요... (눌러서 멈추기)"
-          : pageDone
-          ? "이 페이지 다 읽었어요"
-          : "따라 읽기 시작"}
-      </button>
-
-      {recording && (
-        <p className="text-center text-sm text-sky-600 font-bold">
-          하이라이트된 문장을 읽어주세요. 읽는 중에 듣기 버튼을 눌러도 돼요 — 다 들으면 이어서 다시 녹음해요.
-        </p>
-      )}
-
-      {pageDone && !recording && !showCompleteModal && (
-        <div className="rounded-2xl bg-gray-50 border-2 border-gray-200 p-4 flex flex-col items-center gap-3">
-          <p className="text-lg font-bold text-gray-800">
-            이 페이지를 {roundsDone}번 읽었어요
-          </p>
           <button
-            onClick={restartRound}
-            className="w-full py-3 rounded-full bg-sky-600 text-white font-bold active:scale-95 transition"
+            onClick={recording ? stopAuto : startFromCurrent}
+            disabled={playingAll || pausedForListen || (pageDone && !recording)}
+            className={`w-full py-4 rounded-full text-white text-xl font-bold disabled:opacity-50 active:scale-95 transition ${
+              recording ? "bg-sky-700 animate-pulse" : "bg-sky-600"
+            }`}
           >
-            한 번 더 읽기
+            {pausedForListen
+              ? "듣는 중... 곧 이어서 시작해요"
+              : recording
+              ? "듣고 있어요... (눌러서 멈추기)"
+              : pageDone
+              ? "이 페이지 다 읽었어요"
+              : "따라 읽기 시작"}
           </button>
-        </div>
-      )}
 
-      {error && (
-        <div className="rounded-2xl bg-red-50 border-2 border-red-300 p-4 flex items-start justify-between gap-3">
-          <p className="text-red-600 font-bold text-base leading-snug">{error}</p>
-          <button
-            onClick={() => setError(null)}
-            className="text-red-400 font-bold text-lg leading-none px-1"
-            aria-label="닫기"
-          >
-            ✕
-          </button>
+          {recording && (
+            <p className="text-center text-sm text-sky-600 font-bold">
+              하이라이트된 문장을 읽어주세요. 읽는 중에 듣기 버튼을 눌러도 돼요 — 다 들으면 이어서 다시 녹음해요.
+            </p>
+          )}
+
+          {pageDone && !recording && !showCompleteModal && (
+            <div className="rounded-2xl bg-gray-50 border-2 border-gray-200 p-4 flex flex-col items-center gap-3">
+              <p className="text-lg font-bold text-gray-800">
+                이 페이지를 {roundsDone}번 읽었어요
+              </p>
+              <button
+                onClick={restartRound}
+                className="w-full py-3 rounded-full bg-sky-600 text-white font-bold active:scale-95 transition"
+              >
+                한 번 더 읽기
+              </button>
+            </div>
+          )}
+
+          {error && (
+            <div className="rounded-2xl bg-red-50 border-2 border-red-300 p-4 flex items-start justify-between gap-3">
+              <p className="text-red-600 font-bold text-base leading-snug">{error}</p>
+              <button
+                onClick={() => setError(null)}
+                className="text-red-400 font-bold text-lg leading-none px-1"
+                aria-label="닫기"
+              >
+                ✕
+              </button>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {showCompleteModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-6">
