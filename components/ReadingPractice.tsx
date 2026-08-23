@@ -15,10 +15,12 @@ export default function ReadingPractice({
   sentences,
   onNextPage,
   hasNextPage,
+  onGoToQuiz,
 }: {
   sentences: string[];
   onNextPage?: () => void;
   hasNextPage?: boolean;
+  onGoToQuiz?: () => void;
 }) {
   const [index, setIndex] = useState(0);
   const [readSet, setReadSet] = useState<Record<number, true>>({});
@@ -351,7 +353,7 @@ export default function ReadingPractice({
               3번 다 읽기 완료!
             </p>
             <p className="text-gray-600 text-center">
-              {hasNextPage ? "다음 페이지를 읽어볼까요?" : "이 챕터를 다 읽었어요."}
+              {hasNextPage ? "다음 페이지를 읽어볼까요?" : "이제 퀴즈를 풀어볼까요?"}
             </p>
             <div className="w-full flex flex-col gap-2">
               {hasNextPage && onNextPage && (
@@ -365,15 +367,27 @@ export default function ReadingPractice({
                   다음 페이지
                 </button>
               )}
-              <button
-                onClick={() => {
-                  setShowCompleteModal(false);
-                  restartRound();
-                }}
-                className="w-full py-3 rounded-full bg-gray-100 text-gray-700 font-bold active:scale-95 transition"
-              >
-                이 페이지 다시 읽기
-              </button>
+              {!hasNextPage && onGoToQuiz ? (
+                <button
+                  onClick={() => {
+                    setShowCompleteModal(false);
+                    onGoToQuiz();
+                  }}
+                  className="w-full py-3 rounded-full bg-sky-600 text-white font-bold active:scale-95 transition"
+                >
+                  퀴즈 풀러가기
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setShowCompleteModal(false);
+                    restartRound();
+                  }}
+                  className="w-full py-3 rounded-full bg-gray-100 text-gray-700 font-bold active:scale-95 transition"
+                >
+                  이 페이지 다시 읽기
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -381,4 +395,3 @@ export default function ReadingPractice({
     </div>
   );
 }
-
