@@ -32,6 +32,7 @@ export default function ReadingPractice({
   const [roundsDone, setRoundsDone] = useState(0);
   const [showRoundBanner, setShowRoundBanner] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [pausedForListen, setPausedForListen] = useState(false);
 
   const streamRef = useRef<MediaStream | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -52,6 +53,7 @@ export default function ReadingPractice({
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       streamRef.current?.getTracks().forEach((t) => t.stop());
       audioCtxRef.current?.close().catch(() => {});
+      window.speechSynthesis?.cancel();
     };
   }, []);
 
@@ -60,6 +62,23 @@ export default function ReadingPractice({
     const t = setTimeout(() => setShowRoundBanner(false), 2500);
     return () => clearTimeout(t);
   }, [showRoundBanner]);
+
+  function minDurationFor(sentence: string) {
+    const wordCount = sentence.trim().split(/\s+/).filter(Boolean).length;
+    // 문장이 길수록 최소 녹음 시간을 늘려서, 중간에 숨 쉬려고 잠깐 멈춘 걸
+    // "다 읽었다"고 착각하지 않게 함
+    return Math.max(1500, wordCount * 380);
+  }
+
+  function pauseRecordingForListen() {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    audioCtxRef.current?.close().catch(() => {});
+    audioCtxRef.current = null;
+    setRecording(false);
+    setPausedForListen(true);
+  }
 
   function speak(text: string, rate: number, onEnd?: () => void) {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
@@ -73,12 +92,21 @@ export default function ReadingPractice({
   function speakSentence() {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
-    speak(sentences[index], slowMode ? SLOW_RATE : NORMAL_RATE);
+    const wasRecording = recording;
+    if (wasRecording) pauseRecordingForListen();
+    speak(sentences[index], slowMode ? SLOW_RATE : NORMAL_RATE, () => {
+      if (wasRecording) {
+        setPausedForListen(false);
+        startListening();
+      }
+    });
   }
 
   function speakAll() {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
+    const wasRecording = recording;
+    if (wasRecording) pauseRecordingForListen();
     setPlayingAll(true);
     const rate = slowMode ? SLOW_RATE : NORMAL_RATE;
 
@@ -86,6 +114,10 @@ export default function ReadingPractice({
       if (i >= sentences.length) {
         setPlayingAll(false);
         setPlayingIndex(null);
+        if (wasRecording) {
+          setPausedForListen(false);
+          startListening();
+        }
         return;
       }
       setPlayingIndex(i);
@@ -129,6 +161,7 @@ export default function ReadingPractice({
     const buffer = new Float32Array(analyser.fftSize);
 
     const startedAt = Date.now();
+    const minDuration = minDurationFor(sentences[indexRef.current] ?? "");
     let lastSoundAt = Date.now();
     let heardAnySound = false;
 
@@ -184,7 +217,10 @@ export default function ReadingPractice({
         heardAnySound = true;
       }
 
-      if ((heardAnySound && now - lastSoundAt > SILENCE_MS) || now - startedAt > MAX_MS) {
+      const elapsed = now - startedAt;
+      const silentEnough = heardAnySound && now - lastSoundAt > SILENCE_MS;
+
+      if ((silentEnough && elapsed >= minDuration) || elapsed > MAX_MS) {
         finish();
         return;
       }
@@ -207,6 +243,7 @@ export default function ReadingPractice({
     audioCtxRef.current?.close().catch(() => {});
     audioCtxRef.current = null;
     setRecording(false);
+    setPausedForListen(false);
   }
 
   function restartRound() {
@@ -228,7 +265,7 @@ export default function ReadingPractice({
       {showRoundBanner && (
         <div className="absolute inset-x-0 -top-2 flex justify-center z-10 pointer-events-none">
           <div className="bg-sky-600 text-white text-xl font-bold px-6 py-2 rounded-full shadow-lg animate-bounce">
-            {roundsDone}번째 완독!
+            {roundsDone}번 읽기 완료!
           </div>
         </div>
       )}
@@ -240,7 +277,7 @@ export default function ReadingPractice({
       </div>
 
       <div className="flex flex-col items-center gap-1">
-        <p className="text-center text-sm text-gray-500 font-bold">
+        <p className="text-center text-lg text-gray-700 font-bold">
           이 페이지를 3번 읽어보세요.
         </p>
         <p className="text-sky-600 font-bold text-sm">{roundsDone}번 읽음</p>
@@ -285,14 +322,14 @@ export default function ReadingPractice({
       <div className="flex gap-2">
         <button
           onClick={speakSentence}
-          disabled={playingAll || recording}
+          disabled={playingAll || pausedForListen}
           className="flex-1 py-3 rounded-full bg-gray-700 text-white font-bold active:scale-95 transition disabled:opacity-50"
         >
           이 문장 듣기
         </button>
         <button
           onClick={playingAll ? stopAll : speakAll}
-          disabled={recording}
+          disabled={pausedForListen}
           className="flex-1 py-3 rounded-full bg-gray-500 text-white font-bold active:scale-95 transition disabled:opacity-50"
         >
           {playingAll ? "멈추기" : "전체 듣기"}
@@ -301,12 +338,14 @@ export default function ReadingPractice({
 
       <button
         onClick={recording ? stopAuto : startFromCurrent}
-        disabled={playingAll || (pageDone && !recording)}
+        disabled={playingAll || pausedForListen || (pageDone && !recording)}
         className={`w-full py-4 rounded-full text-white text-xl font-bold disabled:opacity-50 active:scale-95 transition ${
           recording ? "bg-sky-700 animate-pulse" : "bg-sky-600"
         }`}
       >
-        {recording
+        {pausedForListen
+          ? "듣는 중... 곧 이어서 시작해요"
+          : recording
           ? "듣고 있어요... (눌러서 멈추기)"
           : pageDone
           ? "이 페이지 다 읽었어요"
@@ -315,7 +354,7 @@ export default function ReadingPractice({
 
       {recording && (
         <p className="text-center text-sm text-sky-600 font-bold">
-          하이라이트된 문장을 읽어주세요. 다 읽고 잠깐 멈추면 다음 문장으로 넘어가요.
+          하이라이트된 문장을 읽어주세요. 읽는 중에 듣기 버튼을 눌러도 돼요 — 다 들으면 이어서 다시 녹음해요.
         </p>
       )}
 
