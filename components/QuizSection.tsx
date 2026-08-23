@@ -127,14 +127,14 @@ export default function QuizSection({ passage }: { passage: string }) {
   if (!started) {
     return (
       <div className="w-full max-w-md flex flex-col items-center gap-4 py-10">
-        <p className="font-title text-lg text-gray-700 text-center">
-          방금 읽은 문장과 단어를 다시 복습해봐요!
+        <p className="text-lg text-gray-700 text-center">
+          방금 읽은 문장과 단어를 다시 복습해봐요.
         </p>
         <button
           onClick={startQuiz}
-          className="w-full py-3 rounded-full bg-green-600 text-white font-bold text-lg active:scale-95 transition"
+          className="w-full py-3 rounded-full bg-sky-600 text-white font-bold text-lg active:scale-95 transition"
         >
-          🧠 복습 퀴즈 시작하기
+          복습 퀴즈 시작하기
         </button>
       </div>
     );
@@ -143,7 +143,6 @@ export default function QuizSection({ passage }: { passage: string }) {
   if (loading) {
     return (
       <div className="w-full max-w-md flex flex-col items-center gap-3 py-10">
-        <div className="text-4xl animate-bounce">🧠</div>
         <p className="text-gray-500">퀴즈를 만드는 중이에요...</p>
       </div>
     );
@@ -157,7 +156,7 @@ export default function QuizSection({ passage }: { passage: string }) {
         </div>
         <button
           onClick={startQuiz}
-          className="w-full py-3 rounded-full bg-green-600 text-white font-bold"
+          className="w-full py-3 rounded-full bg-sky-600 text-white font-bold"
         >
           다시 시도하기
         </button>
@@ -168,13 +167,12 @@ export default function QuizSection({ passage }: { passage: string }) {
   if (finished) {
     return (
       <div className="w-full max-w-md flex flex-col items-center gap-4 py-10">
-        <div className="text-5xl">🎉</div>
-        <p className="font-title text-xl font-bold text-green-700">
-          {items.length}문제 중 {score}문제를 맞혔어요!
+        <p className="text-xl font-bold text-gray-800">
+          {items.length}문제 중 {score}문제를 맞혔어요
         </p>
         <button
           onClick={startQuiz}
-          className="w-full py-3 rounded-full bg-green-600 text-white font-bold"
+          className="w-full py-3 rounded-full bg-sky-600 text-white font-bold"
         >
           다시 풀어보기
         </button>
@@ -188,10 +186,10 @@ export default function QuizSection({ passage }: { passage: string }) {
     <div className="w-full max-w-md flex flex-col gap-4">
       <div className="flex items-center justify-between text-sm text-gray-500">
         <span>문제 {index + 1} / {items.length}</span>
-        <span className="font-bold text-green-600">맞은 개수 {score}</span>
+        <span className="font-bold text-sky-600">맞은 개수 {score}</span>
       </div>
 
-      <div className="rounded-2xl bg-green-50 p-5 flex flex-col gap-4">
+      <div className="rounded-2xl bg-gray-50 p-5 flex flex-col gap-4">
         {/* 유형별 안내 문구 (한국어 고정) */}
         <p className="text-center text-gray-500 text-sm font-bold">
           {current.kind === "fill_blank" && "빈칸에 들어갈 알맞은 단어를 골라보세요."}
@@ -212,9 +210,9 @@ export default function QuizSection({ passage }: { passage: string }) {
           <div className="flex justify-center">
             <button
               onClick={() => speak(current.sourceSentence)}
-              className="px-6 py-3 rounded-full bg-blue-500 text-white font-bold text-lg active:scale-95 transition"
+              className="px-6 py-3 rounded-full bg-gray-700 text-white font-bold text-lg active:scale-95 transition"
             >
-              🔊 다시 듣기
+              다시 듣기
             </button>
           </div>
         )}
@@ -227,8 +225,8 @@ export default function QuizSection({ passage }: { passage: string }) {
             {(current.shuffledOptions ?? current.options ?? []).map((opt) => {
               const isSelected = selected === opt;
               const isAnswer = normalize(opt) === normalize(current.answer ?? "");
-              let style = "bg-white border-2 border-green-200 text-gray-700";
-              if (checked && isAnswer) style = "bg-green-100 border-2 border-green-500 text-green-700 font-bold";
+              let style = "bg-white border-2 border-gray-200 text-gray-700";
+              if (checked && isAnswer) style = "bg-sky-50 border-2 border-sky-500 text-sky-700 font-bold";
               else if (checked && isSelected && !isAnswer) style = "bg-red-50 border-2 border-red-400 text-red-500";
 
               return (
@@ -248,7 +246,7 @@ export default function QuizSection({ passage }: { passage: string }) {
         {/* order_words: 단어 조립 영역 */}
         {current.kind === "order_words" && (
           <div className="flex flex-col gap-3">
-            <div className="min-h-[52px] rounded-xl bg-white border-2 border-dashed border-green-300 p-3 flex flex-wrap gap-2 items-center">
+            <div className="min-h-[52px] rounded-xl bg-white border-2 border-dashed border-gray-300 p-3 flex flex-wrap gap-2 items-center">
               {builtWords.length === 0 && (
                 <span className="text-gray-300 text-sm">여기에 단어를 순서대로 모아주세요</span>
               )}
@@ -256,7 +254,7 @@ export default function QuizSection({ passage }: { passage: string }) {
                 <button
                   key={`${w}-${i}`}
                   onClick={() => !checked && tapWord(w, true, i)}
-                  className="px-3 py-1.5 rounded-lg bg-green-600 text-white font-bold"
+                  className="px-3 py-1.5 rounded-lg bg-sky-600 text-white font-bold"
                 >
                   {w}
                 </button>
@@ -276,7 +274,7 @@ export default function QuizSection({ passage }: { passage: string }) {
                     key={`${w}-${i}`}
                     onClick={() => tapWord(w, false, i)}
                     disabled={checked}
-                    className="px-3 py-1.5 rounded-lg bg-white border-2 border-green-300 text-gray-700 font-bold"
+                    className="px-3 py-1.5 rounded-lg bg-white border-2 border-gray-300 text-gray-700 font-bold"
                   >
                     {w}
                   </button>
@@ -288,7 +286,7 @@ export default function QuizSection({ passage }: { passage: string }) {
               <button
                 onClick={checkOrder}
                 disabled={builtWords.length === 0}
-                className="w-full py-2 rounded-full bg-green-600 text-white font-bold disabled:opacity-40"
+                className="w-full py-2 rounded-full bg-sky-600 text-white font-bold disabled:opacity-40"
               >
                 정답 확인
               </button>
@@ -299,21 +297,21 @@ export default function QuizSection({ passage }: { passage: string }) {
         {/* 정답 확인 후: 결과 + 원문 문장 다시 보기/듣기 */}
         {checked && (
           <div className="rounded-xl bg-white p-4 flex flex-col gap-2 items-center">
-            <p className={correct ? "text-green-600 font-bold" : "text-red-500 font-bold"}>
-              {correct ? "🎉 맞았어요!" : "다시 한 번 확인해봐요"}
+            <p className={correct ? "text-sky-600 font-bold" : "text-red-500 font-bold"}>
+              {correct ? "맞았어요!" : "다시 한 번 확인해봐요"}
             </p>
             <p className="text-lg font-semibold text-gray-800 text-center">
               {current.sourceSentence}
             </p>
             <button
               onClick={() => speak(current.sourceSentence)}
-              className="px-4 py-2 rounded-full bg-blue-500 text-white font-bold text-sm"
+              className="px-4 py-2 rounded-full bg-gray-700 text-white font-bold text-sm"
             >
-              🔊 문장 듣기
+              문장 듣기
             </button>
             <button
               onClick={nextQuestion}
-              className="w-full mt-2 py-2 rounded-full bg-green-600 text-white font-bold"
+              className="w-full mt-2 py-2 rounded-full bg-sky-600 text-white font-bold"
             >
               {index + 1 >= items.length ? "결과 보기" : "다음 문제"}
             </button>
@@ -323,3 +321,4 @@ export default function QuizSection({ passage }: { passage: string }) {
     </div>
   );
 }
+
