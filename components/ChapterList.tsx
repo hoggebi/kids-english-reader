@@ -43,7 +43,7 @@ export default function ChapterList({
   }
 
   return (
-    <div className="w-full max-w-md flex flex-col gap-4">
+    <div className="w-full max-w-4xl flex flex-col gap-4">
       <button
         onClick={onAdd}
         className="w-full py-3 rounded-full bg-sky-600 text-white font-bold text-lg active:scale-95 transition"
@@ -65,7 +65,7 @@ export default function ChapterList({
           아직 만든 챕터가 없어요. 위 버튼으로 시작해보세요.
         </p>
       ) : (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:gap-4">
           {chapters.map((c, i) => {
             const done = isChapterDone(c.id);
             const isEditingTitle = editingTitleId === c.id;
