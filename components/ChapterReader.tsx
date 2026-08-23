@@ -41,7 +41,7 @@ export default function ChapterReader({
   // 챕터 완료 축하 화면 (여우 성장 표시)
   if (celebration) {
     return (
-      <div className="w-full max-w-md flex flex-col items-center gap-5 py-8">
+      <div className="w-full max-w-4xl flex flex-col items-center gap-5 py-8">
         <p className="text-2xl font-bold text-sky-600 text-center">
           오늘의 공부 완료!
         </p>
@@ -79,7 +79,7 @@ export default function ChapterReader({
   }
 
   return (
-    <div className="w-full max-w-md flex flex-col gap-4">
+    <div className="w-full max-w-4xl flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <button onClick={onBack} className="text-sm text-gray-400 underline">
           챕터 목록
