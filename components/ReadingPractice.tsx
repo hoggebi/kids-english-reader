@@ -207,7 +207,7 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
     <div className="w-full max-w-md flex flex-col gap-4 relative">
       {showRoundBanner && (
         <div className="absolute inset-x-0 -top-2 flex justify-center z-10 pointer-events-none">
-          <div className="bg-sky-600 text-white font-title text-xl px-6 py-2 rounded-full shadow-lg animate-bounce">
+          <div className="bg-sky-600 text-white text-xl font-bold px-6 py-2 rounded-full shadow-lg animate-bounce">
             {roundsDone}번째 완독!
           </div>
         </div>
@@ -222,6 +222,14 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
           <span className="text-sm text-sky-600 font-bold">번 읽음</span>
         </div>
       </div>
+
+      <p className="text-center text-sm text-gray-500">
+        이 문장을 3번 따라 읽어보세요.
+      </p>
+
+      <p className="text-center text-sm text-gray-500 font-bold">
+        한 문장을 3번씩 따라 읽어보세요.
+      </p>
 
       <div
         ref={passageRef}
@@ -279,7 +287,7 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
       <button
         onClick={recording ? stopAuto : startFromCurrent}
         disabled={playingAll || (pageDone && !recording)}
-        className={`w-full py-4 rounded-full text-white font-title text-xl disabled:opacity-50 active:scale-95 transition ${
+        className={`w-full py-4 rounded-full text-white text-xl font-bold disabled:opacity-50 active:scale-95 transition ${
           recording ? "bg-sky-700 animate-pulse" : "bg-sky-600"
         }`}
       >
@@ -298,7 +306,7 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
 
       {pageDone && !recording && (
         <div className="rounded-2xl bg-gray-50 border-2 border-gray-200 p-4 flex flex-col items-center gap-3">
-          <p className="font-title text-lg text-gray-800">
+          <p className="text-lg font-bold text-gray-800">
             이 페이지를 {roundsDone}번 읽었어요
           </p>
           <button
@@ -325,4 +333,3 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
     </div>
   );
 }
-
