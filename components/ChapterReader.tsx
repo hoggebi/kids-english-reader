@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import type { Chapter } from "@/lib/types";
+import { completeChapter, MAX_STAGE, type PetState } from "@/lib/pet";
 import ReadingPractice from "./ReadingPractice";
 import QuizSection from "./QuizSection";
+import PetDisplay from "./PetDisplay";
 
 export default function ChapterReader({
   chapter,
@@ -14,8 +16,67 @@ export default function ChapterReader({
 }) {
   const [pageIndex, setPageIndex] = useState(0);
   const [mode, setMode] = useState<"read" | "quiz">("read");
+  const [celebration, setCelebration] = useState<{
+    pet: PetState;
+    grew: boolean;
+    graduated: boolean;
+    score: number;
+    total: number;
+  } | null>(null);
+
   const page = chapter.pages[pageIndex];
   const fullPassage = chapter.pages.flatMap((p) => p.sentences).join(" ");
+
+  function handleQuizDone(result: { score: number; total: number }) {
+    const grow = completeChapter(chapter.id);
+    setCelebration({
+      pet: grow.pet,
+      grew: grow.grew,
+      graduated: grow.graduated,
+      score: result.score,
+      total: result.total,
+    });
+  }
+
+  // 챕터 완료 축하 화면 (여우 성장 표시)
+  if (celebration) {
+    return (
+      <div className="w-full max-w-md flex flex-col items-center gap-5 py-8">
+        <p className="text-2xl font-bold text-sky-600 text-center">
+          오늘의 공부 완료!
+        </p>
+        <p className="text-gray-600 text-center">
+          {celebration.total}문제 중 {celebration.score}문제를 맞혔어요
+        </p>
+
+        {celebration.graduated && (
+          <div className="w-full rounded-2xl bg-sky-50 border-2 border-sky-200 p-4 text-center">
+            <p className="font-bold text-sky-700">
+              {MAX_STAGE}단계를 모두 키웠어요!
+            </p>
+            <p className="text-sm text-gray-600 mt-1">
+              새로운 친구가 찾아왔어요.
+            </p>
+          </div>
+        )}
+
+        {!celebration.graduated && celebration.grew && (
+          <p className="text-sm text-sky-600 font-bold">
+            친구가 한 단계 자랐어요!
+          </p>
+        )}
+
+        <PetDisplay pet={celebration.pet} size="lg" justGrew={celebration.grew} />
+
+        <button
+          onClick={onBack}
+          className="w-full py-3 rounded-full bg-sky-600 text-white font-bold active:scale-95 transition"
+        >
+          챕터 목록으로
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-md flex flex-col gap-4">
@@ -76,7 +137,9 @@ export default function ChapterReader({
         </>
       )}
 
-      {mode === "quiz" && <QuizSection passage={fullPassage} />}
+      {mode === "quiz" && (
+        <QuizSection passage={fullPassage} onAllDone={handleQuizDone} />
+      )}
     </div>
   );
 }
