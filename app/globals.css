@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 @font-face {
-  font-family: 'KotraHope';
-  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2110@1.0/KOTRAHOPE.woff2') format('woff2');
+  font-family: 'JejuStoneWall';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2210-EF@1.0/EF_jejudoldam.woff2') format('woff2');
   font-weight: normal;
   font-display: swap;
 }
@@ -31,7 +31,7 @@
   --color-foreground: var(--foreground);
   --font-sans: 'Pretendard', var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --font-title: 'KotraHope', 'Pretendard', sans-serif;
+  --font-title: 'JejuStoneWall', 'Pretendard', sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
