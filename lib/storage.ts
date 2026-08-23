@@ -32,3 +32,11 @@ export function deleteChapter(id: string) {
   saveChapters(chapters);
   return chapters;
 }
+
+export function renameChapter(id: string, newTitle: string) {
+  const chapters = loadChapters().map((c) =>
+    c.id === id ? { ...c, title: newTitle } : c
+  );
+  saveChapters(chapters);
+  return chapters;
+}
