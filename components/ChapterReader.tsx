@@ -21,30 +21,30 @@ export default function ChapterReader({
     <div className="w-full max-w-md flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <button onClick={onBack} className="text-sm text-gray-400 underline">
-          ← 챕터 목록
+          챕터 목록
         </button>
-        <h2 className="font-title text-lg font-bold text-gray-700">{chapter.title}</h2>
+        <h2 className="text-lg font-bold text-gray-800">{chapter.title}</h2>
         <span className="text-xs text-gray-400">
           {pageIndex + 1}/{chapter.pages.length}쪽
         </span>
       </div>
 
-      <div className="w-full flex rounded-full bg-white shadow p-1">
+      <div className="w-full flex rounded-full bg-gray-100 p-1">
         <button
           onClick={() => setMode("read")}
           className={`flex-1 py-2 rounded-full font-bold transition ${
-            mode === "read" ? "bg-green-600 text-white" : "text-gray-500"
+            mode === "read" ? "bg-sky-600 text-white" : "text-gray-500"
           }`}
         >
-          🗣️ 따라 읽기
+          따라 읽기
         </button>
         <button
           onClick={() => setMode("quiz")}
           className={`flex-1 py-2 rounded-full font-bold transition ${
-            mode === "quiz" ? "bg-green-800 text-white" : "text-gray-500"
+            mode === "quiz" ? "bg-gray-800 text-white" : "text-gray-500"
           }`}
         >
-          🧠 챕터 전체 퀴즈
+          챕터 전체 퀴즈
         </button>
       </div>
 
@@ -57,14 +57,14 @@ export default function ChapterReader({
               disabled={pageIndex === 0}
               className="px-4 py-2 rounded-full bg-gray-100 disabled:opacity-40"
             >
-              ← 이전 쪽
+              이전 쪽
             </button>
             <button
               onClick={() => setPageIndex((i) => Math.min(chapter.pages.length - 1, i + 1))}
               disabled={pageIndex === chapter.pages.length - 1}
               className="px-4 py-2 rounded-full bg-gray-100 disabled:opacity-40"
             >
-              다음 쪽 →
+              다음 쪽
             </button>
           </div>
         </>
