@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Chapter } from "@/lib/types";
 import { completeChapter, MAX_STAGE, type PetState } from "@/lib/pet";
+import { autoPush } from "@/lib/sync";
 import ReadingPractice from "./ReadingPractice";
 import QuizSection from "./QuizSection";
 import PetDisplay from "./PetDisplay";
@@ -36,6 +37,7 @@ export default function ChapterReader({
       score: result.score,
       total: result.total,
     });
+    autoPush();
   }
 
   // 챕터 완료 축하 화면 (여우 성장 표시)
