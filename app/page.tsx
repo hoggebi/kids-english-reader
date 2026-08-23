@@ -35,13 +35,13 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col items-center px-4 py-8 gap-6">
-      <header className="w-full max-w-md flex items-center justify-between">
-        <h1
-          className="font-title text-2xl font-extrabold text-green-600 cursor-pointer"
-          onClick={() => setView("list")}
-        >
-          📚 리틀 리더
-        </h1>
+      <header
+        className="w-full max-w-md flex flex-col items-center gap-2 cursor-pointer"
+        onClick={() => setView("list")}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/character.png" alt="캐릭터" className="w-16 h-16 object-contain" />
+        <h1 className="font-title text-black text-4xl text-center">오늘도 호 English</h1>
       </header>
 
       {view === "list" && (
