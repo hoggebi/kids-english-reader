@@ -42,11 +42,15 @@ export default function QuizSection({ passage }: { passage: string }) {
   const [score, setScore] = useState(0);
   const [finished, setFinished] = useState(false);
   const [started, setStarted] = useState(false);
+  const [setNumber, setSetNumber] = useState(1);
+  const [totalScore, setTotalScore] = useState(0);
+  const [totalQuestions, setTotalQuestions] = useState(0);
+  const [allSetsDone, setAllSetsDone] = useState(false);
 
+  const TOTAL_SETS = 2;
   const current = items[index];
 
-  async function startQuiz() {
-    setStarted(true);
+  async function fetchSet() {
     setLoading(true);
     setError(null);
     setFinished(false);
@@ -79,6 +83,28 @@ export default function QuizSection({ passage }: { passage: string }) {
     } finally {
       setLoading(false);
     }
+  }
+
+  function startQuiz() {
+    setStarted(true);
+    setSetNumber(1);
+    setTotalScore(0);
+    setTotalQuestions(0);
+    setAllSetsDone(false);
+    fetchSet();
+  }
+
+  function startNextSet() {
+    setTotalScore((s) => s + score);
+    setTotalQuestions((q) => q + items.length);
+    setSetNumber((n) => n + 1);
+    fetchSet();
+  }
+
+  function finishAllSets() {
+    setTotalScore((s) => s + score);
+    setTotalQuestions((q) => q + items.length);
+    setAllSetsDone(true);
   }
 
   function resetQuestionState() {
@@ -165,17 +191,49 @@ export default function QuizSection({ passage }: { passage: string }) {
   }
 
   if (finished) {
+    const isLastSet = setNumber >= TOTAL_SETS;
     return (
-      <div className="w-full max-w-md flex flex-col items-center gap-4 py-10">
+      <div className="w-full max-w-md flex flex-col items-center gap-4 py-10 relative">
         <p className="text-xl font-bold text-gray-800">
-          {items.length}문제 중 {score}문제를 맞혔어요
+          {setNumber}세트 완료! {items.length}문제 중 {score}문제를 맞혔어요
         </p>
-        <button
-          onClick={startQuiz}
-          className="w-full py-3 rounded-full bg-sky-600 text-white font-bold"
-        >
-          다시 풀어보기
-        </button>
+        {!isLastSet ? (
+          <button
+            onClick={startNextSet}
+            className="w-full py-3 rounded-full bg-sky-600 text-white font-bold"
+          >
+            {setNumber + 1}세트 이어서 풀기
+          </button>
+        ) : (
+          <button
+            onClick={finishAllSets}
+            className="w-full py-3 rounded-full bg-sky-600 text-white font-bold"
+          >
+            결과 확인하기
+          </button>
+        )}
+
+        {allSetsDone && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-6">
+            <div className="bg-white rounded-3xl p-8 w-full max-w-sm flex flex-col items-center gap-3 shadow-xl border-4 border-sky-100">
+              <p className="text-2xl font-bold text-sky-600 text-center">
+                오늘의 공부 완료!
+              </p>
+              <p className="text-gray-600 text-center">
+                {totalQuestions}문제 중 {totalScore}문제를 맞혔어요
+              </p>
+              <button
+                onClick={() => {
+                  setStarted(false);
+                  setAllSetsDone(false);
+                }}
+                className="w-full mt-2 py-3 rounded-full bg-sky-600 text-white font-bold active:scale-95 transition"
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -185,7 +243,7 @@ export default function QuizSection({ passage }: { passage: string }) {
   return (
     <div className="w-full max-w-md flex flex-col gap-4">
       <div className="flex items-center justify-between text-sm text-gray-500">
-        <span>문제 {index + 1} / {items.length}</span>
+        <span>{setNumber}세트 · 문제 {index + 1} / {items.length}</span>
         <span className="font-bold text-sky-600">맞은 개수 {score}</span>
       </div>
 
@@ -321,4 +379,3 @@ export default function QuizSection({ passage }: { passage: string }) {
     </div>
   );
 }
-
