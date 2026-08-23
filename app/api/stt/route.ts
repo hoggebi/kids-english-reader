@@ -35,7 +35,7 @@ JSON만 응답: {"transcript": "..."}`,
       config: {
         responseMimeType: "application/json",
         thinkingConfig: {
-          thinkingBudget: 0,
+          thinkingLevel: "minimal",
         },
       },
     });
