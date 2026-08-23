@@ -20,8 +20,9 @@ export function saveChapters(chapters: Chapter[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(chapters));
 }
 
+// 새 챕터는 맨 아래에 쌓이도록 추가 (오래된 챕터가 위에 보임)
 export function addChapter(chapter: Chapter) {
-  const chapters = [chapter, ...loadChapters()];
+  const chapters = [...loadChapters(), chapter];
   saveChapters(chapters);
   return chapters;
 }
