@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { scorePronunciation } from "@/lib/pronunciation";
 
 const NORMAL_RATE = 1;
 const SLOW_RATE = 0.6;
@@ -11,13 +10,10 @@ const SILENCE_MS = 900;
 const MAX_MS = 15000;
 const SILENCE_THRESHOLD = 0.015;
 
-type Attempt = { heard: string; score: number };
-
 export default function ReadingPractice({ sentences }: { sentences: string[] }) {
   const [index, setIndex] = useState(0);
-  const [attempts, setAttempts] = useState<Record<number, Attempt>>({});
+  const [readSet, setReadSet] = useState<Record<number, true>>({});
   const [recording, setRecording] = useState(false);
-  const [checking, setChecking] = useState(false);
   const [slowMode, setSlowMode] = useState(false);
   const [playingAll, setPlayingAll] = useState(false);
   const [playingIndex, setPlayingIndex] = useState<number | null>(null);
@@ -25,8 +21,6 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
   const [roundsDone, setRoundsDone] = useState(0);
   const [showRoundBanner, setShowRoundBanner] = useState(false);
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -38,9 +32,7 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
     indexRef.current = index;
   }, [index]);
 
-  const sentence = sentences[index];
-  const busy = recording || checking;
-  const pageDone = sentences.every((_, i) => attempts[i] !== undefined);
+  const pageDone = sentences.every((_, i) => readSet[i]);
 
   useEffect(() => {
     return () => {
@@ -69,7 +61,7 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
   function speakSentence() {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
-    speak(sentence, slowMode ? SLOW_RATE : NORMAL_RATE);
+    speak(sentences[index], slowMode ? SLOW_RATE : NORMAL_RATE);
   }
 
   function speakAll() {
@@ -97,9 +89,9 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
     setPlayingIndex(null);
   }
 
+  // AI 호출 없이, 마이크 소리 크기만 감시해서 "읽었는지"만 확인
   async function startListening() {
     setError(null);
-    audioChunksRef.current = [];
 
     let stream: MediaStream;
     try {
@@ -111,34 +103,6 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
     }
 
     streamRef.current = stream;
-    const recorder = new MediaRecorder(stream);
-    mediaRecorderRef.current = recorder;
-
-    recorder.ondataavailable = (e) => {
-      if (e.data.size > 0) audioChunksRef.current.push(e.data);
-    };
-
-    recorder.onstop = async () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-      audioCtxRef.current?.close().catch(() => {});
-      audioCtxRef.current = null;
-
-      const blob = new Blob(audioChunksRef.current, {
-        type: recorder.mimeType || "audio/webm",
-      });
-
-      if (blob.size === 0) {
-        setError("녹음된 소리가 없어요. 마이크를 확인하고 다시 시도해주세요.");
-        setChecking(false);
-        autoContinueRef.current = false;
-        return;
-      }
-      await transcribe(blob);
-    };
-
-    recorder.start();
     setRecording(true);
 
     const AudioCtx =
@@ -156,6 +120,39 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
     let lastSoundAt = Date.now();
     let heardAnySound = false;
 
+    function finish() {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      audioCtxRef.current?.close().catch(() => {});
+      audioCtxRef.current = null;
+      setRecording(false);
+
+      const targetIndex = indexRef.current;
+
+      if (!heardAnySound) {
+        setError("목소리가 안 들렸어요. 조금 더 크게 읽어주세요.");
+        autoContinueRef.current = false;
+        return;
+      }
+
+      setReadSet((prev) => ({ ...prev, [targetIndex]: true }));
+
+      const nextIndex = targetIndex + 1;
+      if (nextIndex < sentences.length) {
+        goToSentence(nextIndex);
+        if (autoContinueRef.current) {
+          setTimeout(() => {
+            if (autoContinueRef.current) startListening();
+          }, 400);
+        }
+      } else {
+        autoContinueRef.current = false;
+        setRoundsDone((r) => r + 1);
+        setShowRoundBanner(true);
+      }
+    }
+
     function tick() {
       analyser.getFloatTimeDomainData(buffer);
       let sum = 0;
@@ -169,80 +166,13 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
       }
 
       if ((heardAnySound && now - lastSoundAt > SILENCE_MS) || now - startedAt > MAX_MS) {
-        finishListening();
+        finish();
         return;
       }
       rafRef.current = requestAnimationFrame(tick);
     }
 
     rafRef.current = requestAnimationFrame(tick);
-  }
-
-  function finishListening() {
-    const recorder = mediaRecorderRef.current;
-    if (recorder && recorder.state !== "inactive") {
-      setRecording(false);
-      setChecking(true);
-      recorder.stop();
-    }
-  }
-
-  async function transcribe(blob: Blob) {
-    const targetIndex = indexRef.current;
-    const targetSentence = sentences[targetIndex];
-    try {
-      const base64: string = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve((reader.result as string).split(",")[1]);
-        reader.onerror = () => reject(new Error("녹음 파일을 읽지 못했어요."));
-        reader.readAsDataURL(blob);
-      });
-
-      const res = await fetch("/api/stt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          audioBase64: base64,
-          mimeType: blob.type || "audio/webm",
-          expected: targetSentence,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "목소리를 인식하지 못했어요.");
-
-      const heard = (data.transcript ?? "").trim();
-      if (!heard) {
-        setError("목소리가 들리지 않았어요. 조금 더 크게 읽어주세요.");
-        setChecking(false);
-        autoContinueRef.current = false;
-        return;
-      }
-
-      const score = scorePronunciation(targetSentence, heard);
-      setAttempts((prev) => ({ ...prev, [targetIndex]: { heard, score } }));
-      setError(null);
-      setChecking(false);
-
-      // 한 문장 끝나면 바로 다음 문장으로 이어서 읽기
-      const nextIndex = targetIndex + 1;
-      if (nextIndex < sentences.length) {
-        goToSentence(nextIndex);
-        if (autoContinueRef.current) {
-          setTimeout(() => {
-            if (autoContinueRef.current) startListening();
-          }, 500);
-        }
-      } else {
-        autoContinueRef.current = false;
-        setRoundsDone((r) => r + 1);
-        setShowRoundBanner(true);
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "알 수 없는 오류가 발생했어요.");
-      setChecking(false);
-      autoContinueRef.current = false;
-    }
   }
 
   function startFromCurrent() {
@@ -252,11 +182,16 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
 
   function stopAuto() {
     autoContinueRef.current = false;
-    finishListening();
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    audioCtxRef.current?.close().catch(() => {});
+    audioCtxRef.current = null;
+    setRecording(false);
   }
 
   function restartRound() {
-    setAttempts({});
+    setReadSet({});
     setIndex(0);
     setError(null);
     setShowRoundBanner(false);
@@ -288,28 +223,25 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
         </div>
       </div>
 
-      {/* 읽는 중인 문장은 분홍색, 다 읽은 문장은 초록색 */}
       <div
         ref={passageRef}
         className="rounded-2xl bg-gray-50 p-5 max-h-72 overflow-y-auto leading-relaxed text-lg"
       >
         {sentences.map((s, i) => {
-          const attempt = attempts[i];
           const isCurrent = i === index;
           const isPlayingNow = i === playingIndex;
 
           let colorClass = "text-gray-400";
           if (isPlayingNow) colorClass = "text-indigo-600 font-bold";
           else if (isCurrent && recording) colorClass = "text-pink-500 font-bold";
-          else if (isCurrent && checking) colorClass = "text-yellow-600 font-bold";
           else if (isCurrent) colorClass = "text-gray-800 font-bold underline decoration-pink-300";
-          else if (attempt) colorClass = "text-green-600";
+          else if (readSet[i]) colorClass = "text-green-600";
 
           return (
             <span
               key={i}
               data-sentence-idx={i}
-              onClick={() => !playingAll && !busy && goToSentence(i)}
+              onClick={() => !playingAll && !recording && goToSentence(i)}
               className={`cursor-pointer transition-colors duration-200 rounded px-0.5 ${colorClass}`}
             >
               {s}{" "}
@@ -330,14 +262,14 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
       <div className="flex gap-2">
         <button
           onClick={speakSentence}
-          disabled={playingAll || busy}
+          disabled={playingAll || recording}
           className="flex-1 py-3 rounded-full bg-blue-500 text-white font-bold active:scale-95 transition disabled:opacity-50"
         >
           🔊 이 문장 듣기
         </button>
         <button
           onClick={playingAll ? stopAll : speakAll}
-          disabled={busy}
+          disabled={recording}
           className="flex-1 py-3 rounded-full bg-indigo-500 text-white font-bold active:scale-95 transition disabled:opacity-50"
         >
           {playingAll ? "⏹ 멈추기" : "▶ 전체 듣기"}
@@ -345,15 +277,13 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
       </div>
 
       <button
-        onClick={busy ? stopAuto : startFromCurrent}
-        disabled={playingAll || (pageDone && !busy)}
+        onClick={recording ? stopAuto : startFromCurrent}
+        disabled={playingAll || (pageDone && !recording)}
         className={`w-full py-4 rounded-full text-white font-title text-xl font-extrabold disabled:opacity-50 active:scale-95 transition ${
-          recording ? "bg-red-500 animate-pulse" : checking ? "bg-yellow-500" : "bg-pink-500"
+          recording ? "bg-red-500 animate-pulse" : "bg-pink-500"
         }`}
       >
-        {checking
-          ? "🧐 확인하는 중..."
-          : recording
+        {recording
           ? "🎤 듣고 있어요... (눌러서 멈추기)"
           : pageDone
           ? "✅ 이 페이지 다 읽었어요!"
@@ -366,7 +296,7 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
         </p>
       )}
 
-      {pageDone && !busy && (
+      {pageDone && !recording && (
         <div className="rounded-2xl bg-green-50 border-2 border-green-300 p-4 flex flex-col items-center gap-3">
           <p className="font-title text-lg font-bold text-green-700">
             🎉 이 페이지를 {roundsDone}번 읽었어요!
@@ -392,34 +322,7 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
           </button>
         </div>
       )}
-
-      <div className="flex flex-col gap-2">
-        {sentences.map((s, i) => {
-          const a = attempts[i];
-          if (!a) return null;
-          return (
-            <div
-              key={i}
-              className="flex items-center justify-between rounded-xl bg-gray-50 px-4 py-2 text-sm"
-            >
-              <span className="truncate mr-2">
-                {i + 1}. &quot;{a.heard}&quot;
-              </span>
-              <span
-                className={
-                  a.score >= 80
-                    ? "text-green-600 font-bold shrink-0"
-                    : a.score >= 50
-                    ? "text-yellow-600 font-bold shrink-0"
-                    : "text-red-500 font-bold shrink-0"
-                }
-              >
-                {a.score}점
-              </span>
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }
+
