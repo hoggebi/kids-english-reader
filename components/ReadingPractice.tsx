@@ -207,8 +207,8 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
     <div className="w-full max-w-md flex flex-col gap-4 relative">
       {showRoundBanner && (
         <div className="absolute inset-x-0 -top-2 flex justify-center z-10 pointer-events-none">
-          <div className="bg-green-600 text-white font-title text-xl font-extrabold px-6 py-2 rounded-full shadow-lg animate-bounce">
-            🎉 {roundsDone}번째 완독!
+          <div className="bg-sky-600 text-white font-title text-xl px-6 py-2 rounded-full shadow-lg animate-bounce">
+            {roundsDone}번째 완독!
           </div>
         </div>
       )}
@@ -217,9 +217,9 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
         <span className="text-sm text-gray-500">
           문장 {index + 1} / {sentences.length}
         </span>
-        <div className="flex items-baseline gap-1 bg-green-50 rounded-full px-4 py-1">
-          <span className="font-title text-2xl font-extrabold text-green-700">{roundsDone}</span>
-          <span className="text-sm text-green-600 font-bold">번 읽음</span>
+        <div className="flex items-baseline gap-1 bg-gray-100 rounded-full px-4 py-1">
+          <span className="text-2xl font-extrabold text-sky-700">{roundsDone}</span>
+          <span className="text-sm text-sky-600 font-bold">번 읽음</span>
         </div>
       </div>
 
@@ -232,10 +232,10 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
           const isPlayingNow = i === playingIndex;
 
           let colorClass = "text-gray-400";
-          if (isPlayingNow) colorClass = "text-indigo-600 font-bold";
-          else if (isCurrent && recording) colorClass = "text-pink-500 font-bold";
-          else if (isCurrent) colorClass = "text-gray-800 font-bold underline decoration-pink-300";
-          else if (readSet[i]) colorClass = "text-green-600";
+          if (isPlayingNow) colorClass = "text-sky-600 font-bold";
+          else if (isCurrent && recording) colorClass = "text-sky-500 font-bold";
+          else if (isCurrent) colorClass = "text-gray-800 font-bold underline decoration-gray-300";
+          else if (readSet[i]) colorClass = "text-gray-500";
 
           return (
             <span
@@ -256,56 +256,56 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
           checked={slowMode}
           onChange={(e) => setSlowMode(e.target.checked)}
         />
-        🐢 느리게 읽기
+        느리게 읽기
       </label>
 
       <div className="flex gap-2">
         <button
           onClick={speakSentence}
           disabled={playingAll || recording}
-          className="flex-1 py-3 rounded-full bg-blue-500 text-white font-bold active:scale-95 transition disabled:opacity-50"
+          className="flex-1 py-3 rounded-full bg-gray-700 text-white font-bold active:scale-95 transition disabled:opacity-50"
         >
-          🔊 이 문장 듣기
+          이 문장 듣기
         </button>
         <button
           onClick={playingAll ? stopAll : speakAll}
           disabled={recording}
-          className="flex-1 py-3 rounded-full bg-indigo-500 text-white font-bold active:scale-95 transition disabled:opacity-50"
+          className="flex-1 py-3 rounded-full bg-gray-500 text-white font-bold active:scale-95 transition disabled:opacity-50"
         >
-          {playingAll ? "⏹ 멈추기" : "▶ 전체 듣기"}
+          {playingAll ? "멈추기" : "전체 듣기"}
         </button>
       </div>
 
       <button
         onClick={recording ? stopAuto : startFromCurrent}
         disabled={playingAll || (pageDone && !recording)}
-        className={`w-full py-4 rounded-full text-white font-title text-xl font-extrabold disabled:opacity-50 active:scale-95 transition ${
-          recording ? "bg-red-500 animate-pulse" : "bg-pink-500"
+        className={`w-full py-4 rounded-full text-white font-title text-xl disabled:opacity-50 active:scale-95 transition ${
+          recording ? "bg-sky-700 animate-pulse" : "bg-sky-600"
         }`}
       >
         {recording
-          ? "🎤 듣고 있어요... (눌러서 멈추기)"
+          ? "듣고 있어요... (눌러서 멈추기)"
           : pageDone
-          ? "✅ 이 페이지 다 읽었어요!"
-          : "🎤 따라 읽기 시작"}
+          ? "이 페이지 다 읽었어요"
+          : "따라 읽기 시작"}
       </button>
 
       {recording && (
-        <p className="text-center text-sm text-pink-500 font-bold">
-          분홍색 문장을 읽어주세요. 다 읽고 잠깐 멈추면 다음 문장으로 넘어가요.
+        <p className="text-center text-sm text-sky-600 font-bold">
+          하이라이트된 문장을 읽어주세요. 다 읽고 잠깐 멈추면 다음 문장으로 넘어가요.
         </p>
       )}
 
       {pageDone && !recording && (
-        <div className="rounded-2xl bg-green-50 border-2 border-green-300 p-4 flex flex-col items-center gap-3">
-          <p className="font-title text-lg font-bold text-green-700">
-            🎉 이 페이지를 {roundsDone}번 읽었어요!
+        <div className="rounded-2xl bg-gray-50 border-2 border-gray-200 p-4 flex flex-col items-center gap-3">
+          <p className="font-title text-lg text-gray-800">
+            이 페이지를 {roundsDone}번 읽었어요
           </p>
           <button
             onClick={restartRound}
-            className="w-full py-3 rounded-full bg-green-600 text-white font-bold active:scale-95 transition"
+            className="w-full py-3 rounded-full bg-sky-600 text-white font-bold active:scale-95 transition"
           >
-            🔁 한 번 더 읽기
+            한 번 더 읽기
           </button>
         </div>
       )}
