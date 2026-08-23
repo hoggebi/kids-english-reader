@@ -30,7 +30,13 @@ type PreparedItem = QuizItem & {
   shuffledWords?: string[];
 };
 
-export default function QuizSection({ passage }: { passage: string }) {
+export default function QuizSection({
+  passage,
+  onAllDone,
+}: {
+  passage: string;
+  onAllDone?: (result: { score: number; total: number }) => void;
+}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<PreparedItem[]>([]);
@@ -102,9 +108,12 @@ export default function QuizSection({ passage }: { passage: string }) {
   }
 
   function finishAllSets() {
-    setTotalScore((s) => s + score);
-    setTotalQuestions((q) => q + items.length);
+    const finalScore = totalScore + score;
+    const finalTotal = totalQuestions + items.length;
+    setTotalScore(finalScore);
+    setTotalQuestions(finalTotal);
     setAllSetsDone(true);
+    onAllDone?.({ score: finalScore, total: finalTotal });
   }
 
   function resetQuestionState() {
@@ -192,8 +201,9 @@ export default function QuizSection({ passage }: { passage: string }) {
 
   if (finished) {
     const isLastSet = setNumber >= TOTAL_SETS;
+    if (allSetsDone) return null;
     return (
-      <div className="w-full max-w-md flex flex-col items-center gap-4 py-10 relative">
+      <div className="w-full max-w-md flex flex-col items-center gap-4 py-10">
         <p className="text-xl font-bold text-gray-800">
           {setNumber}세트 완료! {items.length}문제 중 {score}문제를 맞혔어요
         </p>
@@ -211,28 +221,6 @@ export default function QuizSection({ passage }: { passage: string }) {
           >
             결과 확인하기
           </button>
-        )}
-
-        {allSetsDone && (
-          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-6">
-            <div className="bg-white rounded-3xl p-8 w-full max-w-sm flex flex-col items-center gap-3 shadow-xl border-4 border-sky-100">
-              <p className="text-2xl font-bold text-sky-600 text-center">
-                오늘의 공부 완료!
-              </p>
-              <p className="text-gray-600 text-center">
-                {totalQuestions}문제 중 {totalScore}문제를 맞혔어요
-              </p>
-              <button
-                onClick={() => {
-                  setStarted(false);
-                  setAllSetsDone(false);
-                }}
-                className="w-full mt-2 py-3 rounded-full bg-sky-600 text-white font-bold active:scale-95 transition"
-              >
-                확인
-              </button>
-            </div>
-          </div>
         )}
       </div>
     );
