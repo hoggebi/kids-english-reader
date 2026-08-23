@@ -2,15 +2,24 @@
 
 import { useEffect, useRef, useState } from "react";
 
-const NORMAL_RATE = 1;
-const SLOW_RATE = 0.6;
+const NORMAL_RATE = 0.6;
+const SLOW_RATE = 0.4;
+const REQUIRED_PAGE_ROUNDS = 3;
 
 // 무음이 이만큼 이어지면 다 읽은 것으로 보고 자동 종료
 const SILENCE_MS = 900;
 const MAX_MS = 15000;
 const SILENCE_THRESHOLD = 0.015;
 
-export default function ReadingPractice({ sentences }: { sentences: string[] }) {
+export default function ReadingPractice({
+  sentences,
+  onNextPage,
+  hasNextPage,
+}: {
+  sentences: string[];
+  onNextPage?: () => void;
+  hasNextPage?: boolean;
+}) {
   const [index, setIndex] = useState(0);
   const [readSet, setReadSet] = useState<Record<number, true>>({});
   const [recording, setRecording] = useState(false);
@@ -20,6 +29,7 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
   const [error, setError] = useState<string | null>(null);
   const [roundsDone, setRoundsDone] = useState(0);
   const [showRoundBanner, setShowRoundBanner] = useState(false);
+  const [showCompleteModal, setShowCompleteModal] = useState(false);
 
   const streamRef = useRef<MediaStream | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -148,8 +158,15 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
         }
       } else {
         autoContinueRef.current = false;
-        setRoundsDone((r) => r + 1);
-        setShowRoundBanner(true);
+        setRoundsDone((r) => {
+          const next = r + 1;
+          if (next >= REQUIRED_PAGE_ROUNDS) {
+            setShowCompleteModal(true);
+          } else {
+            setShowRoundBanner(true);
+          }
+          return next;
+        });
       }
     }
 
@@ -195,6 +212,7 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
     setIndex(0);
     setError(null);
     setShowRoundBanner(false);
+    setShowCompleteModal(false);
   }
 
   function goToSentence(i: number) {
@@ -299,7 +317,7 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
         </p>
       )}
 
-      {pageDone && !recording && (
+      {pageDone && !recording && !showCompleteModal && (
         <div className="rounded-2xl bg-gray-50 border-2 border-gray-200 p-4 flex flex-col items-center gap-3">
           <p className="text-lg font-bold text-gray-800">
             이 페이지를 {roundsDone}번 읽었어요
@@ -325,6 +343,42 @@ export default function ReadingPractice({ sentences }: { sentences: string[] }) 
           </button>
         </div>
       )}
+
+      {showCompleteModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-6">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm flex flex-col items-center gap-4 shadow-xl">
+            <p className="text-xl font-bold text-gray-800 text-center">
+              3번 다 읽기 완료!
+            </p>
+            <p className="text-gray-600 text-center">
+              {hasNextPage ? "다음 페이지를 읽어볼까요?" : "이 챕터를 다 읽었어요."}
+            </p>
+            <div className="w-full flex flex-col gap-2">
+              {hasNextPage && onNextPage && (
+                <button
+                  onClick={() => {
+                    setShowCompleteModal(false);
+                    onNextPage();
+                  }}
+                  className="w-full py-3 rounded-full bg-sky-600 text-white font-bold active:scale-95 transition"
+                >
+                  다음 페이지
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setShowCompleteModal(false);
+                  restartRound();
+                }}
+                className="w-full py-3 rounded-full bg-gray-100 text-gray-700 font-bold active:scale-95 transition"
+              >
+                이 페이지 다시 읽기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
