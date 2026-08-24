@@ -12,7 +12,10 @@ export type PetState = {
   generation: number;
 };
 
-export const STAGE_INFO: { name: string; desc: string; talk: string[] }[] = [
+export type StageInfo = { name: string; desc: string; talk: string[] };
+export type Species = { imagePrefix: string; stages: StageInfo[] };
+
+const FOX_STAGES: StageInfo[] = [
   {
     name: "아기 북극여우",
     desc: "태어난지 얼마 안 된 작고 귀여운 아기예요.",
@@ -54,6 +57,70 @@ export const STAGE_INFO: { name: string; desc: string; talk: string[] }[] = [
     talk: ["호야, 우리 해냈어!", "최고의 짝꿍이야!", "새 친구를 만나러 갈까?"],
   },
 ];
+
+const EAGLE_STAGES: StageInfo[] = [
+  {
+    name: "아기 독수리",
+    desc: "알에서 막 태어난 작고 폭신한 아기예요.",
+    talk: ["호야, 나는 새로운 친구 독수리야!", "아직 날개가 작아!", "잘 부탁해!"],
+  },
+  {
+    name: "막 날갯짓 뗀 독수리",
+    desc: "작은 날개를 파닥이며 세상을 궁금해해요.",
+    talk: ["날갯짓하는 법을 배웠어!", "하늘이 궁금해!", "계속 같이 하자!"],
+  },
+  {
+    name: "장난꾸러기 독수리",
+    desc: "폴짝폴짝 뛰어다니며 에너지가 넘쳐요!",
+    talk: ["나 점점 힘이 세지고 있어!", "호야 대단해!", "다음 챕터 가보자!"],
+  },
+  {
+    name: "활발한 독수리",
+    desc: "몸도 마음도 쑥쑥 자라 더 씩씩해졌어요.",
+    talk: ["오늘도 씩씩하게 날아볼까!", "호야랑 있으면 힘이 나!", "절반쯤 왔어!"],
+  },
+  {
+    name: "튼튼한 독수리",
+    desc: "날개가 튼튼해지고 더 높이 날 수 있어요.",
+    talk: ["이제 제법 멀리 날 수 있어!", "우리 둘 다 튼튼해지고 있어!", "계속 가보자!"],
+  },
+  {
+    name: "멋진 청소년 독수리",
+    desc: "지혜롭고 자신감 넘치게 하늘을 도전해요!",
+    talk: ["호야, 우리 진짜 멋지지 않아?", "조금만 더 하면 어른이야!", "자신감이 생겼어!"],
+  },
+  {
+    name: "성숙한 독수리",
+    desc: "높은 하늘을 자유롭게 나는 멋진 독수리가 되었어요.",
+    talk: ["호야 덕분에 여기까지 왔어!", "이제 한 단계 남았어!", "정말 고마워!"],
+  },
+  {
+    name: "완벽한 성체 독수리",
+    desc: "모든 레슨을 완료했어요! 가장 멋진 독수리예요!",
+    talk: ["호야, 우리 해냈어!", "최고의 짝꿍이야!", "다음엔 어떤 친구를 만날까?"],
+  },
+];
+
+export const SPECIES: Species[] = [
+  { imagePrefix: "", stages: FOX_STAGES },
+  { imagePrefix: "e", stages: EAGLE_STAGES },
+];
+
+// generation에 맞는 동물 종류를 반환. 준비된 동물 세대를 넘어가면 마지막 동물을 계속 씀
+export function getSpecies(generation: number): Species {
+  const idx = Math.min(generation - 1, SPECIES.length - 1);
+  return SPECIES[Math.max(idx, 0)];
+}
+
+export function getStageInfo(pet: PetState): StageInfo {
+  const species = getSpecies(pet.generation);
+  return species.stages[pet.stage - 1] ?? species.stages[0];
+}
+
+export function getPetImagePath(pet: PetState): string {
+  const species = getSpecies(pet.generation);
+  return `/${species.imagePrefix}${pet.stage}.png`;
+}
 
 export function loadPet(): PetState {
   if (typeof window === "undefined") return { stage: 1, generation: 1 };
