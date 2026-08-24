@@ -101,6 +101,36 @@ function markChapterDone(chapterId: string) {
   }
 }
 
+// 완료 챕터 ID 전체 목록 가져오기 (다른 기기로 내보낼 때 사용)
+export function getAllDoneChapterIds(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(DONE_CHAPTERS_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+// 다른 기기에서 받은 완료 목록을 기존 목록과 합침 (겹치는 건 한 번만)
+export function mergeDoneChapterIds(ids: string[]) {
+  if (typeof window === "undefined") return;
+  const existing = getAllDoneChapterIds();
+  const merged = Array.from(new Set([...existing, ...ids]));
+  localStorage.setItem(DONE_CHAPTERS_KEY, JSON.stringify(merged));
+}
+
+// 다른 기기에서 받은 여우 상태와 비교해서, 더 많이 자란 쪽으로 맞춤
+export function mergePetState(incoming: PetState): PetState {
+  const current = loadPet();
+  const rank = (p: PetState) => p.generation * 100 + p.stage;
+  if (rank(incoming) > rank(current)) {
+    savePet(incoming);
+    return incoming;
+  }
+  return current;
+}
+
 export type GrowResult = {
   pet: PetState;
   grew: boolean;
@@ -127,4 +157,3 @@ export function completeChapter(chapterId: string): GrowResult {
   savePet(next);
   return { pet: next, grew: true, graduated: false };
 }
-
