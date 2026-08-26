@@ -33,7 +33,7 @@ export type VocabWord = {
   korean: string;
   pos?: string;
   box: LeitnerBox;
-  nextDueAt: number; // timestamp(ms). 0이면 즉시 학습 대상
+  nextDueAt: number;
   wrongCount: number;
 };
 
@@ -47,7 +47,8 @@ export type VocabSet = {
   status: VocabSetStatus;
 };
 
-export type VocabStudyMode = "flash" | "meaning" | "listen" | "spell";
+// 스펠링 쓰기 제외, 3가지만 사용
+export type VocabStudyMode = "flash" | "meaning" | "listen";
 
 export type VocabDailyCard = {
   wordId: string;
@@ -56,7 +57,7 @@ export type VocabDailyCard = {
 
 export type VocabDailySession = {
   setId: string;
-  dateKey: string; // "2026-08-26"
+  dateKey: string;
   cards: VocabDailyCard[];
   cursor: number;
   phase: "study" | "game" | "done";
