@@ -1,9 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import type { VocabSet } from "@/lib/types";
-
-type Mode = "flash" | "meaning" | "listen" | "spell";
+import { useEffect, useState } from "react";
+import type { VocabSet, VocabWord, VocabDailySession } from "@/lib/types";
+import {
+  loadTodaySession,
+  buildDailySession,
+  saveTodaySession,
+  recordAnswer,
+} from "@/lib/vocabStorage";
+import VocabGame from "./VocabGame";
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -28,74 +33,99 @@ function normalize(s: string) {
 }
 
 export default function VocabStudy({ set, onBack }: { set: VocabSet; onBack: () => void }) {
-  const [mode, setMode] = useState<Mode | null>(null);
+  const [session, setSession] = useState<VocabDailySession | null>(null);
+
+  useEffect(() => {
+    const existing = loadTodaySession(set.id);
+    setSession(existing ?? buildDailySession(set));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [set.id]);
+
+  if (!session) {
+    return <p className="text-center text-gray-400 py-10">불러오는 중...</p>;
+  }
+
+  // 오늘 할 게 없거나(전부 마스터/복습 대기중) 이미 끝난 경우
+  if (session.cards.length === 0 || session.phase === "done") {
+    return (
+      <div className="w-full max-w-4xl flex flex-col items-center gap-4 py-10">
+        <button onClick={onBack} className="self-start text-sm text-gray-400 underline">
+          단어장 목록
+        </button>
+        <p className="text-xl font-bold text-gray-800">오늘의 공부 완료!</p>
+        <p className="text-sm text-gray-500">내일 또 만나요.</p>
+      </div>
+    );
+  }
+
+  // 학습 다 하고 게임 단계
+  if (session.phase === "game") {
+    const wordIds = Array.from(new Set(session.cards.map((c) => c.wordId)));
+    const todayWords = set.words.filter((w) => wordIds.includes(w.id));
+    return (
+      <VocabGame
+        words={todayWords}
+        onDone={() => {
+          const finished: VocabDailySession = { ...session, phase: "done" };
+          saveTodaySession(finished);
+          setSession(finished);
+        }}
+      />
+    );
+  }
+
+  // 학습(study) 단계
+  const card = session.cards[session.cursor];
+  const word = set.words.find((w) => w.id === card.wordId);
+
+  function advanceCard(wasCorrect?: boolean) {
+    if (!session) return;
+    if (typeof wasCorrect === "boolean" && card.mode !== "flash") {
+      recordAnswer(set.id, card.wordId, wasCorrect);
+    }
+    const nextCursor = session.cursor + 1;
+    const updated: VocabDailySession =
+      nextCursor >= session.cards.length
+        ? { ...session, cursor: nextCursor, phase: "game" }
+        : { ...session, cursor: nextCursor };
+    saveTodaySession(updated);
+    setSession(updated);
+  }
+
+  if (!word) {
+    advanceCard();
+    return null;
+  }
 
   return (
     <div className="w-full max-w-4xl flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <button onClick={mode ? () => setMode(null) : onBack} className="text-sm text-gray-400 underline">
-          {mode ? "학습 방식 선택으로" : "단어장 목록"}
+        <button onClick={onBack} className="text-sm text-gray-400 underline">
+          단어장 목록
         </button>
         <h2 className="text-lg font-bold text-gray-800">{set.title}</h2>
-        <span className="text-xs text-gray-400">{set.words.length}개</span>
+        <span className="text-xs text-gray-400">
+          {session.cursor + 1} / {session.cards.length}
+        </span>
       </div>
 
-      {!mode && (
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => setMode("flash")}
-            className="py-6 rounded-2xl bg-gray-50 border-2 border-transparent hover:border-sky-200 font-bold text-gray-700"
-          >
-            플래시카드
-          </button>
-          <button
-            onClick={() => setMode("meaning")}
-            className="py-6 rounded-2xl bg-gray-50 border-2 border-transparent hover:border-sky-200 font-bold text-gray-700"
-          >
-            뜻 고르기
-          </button>
-          <button
-            onClick={() => setMode("listen")}
-            className="py-6 rounded-2xl bg-gray-50 border-2 border-transparent hover:border-sky-200 font-bold text-gray-700"
-          >
-            듣고 맞추기
-          </button>
-          <button
-            onClick={() => setMode("spell")}
-            className="py-6 rounded-2xl bg-gray-50 border-2 border-transparent hover:border-sky-200 font-bold text-gray-700"
-          >
-            스펠링 쓰기
-          </button>
-        </div>
+      {card.mode === "flash" && <FlashCard word={word} onNext={() => advanceCard()} />}
+      {card.mode === "meaning" && (
+        <MeaningCard words={set.words} word={word} onAnswer={(ok) => advanceCard(ok)} />
       )}
-
-      {mode === "flash" && <FlashcardMode words={set.words} />}
-      {mode === "meaning" && <MeaningQuizMode words={set.words} />}
-      {mode === "listen" && <ListenQuizMode words={set.words} />}
-      {mode === "spell" && <SpellMode words={set.words} />}
+      {card.mode === "listen" && (
+        <ListenCard words={set.words} word={word} onAnswer={(ok) => advanceCard(ok)} />
+      )}
+      {card.mode === "spell" && <SpellCard word={word} onAnswer={(ok) => advanceCard(ok)} />}
     </div>
   );
 }
 
-// ---------- 1) 플래시카드 ----------
-function FlashcardMode({ words }: { words: VocabSet["words"] }) {
-  const [order] = useState(() => shuffle(words.map((_, i) => i)));
-  const [pos, setPos] = useState(0);
+// ---------- 카드 1: 플래시카드 ----------
+function FlashCard({ word, onNext }: { word: VocabWord; onNext: () => void }) {
   const [flipped, setFlipped] = useState(false);
-  const word = words[order[pos]];
-
-  function next() {
-    setFlipped(false);
-    setPos((p) => Math.min(p + 1, order.length - 1));
-  }
-  function prev() {
-    setFlipped(false);
-    setPos((p) => Math.max(p - 1, 0));
-  }
-
   return (
     <div className="flex flex-col items-center gap-4">
-      <p className="text-sm text-gray-500">{pos + 1} / {order.length}</p>
       <div
         onClick={() => setFlipped((f) => !f)}
         className="w-full max-w-sm aspect-[4/3] rounded-3xl bg-gray-50 border-2 border-gray-200 flex flex-col items-center justify-center gap-3 cursor-pointer px-6"
@@ -110,74 +140,47 @@ function FlashcardMode({ words }: { words: VocabSet["words"] }) {
         )}
         <p className="text-xs text-gray-300 mt-2">눌러서 {flipped ? "단어" : "뜻"} 보기</p>
       </div>
-      <div className="flex gap-2 w-full max-w-sm">
-        <button
-          onClick={() => speak(word.english)}
-          className="flex-1 py-3 rounded-full bg-gray-700 text-white font-bold"
-        >
-          듣기
-        </button>
-      </div>
-      <div className="flex justify-between w-full max-w-sm">
-        <button onClick={prev} disabled={pos === 0} className="px-4 py-2 rounded-full bg-gray-100 disabled:opacity-40">
-          이전
-        </button>
-        <button
-          onClick={next}
-          disabled={pos === order.length - 1}
-          className="px-4 py-2 rounded-full bg-gray-100 disabled:opacity-40"
-        >
-          다음
-        </button>
-      </div>
+      <button
+        onClick={() => speak(word.english)}
+        className="w-full max-w-sm py-3 rounded-full bg-gray-700 text-white font-bold"
+      >
+        듣기
+      </button>
+      <button onClick={onNext} className="w-full max-w-sm py-3 rounded-full bg-sky-600 text-white font-bold">
+        다음
+      </button>
     </div>
   );
 }
 
-// ---------- 2) 뜻 고르기 객관식 ----------
-function MeaningQuizMode({ words }: { words: VocabSet["words"] }) {
-  const [order] = useState(() => shuffle(words.map((_, i) => i)));
-  const [pos, setPos] = useState(0);
+function buildMeaningOptions(words: VocabWord[], target: VocabWord) {
+  const distractors = shuffle(words.filter((w) => w.korean !== target.korean))
+    .slice(0, 3)
+    .map((w) => w.korean);
+  return shuffle([target.korean, ...distractors]);
+}
+
+// ---------- 카드 2: 뜻 고르기 ----------
+function MeaningCard({
+  words,
+  word,
+  onAnswer,
+}: {
+  words: VocabWord[];
+  word: VocabWord;
+  onAnswer: (correct: boolean) => void;
+}) {
+  const [options] = useState(() => buildMeaningOptions(words, word));
   const [selected, setSelected] = useState<string | null>(null);
-  const [score, setScore] = useState(0);
-  const [options, setOptions] = useState<string[]>(() => buildOptions(0));
-
-  const word = words[order[pos]];
-  const done = pos >= order.length;
-
-  function buildOptions(p: number) {
-    const w = words[order[p]];
-    if (!w) return [];
-    const distractors = shuffle(words.filter((x) => x.korean !== w.korean))
-      .slice(0, 3)
-      .map((x) => x.korean);
-    return shuffle([w.korean, ...distractors]);
-  }
 
   function choose(opt: string) {
     if (selected) return;
     setSelected(opt);
-    if (opt === word.korean) setScore((s) => s + 1);
-  }
-
-  function next() {
-    const nextPos = pos + 1;
-    setPos(nextPos);
-    setSelected(null);
-    setOptions(buildOptions(nextPos));
-  }
-
-  if (done) {
-    return (
-      <div className="flex flex-col items-center gap-4 py-10">
-        <p className="text-xl font-bold text-gray-800">{order.length}개 중 {score}개를 맞혔어요</p>
-      </div>
-    );
   }
 
   return (
     <div className="flex flex-col items-center gap-4">
-      <p className="text-sm text-gray-500">{pos + 1} / {order.length} · 맞은 개수 {score}</p>
+      <p className="text-sm text-gray-500">뜻 고르기</p>
       <p className="text-3xl font-bold text-gray-800">{word.english}</p>
       <div className="flex flex-col gap-2 w-full max-w-sm">
         {options.map((opt) => {
@@ -198,7 +201,10 @@ function MeaningQuizMode({ words }: { words: VocabSet["words"] }) {
         })}
       </div>
       {selected && (
-        <button onClick={next} className="w-full max-w-sm py-3 rounded-full bg-sky-600 text-white font-bold">
+        <button
+          onClick={() => onAnswer(selected === word.korean)}
+          className="w-full max-w-sm py-3 rounded-full bg-sky-600 text-white font-bold"
+        >
           다음
         </button>
       )}
@@ -206,51 +212,27 @@ function MeaningQuizMode({ words }: { words: VocabSet["words"] }) {
   );
 }
 
-// ---------- 3) 듣고 단어 맞추기 (TTS로 듣고 뜻 선택) ----------
-function ListenQuizMode({ words }: { words: VocabSet["words"] }) {
-  const [order] = useState(() => shuffle(words.map((_, i) => i)));
-  const [pos, setPos] = useState(0);
+// ---------- 카드 3: 듣고 맞추기 ----------
+function ListenCard({
+  words,
+  word,
+  onAnswer,
+}: {
+  words: VocabWord[];
+  word: VocabWord;
+  onAnswer: (correct: boolean) => void;
+}) {
+  const [options] = useState(() => buildMeaningOptions(words, word));
   const [selected, setSelected] = useState<string | null>(null);
-  const [score, setScore] = useState(0);
-  const [options, setOptions] = useState<string[]>(() => buildOptions(0));
-
-  const word = words[order[pos]];
-  const done = pos >= order.length;
-
-  function buildOptions(p: number) {
-    const w = words[order[p]];
-    if (!w) return [];
-    const distractors = shuffle(words.filter((x) => x.korean !== w.korean))
-      .slice(0, 3)
-      .map((x) => x.korean);
-    return shuffle([w.korean, ...distractors]);
-  }
 
   function choose(opt: string) {
     if (selected) return;
     setSelected(opt);
-    if (opt === word.korean) setScore((s) => s + 1);
-  }
-
-  function next() {
-    const nextPos = pos + 1;
-    setPos(nextPos);
-    setSelected(null);
-    setOptions(buildOptions(nextPos));
-  }
-
-  if (done) {
-    return (
-      <div className="flex flex-col items-center gap-4 py-10">
-        <p className="text-xl font-bold text-gray-800">{order.length}개 중 {score}개를 맞혔어요</p>
-      </div>
-    );
   }
 
   return (
     <div className="flex flex-col items-center gap-4">
-      <p className="text-sm text-gray-500">{pos + 1} / {order.length} · 맞은 개수 {score}</p>
-      <p className="text-center text-gray-500 text-sm font-bold">잘 듣고 알맞은 뜻을 골라보세요.</p>
+      <p className="text-sm text-gray-500 font-bold">잘 듣고 알맞은 뜻을 골라보세요.</p>
       <button
         onClick={() => speak(word.english)}
         className="px-6 py-3 rounded-full bg-gray-700 text-white font-bold text-lg"
@@ -278,7 +260,10 @@ function ListenQuizMode({ words }: { words: VocabSet["words"] }) {
       {selected && (
         <div className="flex flex-col items-center gap-2 w-full max-w-sm">
           <p className="text-lg font-bold text-gray-800">{word.english}</p>
-          <button onClick={next} className="w-full py-3 rounded-full bg-sky-600 text-white font-bold">
+          <button
+            onClick={() => onAnswer(selected === word.korean)}
+            className="w-full py-3 rounded-full bg-sky-600 text-white font-bold"
+          >
             다음
           </button>
         </div>
@@ -287,42 +272,20 @@ function ListenQuizMode({ words }: { words: VocabSet["words"] }) {
   );
 }
 
-// ---------- 4) 스펠링 쓰기 ----------
-function SpellMode({ words }: { words: VocabSet["words"] }) {
-  const [order] = useState(() => shuffle(words.map((_, i) => i)));
-  const [pos, setPos] = useState(0);
+// ---------- 카드 4: 스펠링 쓰기 ----------
+function SpellCard({ word, onAnswer }: { word: VocabWord; onAnswer: (correct: boolean) => void }) {
   const [input, setInput] = useState("");
   const [checked, setChecked] = useState(false);
   const [correct, setCorrect] = useState(false);
-  const [score, setScore] = useState(0);
-
-  const word = words[order[pos]];
-  const done = pos >= order.length;
 
   function check() {
     const isCorrect = normalize(input) === normalize(word.english);
     setCorrect(isCorrect);
     setChecked(true);
-    if (isCorrect) setScore((s) => s + 1);
-  }
-
-  function next() {
-    setPos((p) => p + 1);
-    setInput("");
-    setChecked(false);
-  }
-
-  if (done) {
-    return (
-      <div className="flex flex-col items-center gap-4 py-10">
-        <p className="text-xl font-bold text-gray-800">{order.length}개 중 {score}개를 맞혔어요</p>
-      </div>
-    );
   }
 
   return (
     <div className="flex flex-col items-center gap-4">
-      <p className="text-sm text-gray-500">{pos + 1} / {order.length} · 맞은 개수 {score}</p>
       <p className="text-2xl font-bold text-sky-700">{word.korean}</p>
       {word.pos && <p className="text-sm text-gray-400 -mt-3">({word.pos})</p>}
       <input
@@ -348,11 +311,11 @@ function SpellMode({ words }: { words: VocabSet["words"] }) {
           <p className={correct ? "text-sky-600 font-bold" : "text-red-500 font-bold"}>
             {correct ? "맞았어요!" : `정답: ${word.english}`}
           </p>
-          <button onClick={next} className="w-full py-3 rounded-full bg-sky-600 text-white font-bold">
+          <button onClick={() => onAnswer(correct)} className="w-full py-3 rounded-full bg-sky-600 text-white font-bold">
             다음
           </button>
         </div>
       )}
     </div>
   );
-}
+  }
