@@ -109,7 +109,7 @@ export default function VocabUpload({
       title: title.trim() || "제목 없는 단어장",
       words: finalWords,
       createdAt: Date.now(),
-      status: "locked", // addVocabSet에서 활성 세트 유무를 보고 자동으로 active/locked 결정해줌
+      status: "locked", // addVocabSet에서 활성 세트 유무 보고 자동으로 active/locked 결정해줌
     };
     onCreated(set);
   }
@@ -215,4 +215,4 @@ export default function VocabUpload({
       </button>
     </div>
   );
-      }
+}
