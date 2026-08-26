@@ -1,35 +1,94 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
 
-// 이 주소로 접속하면 Redis 연결 상태를 눈으로 바로 확인할 수 있다.
-// 예: https://kids-english-reader-opal.vercel.app/api/sync/debug
-export async function GET() {
-  const url = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL ?? "";
-  const token = process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN ?? "";
+// Vercel에 등록된 환경변수 이름(KV_REST_API_URL / KV_REST_API_TOKEN)을 직접 사용한다.
+const redis = new Redis({
+  url: process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL ?? "",
+  token: process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN ?? "",
+});
 
-  const report: Record<string, unknown> = {
-    "환경변수 URL 있음": url ? "예" : "아니오",
-    "환경변수 TOKEN 있음": token ? "예" : "아니오",
-    "URL 앞부분": url ? url.slice(0, 30) + "..." : "(없음)",
+function keyFor(code: string) {
+  return `sync:${code}`;
+}
+
+type StoredItem = { id: string };
+
+// id가 같은 항목은 새로 들어온(incoming) 쪽 내용으로 갱신하고,
+// 기존에만 있던 항목은 그대로 유지해서 절대 사라지지 않게 합친다.
+function mergeById<T extends StoredItem>(existing: T[] = [], incoming: T[] = []): T[] {
+  const map = new Map<string, T>();
+  for (const item of existing) map.set(item.id, item);
+  for (const item of incoming) map.set(item.id, item);
+  return Array.from(map.values());
+}
+
+function mergeStringArray(existing: string[] = [], incoming: string[] = []): string[] {
+  return Array.from(new Set([...existing, ...incoming]));
+}
+
+type PetState = { stage: number; generation: number };
+
+function mergePet(existing?: PetState, incoming?: PetState): PetState | undefined {
+  if (!existing) return incoming;
+  if (!incoming) return existing;
+  const rank = (p: PetState) => p.generation * 100 + p.stage;
+  return rank(incoming) >= rank(existing) ? incoming : existing;
+}
+
+type SyncPayload = {
+  chapters?: StoredItem[];
+  doneChapterIds?: string[];
+  pet?: PetState;
+  vocabSets?: StoredItem[];
+};
+
+function mergePayload(existing: SyncPayload | null, incoming: SyncPayload): SyncPayload {
+  if (!existing) return incoming;
+  return {
+    chapters: mergeById(existing.chapters, incoming.chapters),
+    doneChapterIds: mergeStringArray(existing.doneChapterIds, incoming.doneChapterIds),
+    pet: mergePet(existing.pet, incoming.pet),
+    vocabSets: mergeById(existing.vocabSets, incoming.vocabSets),
   };
+}
 
-  if (!url || !token) {
-    report["결과"] = "실패: 환경변수가 없습니다.";
-    return NextResponse.json(report);
-  }
-
+export async function GET(req: NextRequest) {
   try {
-    const redis = new Redis({ url, token });
-    const testKey = "sync:__debug_test__";
-    await redis.set(testKey, { hello: "world", time: Date.now() });
-    const readBack = await redis.get(testKey);
-    report["쓰기/읽기 테스트"] = readBack ? "성공" : "실패(읽은 값 없음)";
-    report["읽어온 값"] = readBack;
-    report["결과"] = "성공: Redis 연결이 정상입니다.";
+    const code = req.nextUrl.searchParams.get("code");
+    if (!code) {
+      return NextResponse.json({ error: "code가 필요합니다." }, { status: 400 });
+    }
+    const data = await redis.get(keyFor(code));
+    return NextResponse.json({ data: data ?? null });
   } catch (err) {
-    report["결과"] = "실패: Redis 연결 오류";
-    report["오류내용"] = err instanceof Error ? err.message : String(err);
+    console.error(err);
+    const message = err instanceof Error ? err.message : "알 수 없는 오류";
+    return NextResponse.json(
+      { error: `불러오기에 실패했습니다: ${message}` },
+      { status: 500 }
+    );
   }
+}
 
-  return NextResponse.json(report);
+export async function POST(req: NextRequest) {
+  try {
+    const { code, data } = (await req.json()) as { code: string; data: SyncPayload };
+    if (!code || typeof code !== "string") {
+      return NextResponse.json({ error: "code가 필요합니다." }, { status: 400 });
+    }
+
+    const key = keyFor(code);
+    const existing = (await redis.get(key)) as SyncPayload | null;
+    const merged = mergePayload(existing, data);
+
+    await redis.set(key, merged);
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    const message = err instanceof Error ? err.message : "알 수 없는 오류";
+    return NextResponse.json(
+      { error: `저장에 실패했습니다: ${message}` },
+      { status: 500 }
+    );
+  }
 }
