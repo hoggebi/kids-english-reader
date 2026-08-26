@@ -95,11 +95,21 @@ export default function VocabUpload({
   }
 
   function confirmSet() {
+    // 신규 필드(id, box, nextDueAt, wrongCount)를 채워서 저장한다.
+    const finalWords: VocabWord[] = words.map((w) => ({
+      ...w,
+      id: w.id ?? makeId(),
+      box: 0,
+      nextDueAt: 0,
+      wrongCount: 0,
+    }));
+
     const set: VocabSet = {
       id: makeId(),
       title: title.trim() || "제목 없는 단어장",
-      words,
+      words: finalWords,
       createdAt: Date.now(),
+      status: "locked", // addVocabSet에서 활성 세트 유무를 보고 자동으로 active/locked 결정해줌
     };
     onCreated(set);
   }
@@ -205,4 +215,4 @@ export default function VocabUpload({
       </button>
     </div>
   );
-}
+      }
