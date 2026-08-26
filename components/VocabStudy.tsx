@@ -46,7 +46,69 @@ const [mode, setMode] = useState<Mode>("hub");
     return <p className="text-center text-gray-400 py-10">불러오는 중...</p>;
   }
 
-  if (session.cards.length === 0 || session.phase === "done") {
+  const studyDone = session.cards.length === 0 || session.phase === "done";
+
+  function handleGameOnly() {
+    setGameWords(selectDailyWords(set));
+    setMode("gameOnly");
+  }
+
+  function handleReplay() {
+    const wordIds = Array.from(new Set(session!.cards.map((c) => c.wordId)));
+    const words = set.words.filter((w) => wordIds.includes(w.id));
+    setGameWords(words.length > 0 ? words : selectDailyWords(set));
+    setMode("gameOnly");
+  }
+
+  if (mode === "hub") {
+    return (
+      <div className="w-full max-w-4xl flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <button onClick={onBack} className="text-sm text-gray-400 underline">
+            단어장 목록
+          </button>
+          <h2 className="text-lg font-bold text-gray-800">{set.title}</h2>
+          <span className="w-10" />
+        </div>
+
+        <button
+          onClick={() => setMode("study")}
+          className="w-full py-7 rounded-3xl bg-sky-600 text-white font-bold text-lg active:scale-[0.98] transition flex flex-col items-center gap-1"
+        >
+          <span className="text-2xl">📖</span>
+          {studyDone ? "오늘의 학습 완료! (다시 보기)" : "오늘의 학습 시작하기"}
+        </button>
+
+        <button
+          onClick={handleGameOnly}
+          disabled={!studyDone}
+          className={`w-full py-7 rounded-3xl font-bold text-lg transition flex flex-col items-center gap-1 ${
+            studyDone
+              ? "bg-emerald-500 text-white active:scale-[0.98]"
+              : "bg-gray-100 text-gray-400 cursor-not-allowed"
+          }`}
+        >
+          <span className="text-2xl">🎮</span>
+          게임만 하기
+          {!studyDone && <span className="text-xs font-normal">오늘의 학습을 먼저 끝내야 열려요</span>}
+        </button>
+
+        {studyDone && (
+          <button
+            onClick={handleReplay}
+            className="w-full py-7 rounded-3xl bg-amber-500 text-white font-bold text-lg active:scale-[0.98] transition flex flex-col items-center gap-1"
+          >
+            <span className="text-2xl">🔁</span>
+            한 번 더 복습하기
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (mode === "gameOnly") {
+    return <VocabGame words={gameWords} onDone={() => setMode("hub")} />;
+  }if (session.cards.length === 0 || session.phase === "done") {
     return (
       <div className="w-full max-w-4xl flex flex-col items-center gap-4 py-10">
         <button onClick={onBack} className="self-start text-sm text-gray-400 underline">
