@@ -79,7 +79,9 @@ export default function Home() {
         setVocabSets(result.vocabSets);
         setSyncing(false);
         setSyncMessage(
-          `동기화됐어요! (챕터 ${result.chapters.length}개, 단어장 ${result.vocabSets.length}개)`
+          result.pushOk
+            ? `동기화됐어요! (챕터 ${result.chapters.length}개, 단어장 ${result.vocabSets.length}개)`
+            : `⚠️ 서버 저장 실패: ${result.pushError ?? "알 수 없는 오류"}`
         );
       });
     }
@@ -114,7 +116,9 @@ export default function Home() {
     setShowJoinBox(false);
     setJoinInput("");
     setSyncMessage(
-      `동기화됐어요! (챕터 ${result.chapters.length}개, 단어장 ${result.vocabSets.length}개)`
+      result.pushOk
+        ? `동기화됐어요! (챕터 ${result.chapters.length}개, 단어장 ${result.vocabSets.length}개)`
+        : `⚠️ 서버 저장 실패: ${result.pushError ?? "알 수 없는 오류"}`
     );
   }
 
@@ -133,7 +137,9 @@ export default function Home() {
     setVocabSets(result.vocabSets);
     setSyncing(false);
     setSyncMessage(
-      `동기화됐어요! (챕터 ${result.chapters.length}개, 단어장 ${result.vocabSets.length}개)`
+      result.pushOk
+        ? `동기화됐어요! (챕터 ${result.chapters.length}개, 단어장 ${result.vocabSets.length}개)`
+        : `⚠️ 서버 저장 실패: ${result.pushError ?? "알 수 없는 오류"}`
     );
   }
 
