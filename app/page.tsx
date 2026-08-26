@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Chapter } from "@/lib/types";
+import type { Chapter, VocabSet } from "@/lib/types";
 import {
   loadChapters,
   addChapter,
@@ -11,6 +11,12 @@ import {
   exportChaptersData,
   importChaptersData,
 } from "@/lib/storage";
+import {
+  loadVocabSets,
+  addVocabSet,
+  deleteVocabSet,
+  renameVocabSet,
+} from "@/lib/vocabStorage";
 import { loadPet, type PetState } from "@/lib/pet";
 import {
   getSyncCode,
@@ -24,15 +30,24 @@ import ChapterList from "@/components/ChapterList";
 import ChapterUpload from "@/components/ChapterUpload";
 import ChapterReader from "@/components/ChapterReader";
 import PetDisplay from "@/components/PetDisplay";
+import VocabList from "@/components/VocabList";
+import VocabUpload from "@/components/VocabUpload";
+import VocabStudy from "@/components/VocabStudy";
 
+type Section = "chapters" | "vocab";
 type View = "list" | "add" | "read";
 
 export default function Home() {
+  const [section, setSection] = useState<Section>("chapters");
   const [view, setView] = useState<View>("list");
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [activeChapter, setActiveChapter] = useState<Chapter | null>(null);
   const [pet, setPet] = useState<PetState | null>(null);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+
+  const [vocabView, setVocabView] = useState<View>("list");
+  const [vocabSets, setVocabSets] = useState<VocabSet[]>([]);
+  const [activeVocabSet, setActiveVocabSet] = useState<VocabSet | null>(null);
 
   const [syncCode, setSyncCodeState] = useState<string | null>(null);
   const [joinInput, setJoinInput] = useState("");
@@ -42,6 +57,7 @@ export default function Home() {
   useEffect(() => {
     setChapters(loadChapters());
     setPet(loadPet());
+    setVocabSets(loadVocabSets());
 
     // 다른 기기에서 받은 동기화 링크로 열었으면, 그 안의 챕터들을 가져와서 합침
     if (typeof window !== "undefined" && window.location.hash.startsWith("#sync=")) {
@@ -165,6 +181,25 @@ export default function Home() {
     setView("read");
   }
 
+  function handleVocabCreated(set: VocabSet) {
+    setVocabSets(addVocabSet(set));
+    setActiveVocabSet(set);
+    setVocabView("read");
+  }
+
+  function handleVocabDelete(id: string) {
+    setVocabSets(deleteVocabSet(id));
+  }
+
+  function handleVocabRename(id: string, newTitle: string) {
+    setVocabSets(renameVocabSet(id, newTitle));
+  }
+
+  function handleVocabSelect(set: VocabSet) {
+    setActiveVocabSet(set);
+    setVocabView("read");
+  }
+
   return (
     <div className="min-h-screen bg-white flex flex-col items-center px-4 py-8 gap-6">
       <header
@@ -182,7 +217,27 @@ export default function Home() {
         </div>
       )}
 
-      {view === "list" && (
+      {/* 최상위 탭: 챕터(동화책 읽기) / 단어장 */}
+      <div className="w-full max-w-4xl flex rounded-full bg-gray-100 p-1">
+        <button
+          onClick={() => setSection("chapters")}
+          className={`flex-1 py-2 rounded-full font-bold transition ${
+            section === "chapters" ? "bg-sky-600 text-white" : "text-gray-500"
+          }`}
+        >
+          챕터
+        </button>
+        <button
+          onClick={() => setSection("vocab")}
+          className={`flex-1 py-2 rounded-full font-bold transition ${
+            section === "vocab" ? "bg-sky-600 text-white" : "text-gray-500"
+          }`}
+        >
+          단어장
+        </button>
+      </div>
+
+      {section === "chapters" && view === "list" && (
         <>
           {pet && <PetDisplay pet={pet} />}
 
@@ -267,13 +322,34 @@ export default function Home() {
         </>
       )}
 
-      {view === "add" && (
+      {section === "chapters" && view === "add" && (
         <ChapterUpload onCreated={handleCreated} onCancel={goToList} />
       )}
 
-      {view === "read" && activeChapter && (
+      {section === "chapters" && view === "read" && activeChapter && (
         <ChapterReader chapter={activeChapter} onBack={goToList} />
+      )}
+
+      {section === "vocab" && vocabView === "list" && (
+        <VocabList
+          sets={vocabSets}
+          onSelect={handleVocabSelect}
+          onAdd={() => setVocabView("add")}
+          onDelete={handleVocabDelete}
+          onRename={handleVocabRename}
+        />
+      )}
+
+      {section === "vocab" && vocabView === "add" && (
+        <VocabUpload
+          onCreated={handleVocabCreated}
+          onCancel={() => setVocabView("list")}
+        />
+      )}
+
+      {section === "vocab" && vocabView === "read" && activeVocabSet && (
+        <VocabStudy set={activeVocabSet} onBack={() => setVocabView("list")} />
       )}
     </div>
   );
-      }
+}
