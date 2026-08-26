@@ -46,27 +46,40 @@ function currentPayload() {
   };
 }
 
-// 지금 내 기기 상태를 서버에 올림 — 성공 여부와 실패 이유를 반환
-export async function pushSync(code: string): Promise<{ ok: boolean; error?: string }> {
+// 지금 내 기기 상태를 서버에 올림 — 성공 여부와 실패 이유, 디버그 개수를 반환
+export async function pushSync(code: string): Promise<{
+  ok: boolean;
+  error?: string;
+  sentVocabSets?: number;
+  serverVocabSetsAfter?: number;
+}> {
+  const payload = currentPayload();
   try {
     const res = await fetch("/api/sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code, data: currentPayload() }),
+      body: JSON.stringify({ code, data: payload }),
     });
+    const json = await res.json().catch(() => null);
     if (!res.ok) {
-      let detail = "";
-      try {
-        const json = await res.json();
-        detail = json?.error ?? "";
-      } catch {
-        // 응답이 JSON이 아닐 수도 있음
-      }
-      return { ok: false, error: `저장 실패 (HTTP ${res.status}) ${detail}`.trim() };
+      const detail = json?.error ?? "";
+      return {
+        ok: false,
+        error: `저장 실패 (HTTP ${res.status}) ${detail}`.trim(),
+        sentVocabSets: payload.vocabSets.length,
+      };
     }
-    return { ok: true };
+    return {
+      ok: true,
+      sentVocabSets: payload.vocabSets.length,
+      serverVocabSetsAfter: json?.finalVocabSetsAfterMerge,
+    };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "네트워크 오류" };
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "네트워크 오류",
+      sentVocabSets: payload.vocabSets.length,
+    };
   }
 }
 
@@ -118,7 +131,13 @@ export async function pullSync(code: string): Promise<{
 export async function syncNow(code: string) {
   const pulled = await pullSync(code);
   const pushResult = await pushSync(code);
-  return { ...pulled, pushOk: pushResult.ok, pushError: pushResult.error };
+  return {
+    ...pulled,
+    pushOk: pushResult.ok,
+    pushError: pushResult.error,
+    sentVocabSets: pushResult.sentVocabSets,
+    serverVocabSetsAfter: pushResult.serverVocabSetsAfter,
+  };
 }
 
 // 동기화 코드가 설정돼 있으면, 지금 상태를 서버에 올림 (변경이 생길 때마다 호출)
