@@ -7,6 +7,7 @@ import {
   buildDailySession,
   saveTodaySession,
   recordAnswer,
+  selectDailyWords,
 } from "@/lib/vocabStorage";
 import VocabGame from "./VocabGame";
 
