@@ -46,16 +46,27 @@ function currentPayload() {
   };
 }
 
-// 지금 내 기기 상태를 서버에 올림
-export async function pushSync(code: string) {
+// 지금 내 기기 상태를 서버에 올림 — 성공 여부와 실패 이유를 반환
+export async function pushSync(code: string): Promise<{ ok: boolean; error?: string }> {
   try {
-    await fetch("/api/sync", {
+    const res = await fetch("/api/sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code, data: currentPayload() }),
     });
-  } catch {
-    // 네트워크 오류 등은 조용히 무시 (다음 동기화 때 다시 시도됨)
+    if (!res.ok) {
+      let detail = "";
+      try {
+        const json = await res.json();
+        detail = json?.error ?? "";
+      } catch {
+        // 응답이 JSON이 아닐 수도 있음
+      }
+      return { ok: false, error: `저장 실패 (HTTP ${res.status}) ${detail}`.trim() };
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "네트워크 오류" };
   }
 }
 
@@ -105,9 +116,9 @@ export async function pullSync(code: string): Promise<{
 
 // 받아오고(pull) 나서 합쳐진 최신 상태를 다시 서버에 올림(push) — 양쪽 기기를 완전히 맞춤
 export async function syncNow(code: string) {
-  const result = await pullSync(code);
-  await pushSync(code);
-  return result;
+  const pulled = await pullSync(code);
+  const pushResult = await pushSync(code);
+  return { ...pulled, pushOk: pushResult.ok, pushError: pushResult.error };
 }
 
 // 동기화 코드가 설정돼 있으면, 지금 상태를 서버에 올림 (변경이 생길 때마다 호출)
