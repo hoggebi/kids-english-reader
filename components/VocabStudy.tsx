@@ -33,9 +33,9 @@ function speak(text: string) {
 
 export default function VocabStudy({ set, onBack }: { set: VocabSet; onBack: () => void }) {
   const [session, setSession] = useState<VocabDailySession | null>(null);
-const [mode, setMode] = useState<Mode>("hub");
+  const [mode, setMode] = useState<Mode>("hub");
   const [gameWords, setGameWords] = useState<VocabWord[]>([]);
-  
+
   useEffect(() => {
     const existing = loadTodaySession(set.id);
     setSession(existing ?? buildDailySession(set));
@@ -60,6 +60,7 @@ const [mode, setMode] = useState<Mode>("hub");
     setMode("gameOnly");
   }
 
+  // ---------- 허브 화면: 큰 탭 3개 ----------
   if (mode === "hub") {
     return (
       <div className="w-full max-w-4xl flex flex-col gap-4">
@@ -106,9 +107,13 @@ const [mode, setMode] = useState<Mode>("hub");
     );
   }
 
+  // ---------- 게임만 하기 ----------
   if (mode === "gameOnly") {
     return <VocabGame words={gameWords} onDone={() => setMode("hub")} />;
-if (session.cards.length === 0 || session.phase === "done") {
+  }
+
+  // ---------- 오늘의 학습 (기존 스터디 흐름) ----------
+  if (session.cards.length === 0 || session.phase === "done") {
     return (
       <div className="w-full max-w-4xl flex flex-col items-center gap-4 py-10">
         <p className="text-xl font-bold text-gray-800">오늘의 공부 완료!</p>
@@ -121,7 +126,7 @@ if (session.cards.length === 0 || session.phase === "done") {
         </button>
       </div>
     );
-}
+  }
 
   if (session.phase === "game") {
     const wordIds = Array.from(new Set(session.cards.map((c) => c.wordId)));
@@ -163,7 +168,7 @@ if (session.cards.length === 0 || session.phase === "done") {
   return (
     <div className="w-full max-w-4xl flex flex-col gap-4">
       <div className="flex items-center justify-between">
-       <button onClick={() => setMode("hub")} className="text-sm text-gray-400 underline">
+        <button onClick={() => setMode("hub")} className="text-sm text-gray-400 underline">
           허브로
         </button>
         <h2 className="text-lg font-bold text-gray-800">{set.title}</h2>

@@ -18,15 +18,172 @@ function shuffle<T>(arr: T[]): T[] {
 
 const GAME_INFO: { kind: GameKind; title: string; desc: string; emoji: string }[] = [
   { kind: "hunt", title: "단어 사냥", desc: "떨어지는 단어를 탭해서 잡아요", emoji: "🎯" },
-  { kind: "feed", title: "먹이주기", desc: "맞는 단어를 끌어서 먹여줘요", emoji: "🍎" },
+  { kind: "feed", title: "바구니 담기", desc: "맞는 단어를 끌어서 바구니에 담아요", emoji: "🧺" },
   { kind: "mole", title: "두더지 잡기", desc: "튀어나온 정답을 빠르게 탭해요", emoji: "🐹" },
   { kind: "runner", title: "함께 달리기", desc: "갈림길에서 정답 쪽을 골라요", emoji: "🏃" },
 ];
 
-// ---------- 캐릭터 말풍선 + 이미지 (공통) ----------
-const CHEER_LINES = ["잘했어!", "완전 최고야!", "역시 우리 친구!", "그렇지, 바로 그거야!"];
-const MISS_LINES = ["괜찮아, 다시 해보자!", "아깝다!", "다음엔 꼭 맞히자!", "힘내, 할 수 있어!"];
-const IDLE_LINE = "같이 복습해볼까?";
+const THEME_BG: Record<GameKind, string> = {
+  hunt: "bg-gradient-to-b from-sky-200 via-sky-50 to-white",
+  feed: "bg-gradient-to-b from-lime-100 via-emerald-50 to-white",
+  mole: "bg-gradient-to-b from-amber-100 via-yellow-50 to-white",
+  runner: "bg-gradient-to-b from-orange-100 via-sky-100 to-white",
+};
+
+const THEME_DECOR: Record<GameKind, { emoji: string; count: number }> = {
+  hunt: { emoji: "☁️", count: 3 },
+  feed: { emoji: "🍃", count: 4 },
+  mole: { emoji: "🌼", count: 3 },
+  runner: { emoji: "🌳", count: 4 },
+};
+
+// 공통 애니메이션 정의 (게임 화면에서 한 번만 렌더)
+function GameStyles() {
+  return (
+    <style>{`
+      @keyframes particlePop {
+        0% { transform: translate(-50%, -50%) scale(0.6); opacity: 1; }
+        100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1.2); opacity: 0; }
+      }
+      @keyframes comboPop {
+        0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+        30% { transform: translate(-50%, -50%) scale(1.3); opacity: 1; }
+        100% { transform: translate(-50%, -60%) scale(1); opacity: 0; }
+      }
+      @keyframes starPop {
+        0% { transform: scale(0) rotate(-20deg); opacity: 0; }
+        60% { transform: scale(1.3) rotate(10deg); }
+        100% { transform: scale(1) rotate(0deg); opacity: 1; }
+      }
+      @keyframes drift {
+        0% { transform: translateX(-15%); }
+        100% { transform: translateX(115%); }
+      }
+      @keyframes bounceCorrect {
+        0%, 100% { transform: translateY(0) scale(1); }
+        50% { transform: translateY(-10px) scale(1.15); }
+      }
+      @keyframes wobbleWrong {
+        0%, 100% { transform: rotate(0deg); }
+        25% { transform: rotate(-10deg); }
+        75% { transform: rotate(10deg); }
+      }
+      .particle { position: absolute; left: 50%; top: 50%; animation: particlePop 0.7s ease-out forwards; }
+      .combo-badge { position: absolute; left: 50%; top: 12%; animation: comboPop 0.7s ease-out forwards; }
+      .star-pop { animation: starPop 0.5s ease-out forwards; }
+      .drift-item { position: absolute; animation: drift linear infinite; }
+      .char-correct { animation: bounceCorrect 0.5s ease-out; }
+      .char-wrong { animation: wobbleWrong 0.4s ease-out; }
+      @media (prefers-reduced-motion: reduce) {
+        .particle, .combo-badge, .star-pop, .drift-item, .char-correct, .char-wrong { animation: none; }
+      }
+    `}</style>
+  );
+}
+
+// ---------- 사운드 (Web Audio, 파일 없이 즉석 생성) ----------
+let sharedCtx: AudioContext | null = null;
+function getAudioCtx(): AudioContext | null {
+  if (typeof window === "undefined") return null;
+  if (!sharedCtx) {
+    const Ctor =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctor) return null;
+    sharedCtx = new Ctor();
+  }
+  return sharedCtx;
+}
+
+function playTone(kind: "correct" | "wrong") {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  const now = ctx.currentTime;
+  gain.gain.setValueAtTime(0.16, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+  if (kind === "correct") {
+    osc.frequency.setValueAtTime(523.25, now);
+    osc.frequency.setValueAtTime(783.99, now + 0.1);
+  } else {
+    osc.frequency.setValueAtTime(220, now);
+    osc.frequency.exponentialRampToValueAtTime(110, now + 0.25);
+  }
+  osc.start(now);
+  osc.stop(now + 0.3);
+}
+
+// ---------- 배경 장식(떠다니는 구름/나뭇잎 등) ----------
+function DriftDecor({ kind }: { kind: GameKind }) {
+  const { emoji, count } = THEME_DECOR[kind];
+  return (
+    <>
+      {Array.from({ length: count }).map((_, i) => (
+        <span
+          key={i}
+          className="drift-item text-xl opacity-70 select-none"
+          style={{
+            top: `${10 + i * 22}%`,
+            animationDuration: `${9 + i * 3}s`,
+            animationDelay: `${i * 1.4}s`,
+          }}
+        >
+          {emoji}
+        </span>
+      ))}
+    </>
+  );
+}
+
+// ---------- 정답/오답 파티클 ----------
+function Particles({ trigger }: { trigger: number }) {
+  const [items, setItems] = useState<{ id: number; dx: number; dy: number; emoji: string }[]>([]);
+  useEffect(() => {
+    if (trigger === 0) return;
+    const emojis = ["⭐", "✨", "🎉"];
+    const next = Array.from({ length: 8 }, (_, i) => ({
+      id: Date.now() + i,
+      dx: (Math.random() - 0.5) * 160,
+      dy: -Math.random() * 110 - 30,
+      emoji: emojis[Math.floor(Math.random() * emojis.length)],
+    }));
+    setItems(next);
+    const t = setTimeout(() => setItems([]), 750);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trigger]);
+
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-visible z-20">
+      {items.map((p) => (
+        <span
+          key={p.id}
+          className="particle text-2xl"
+          style={{ ["--dx" as string]: `${p.dx}px`, ["--dy" as string]: `${p.dy}px` }}
+        >
+          {p.emoji}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function ComboBadge({ combo }: { combo: number }) {
+  if (combo < 2) return null;
+  return (
+    <div key={combo} className="combo-badge text-sky-500 font-black text-xl z-20 -translate-x-1/2">
+      {combo} 콤보!
+    </div>
+  );
+}
+
+// ---------- 캐릭터: 이제 구석에서 작게 응원만 (보조 역할) ----------
+const CHEER_LINES = ["잘했어!", "최고야!", "그렇지!", "굿굿!"];
+const MISS_LINES = ["괜찮아!", "아깝다!", "다시!", "힘내!"];
+const IDLE_LINE = "화이팅!";
 
 function useCharacterLine(feedback: Feedback) {
   const [line, setLine] = useState(IDLE_LINE);
@@ -40,28 +197,66 @@ function useCharacterLine(feedback: Feedback) {
   return line;
 }
 
-function GameCharacter({ feedback }: { feedback: Feedback }) {
+function SideCheer({ feedback }: { feedback: Feedback }) {
   const [pet] = useState(() => loadPet());
   const line = useCharacterLine(feedback);
+  const animClass = feedback === "correct" ? "char-correct" : feedback === "wrong" ? "char-wrong" : "";
 
   return (
-    <div className="flex flex-col items-center gap-1">
-      <div className="relative">
-        <div className="bg-white border-2 border-sky-200 rounded-2xl px-3 py-1.5 shadow-sm">
-          <p className="text-xs font-bold text-gray-700 whitespace-nowrap">{line}</p>
-        </div>
-        <div className="absolute left-1/2 -translate-x-1/2 -bottom-1.5 w-2.5 h-2.5 bg-white border-r-2 border-b-2 border-sky-200 rotate-45" />
+    <div className="absolute top-2 right-2 flex flex-col items-center gap-0.5 z-10">
+      <div className="bg-white/90 border border-sky-200 rounded-lg px-1.5 py-0.5 shadow-sm max-w-[76px]">
+        <p className="text-[10px] font-bold text-gray-700 text-center leading-tight">{line}</p>
       </div>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={getPetImagePath(pet)}
-        alt="캐릭터"
-        className={`w-16 h-16 object-contain transition-transform duration-300 ${
-          feedback === "correct" ? "scale-110" : feedback === "wrong" ? "-rotate-6" : ""
-        }`}
-      />
+      <img src={getPetImagePath(pet)} alt="캐릭터" className={`w-10 h-10 object-contain ${animClass}`} />
     </div>
   );
+}
+
+// ---------- 결과 화면 (별점) ----------
+function ResultScreen({
+  correct,
+  total,
+  onDone,
+}: {
+  correct: number;
+  total: number;
+  onDone: () => void;
+}) {
+  const [pet] = useState(() => loadPet());
+  const ratio = total > 0 ? correct / total : 0;
+  const stars = ratio >= 0.9 ? 3 : ratio >= 0.6 ? 2 : ratio > 0 ? 1 : 0;
+
+  useEffect(() => {
+    const t = setTimeout(onDone, 2000);
+    return () => clearTimeout(t);
+  }, [onDone]);
+
+  return (
+    <div className="flex flex-col items-center gap-3 py-10">
+      <div className="flex gap-1 text-5xl">
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className={i < stars ? "star-pop" : "opacity-20"}
+            style={{ animationDelay: `${i * 0.15}s` }}
+          >
+            ⭐
+          </span>
+        ))}
+      </div>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={getPetImagePath(pet)} alt="캐릭터" className="w-20 h-20 object-contain" />
+      <p className="text-lg font-bold text-gray-800">
+        {total}개 중 {correct}개 맞혔어요!
+      </p>
+    </div>
+  );
+}
+
+function buildOptions(words: VocabWord[], target: VocabWord, count = 3) {
+  const distractors = shuffle(words.filter((w) => w.id !== target.id)).slice(0, count - 1);
+  return shuffle([target, ...distractors]);
 }
 
 export default function VocabGame({ words, onDone }: { words: VocabWord[]; onDone: () => void }) {
@@ -101,6 +296,7 @@ export default function VocabGame({ words, onDone }: { words: VocabWord[]; onDon
 
   return (
     <div className="w-full max-w-4xl flex flex-col gap-4">
+      <GameStyles />
       <button onClick={() => setKind(null)} className="self-start text-sm text-gray-400 underline">
         게임 다시 고르기
       </button>
@@ -112,21 +308,7 @@ export default function VocabGame({ words, onDone }: { words: VocabWord[]; onDon
   );
 }
 
-function EndScreen({ text }: { text: string }) {
-  return (
-    <div className="flex flex-col items-center gap-3 py-10">
-      <span className="text-5xl">🎉</span>
-      <p className="text-xl font-bold text-gray-800">{text}</p>
-    </div>
-  );
-}
-
-function buildOptions(words: VocabWord[], target: VocabWord, count = 3) {
-  const distractors = shuffle(words.filter((w) => w.id !== target.id)).slice(0, count - 1);
-  return shuffle([target, ...distractors]);
-}
-
-// ---------- 1) 단어 사냥: 떨어지는 정답 탭 ----------
+// ---------- 1) 단어 사냥: 낙하산 타고 떨어지는 정답 탭 ----------
 function HuntGame({ words, onDone }: { words: VocabWord[]; onDone: () => void }) {
   const [queue] = useState(() => shuffle(words));
   const [index, setIndex] = useState(0);
@@ -134,6 +316,9 @@ function HuntGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
   const [positions, setPositions] = useState<number[]>([10, 45, 80]);
   const [fallY, setFallY] = useState(0);
   const [feedback, setFeedback] = useState<Feedback>(null);
+  const [combo, setCombo] = useState(0);
+  const [particleTrigger, setParticleTrigger] = useState(0);
+  const [correctCount, setCorrectCount] = useState(0);
 
   const current = queue[index];
   const done = index >= queue.length;
@@ -149,13 +334,6 @@ function HuntGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fallY]);
 
-  useEffect(() => {
-    if (done) {
-      const t = setTimeout(onDone, 800);
-      return () => clearTimeout(t);
-    }
-  }, [done, onDone]);
-
   function goNext() {
     const next = index + 1;
     setIndex(next);
@@ -170,34 +348,50 @@ function HuntGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
   function tap(w: VocabWord) {
     if (feedback) return;
     const ok = w.id === current.id;
+    playTone(ok ? "correct" : "wrong");
     setFeedback(ok ? "correct" : "wrong");
+    if (ok) {
+      setCombo((c) => c + 1);
+      setCorrectCount((c) => c + 1);
+      setParticleTrigger((t) => t + 1);
+    } else {
+      setCombo(0);
+    }
     setTimeout(goNext, 500);
   }
 
-  if (done) return <EndScreen text="다 잡았어요!" />;
+  if (done) return <ResultScreen correct={correctCount} total={queue.length} onDone={onDone} />;
 
   return (
-    <div className="flex flex-col items-center gap-3">
-      <GameCharacter feedback={feedback} />
+    <div className={`relative rounded-3xl overflow-hidden p-3 flex flex-col items-center gap-3 ${THEME_BG.hunt}`}>
+      <DriftDecor kind="hunt" />
+      <SideCheer feedback={feedback} />
       <p className="text-sm text-gray-500">
         {index + 1} / {queue.length}
       </p>
-      <p className="text-lg font-bold text-sky-700">&quot;{current.korean}&quot; 을(를) 찾아 탭!</p>
-      <div className="relative w-full max-w-sm h-72 rounded-2xl bg-gradient-to-b from-sky-50 to-white border-2 border-gray-200 overflow-hidden">
+      <p className="text-lg font-bold text-sky-700">🎯 &quot;{current.korean}&quot; 을(를) 찾아 탭!</p>
+      <div className="relative w-full max-w-sm h-72 rounded-2xl bg-white/60 border-2 border-gray-200 overflow-hidden">
+        <Particles trigger={particleTrigger} />
+        <ComboBadge combo={combo} />
         {options.map((w, i) => (
           <button
             key={w.id}
             onClick={() => tap(w)}
             style={{ left: `${positions[i]}%`, top: `${fallY}%` }}
-            className={`absolute -translate-x-1/2 px-3 py-2 rounded-xl font-bold border-2 transition-colors ${
-              feedback && w.id === current.id
-                ? "bg-sky-100 border-sky-500 text-sky-700"
-                : feedback === "wrong" && w.id !== current.id
-                ? "bg-gray-50 border-gray-200 text-gray-300"
-                : "bg-white border-sky-200 text-gray-700 shadow"
-            }`}
+            className={`absolute -translate-x-1/2 flex flex-col items-center transition-colors`}
           >
-            {w.english}
+            <span className="text-lg -mb-1">🪂</span>
+            <span
+              className={`px-3 py-2 rounded-xl font-bold border-2 ${
+                feedback && w.id === current.id
+                  ? "bg-sky-100 border-sky-500 text-sky-700"
+                  : feedback === "wrong" && w.id !== current.id
+                  ? "bg-gray-50 border-gray-200 text-gray-300"
+                  : "bg-white border-sky-200 text-gray-700 shadow"
+              }`}
+            >
+              {w.english}
+            </span>
           </button>
         ))}
       </div>
@@ -205,27 +399,21 @@ function HuntGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
   );
 }
 
-// ---------- 2) 먹이주기: 드래그해서 캐릭터 입에 넣기 ----------
+// ---------- 2) 바구니 담기: 드래그해서 바구니에 넣기 ----------
 function FeedGame({ words, onDone }: { words: VocabWord[]; onDone: () => void }) {
-  const [pet] = useState(() => loadPet());
   const [queue] = useState(() => shuffle(words));
   const [index, setIndex] = useState(0);
   const [options, setOptions] = useState(() => buildOptions(words, queue[0], 3));
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
   const [feedback, setFeedback] = useState<Feedback>(null);
-  const mouthRef = useRef<HTMLDivElement>(null);
-  const line = useCharacterLine(feedback);
+  const [combo, setCombo] = useState(0);
+  const [particleTrigger, setParticleTrigger] = useState(0);
+  const [correctCount, setCorrectCount] = useState(0);
+  const basketRef = useRef<HTMLDivElement>(null);
 
   const current = queue[index];
   const done = index >= queue.length;
-
-  useEffect(() => {
-    if (done) {
-      const t = setTimeout(onDone, 800);
-      return () => clearTimeout(t);
-    }
-  }, [done, onDone]);
 
   function goNext() {
     const next = index + 1;
@@ -240,53 +428,57 @@ function FeedGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
   }
 
   function onPointerUp() {
-    if (!dragId || !dragPos || !mouthRef.current) {
+    if (!dragId || !dragPos || !basketRef.current) {
       setDragId(null);
       return;
     }
-    const rect = mouthRef.current.getBoundingClientRect();
+    const rect = basketRef.current.getBoundingClientRect();
     const inside =
       dragPos.x >= rect.left && dragPos.x <= rect.right && dragPos.y >= rect.top && dragPos.y <= rect.bottom;
     if (inside) {
       const ok = dragId === current.id;
+      playTone(ok ? "correct" : "wrong");
       setFeedback(ok ? "correct" : "wrong");
+      if (ok) {
+        setCombo((c) => c + 1);
+        setCorrectCount((c) => c + 1);
+        setParticleTrigger((t) => t + 1);
+      } else {
+        setCombo(0);
+      }
       setTimeout(goNext, 500);
     }
     setDragId(null);
     setDragPos(null);
   }
 
-  if (done) return <EndScreen text="배부르게 먹었어요!" />;
+  if (done) return <ResultScreen correct={correctCount} total={queue.length} onDone={onDone} />;
 
   return (
     <div
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      className="relative flex flex-col items-center gap-6 py-4 select-none touch-none"
+      className={`relative rounded-3xl overflow-hidden p-3 flex flex-col items-center gap-5 select-none touch-none ${THEME_BG.feed}`}
     >
+      <DriftDecor kind="feed" />
+      <Particles trigger={particleTrigger} />
+      <ComboBadge combo={combo} />
+      <SideCheer feedback={feedback} />
       <p className="text-sm text-gray-500">
         {index + 1} / {queue.length}
       </p>
 
-      <div className="relative">
-        <div className="bg-white border-2 border-sky-200 rounded-2xl px-3 py-1.5 shadow-sm">
-          <p className="text-xs font-bold text-gray-700 whitespace-nowrap">{line}</p>
-        </div>
-        <div className="absolute left-1/2 -translate-x-1/2 -bottom-1.5 w-2.5 h-2.5 bg-white border-r-2 border-b-2 border-sky-200 rotate-45" />
-      </div>
-
       <div
-        ref={mouthRef}
-        className={`w-28 h-28 rounded-full flex items-center justify-center border-4 overflow-hidden transition-transform duration-300 ${
+        ref={basketRef}
+        className={`w-28 h-28 rounded-2xl flex items-center justify-center border-4 text-6xl transition-transform duration-300 ${
           feedback === "correct"
             ? "bg-sky-100 border-sky-400 scale-110"
             : feedback === "wrong"
-            ? "bg-red-100 border-red-400 -rotate-6"
-            : "bg-gray-50 border-gray-300"
+            ? "bg-red-100 border-red-400"
+            : "bg-white/70 border-amber-300"
         }`}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={getPetImagePath(pet)} alt="캐릭터" className="w-20 h-20 object-contain" />
+        🧺
       </div>
       <p className="text-lg font-bold text-sky-700">{current.korean}</p>
       <div className="flex gap-4 flex-wrap justify-center">
@@ -302,15 +494,15 @@ function FeedGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
                 ? { position: "fixed", left: dragPos.x - 40, top: dragPos.y - 20, zIndex: 50 }
                 : undefined
             }
-            className={`px-4 py-3 rounded-xl bg-gray-50 border-2 border-gray-200 font-bold cursor-grab active:cursor-grabbing ${
+            className={`px-4 py-3 rounded-xl bg-white border-2 border-gray-200 font-bold cursor-grab active:cursor-grabbing shadow-sm ${
               dragId === w.id ? "shadow-xl" : ""
             }`}
           >
-            {w.english}
+            🍎 {w.english}
           </div>
         ))}
       </div>
-      <p className="text-xs text-gray-300">단어를 캐릭터한테 끌어다 놓으세요</p>
+      <p className="text-xs text-gray-400">단어를 바구니에 끌어다 놓으세요</p>
     </div>
   );
 }
@@ -323,6 +515,10 @@ function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
   const [visible, setVisible] = useState<Record<number, VocabWord>>({});
   const [selected, setSelected] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<Feedback>(null);
+  const [combo, setCombo] = useState(0);
+  const [particleTrigger, setParticleTrigger] = useState(0);
+  const [correctCount, setCorrectCount] = useState(0);
+  const [shake, setShake] = useState(false);
 
   const current = queue[index];
   const done = index >= queue.length;
@@ -340,37 +536,56 @@ function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, done]);
 
-  useEffect(() => {
-    if (done) {
-      const t = setTimeout(onDone, 800);
-      return () => clearTimeout(t);
-    }
-  }, [done, onDone]);
-
   function tap(slot: number) {
     if (selected !== null || !visible[slot]) return;
     setSelected(slot);
     const ok = visible[slot].id === current.id;
+    playTone(ok ? "correct" : "wrong");
     setFeedback(ok ? "correct" : "wrong");
+    if (ok) {
+      setCombo((c) => c + 1);
+      setCorrectCount((c) => c + 1);
+      setParticleTrigger((t) => t + 1);
+    } else {
+      setCombo(0);
+      setShake(true);
+      setTimeout(() => setShake(false), 300);
+    }
     setTimeout(() => setIndex((i) => i + 1), 500);
   }
 
-  if (done) return <EndScreen text="다 잡았어요!" />;
+  if (done) return <ResultScreen correct={correctCount} total={queue.length} onDone={onDone} />;
 
   return (
-    <div className="flex flex-col items-center gap-4">
-      <GameCharacter feedback={feedback} />
+    <div
+      className={`relative rounded-3xl overflow-hidden p-3 flex flex-col items-center gap-4 ${THEME_BG.mole} ${
+        shake ? "animate-pulse" : ""
+      }`}
+    >
+      <DriftDecor kind="mole" />
+      <Particles trigger={particleTrigger} />
+      <ComboBadge combo={combo} />
+      <SideCheer feedback={feedback} />
       <p className="text-sm text-gray-500">
         {index + 1} / {queue.length}
       </p>
-      <p className="text-lg font-bold text-sky-700">&quot;{current.korean}&quot; 이(가) 나온 구멍을 탭!</p>
+      <p className="text-lg font-bold text-sky-700">🐹 &quot;{current.korean}&quot; 이(가) 나온 구멍을 탭!</p>
       <div className="grid grid-cols-3 gap-3 w-full max-w-sm">
         {Array.from({ length: holes }, (_, slot) => {
           const w = visible[slot];
           const isPicked = selected === slot;
           const isAnswerSlot = w?.id === current.id;
-          let style = "bg-gray-100 border-gray-200 text-gray-300";
-          if (w) style = "bg-sky-50 border-sky-200 text-sky-700 font-bold animate-bounce";
+          let style = "bg-amber-300/50 border-amber-400 text-transparent";
+          let content: React.ReactNode = "";
+          if (w) {
+            style = "bg-white border-amber-400 text-amber-800 font-bold shadow";
+            content = (
+              <span className="flex flex-col items-center leading-none">
+                <span className="text-lg">🐹</span>
+                <span className="text-[11px]">{w.english}</span>
+              </span>
+            );
+          }
           if (isPicked && isAnswerSlot) style = "bg-sky-100 border-sky-500 text-sky-700 font-bold";
           if (isPicked && !isAnswerSlot) style = "bg-red-50 border-red-400 text-red-500";
           return (
@@ -379,7 +594,7 @@ function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
               onClick={() => tap(slot)}
               className={`aspect-square rounded-full border-2 flex items-center justify-center text-sm px-1 text-center transition ${style}`}
             >
-              {w ? w.english : ""}
+              {content}
             </button>
           );
         })}
@@ -390,13 +605,15 @@ function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
 
 // ---------- 4) 함께 달리기: 갈림길 선택 ----------
 function RunnerGame({ words, onDone }: { words: VocabWord[]; onDone: () => void }) {
-  const [pet] = useState(() => loadPet());
   const [queue] = useState(() => shuffle(words));
   const [index, setIndex] = useState(0);
   const [options, setOptions] = useState(() => buildOptions(words, queue[0], 2));
   const [progress, setProgress] = useState(0);
   const [choice, setChoice] = useState<"left" | "right" | null>(null);
   const [feedback, setFeedback] = useState<Feedback>(null);
+  const [combo, setCombo] = useState(0);
+  const [particleTrigger, setParticleTrigger] = useState(0);
+  const [correctCount, setCorrectCount] = useState(0);
 
   const current = queue[index];
   const done = index >= queue.length;
@@ -412,13 +629,6 @@ function RunnerGame({ words, onDone }: { words: VocabWord[]; onDone: () => void 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [progress]);
 
-  useEffect(() => {
-    if (done) {
-      const t = setTimeout(onDone, 800);
-      return () => clearTimeout(t);
-    }
-  }, [done, onDone]);
-
   function goNext() {
     const next = index + 1;
     setIndex(next);
@@ -431,30 +641,46 @@ function RunnerGame({ words, onDone }: { words: VocabWord[]; onDone: () => void 
   function pick(side: "left" | "right", w: VocabWord) {
     if (choice) return;
     setChoice(side);
-    setFeedback(w.id === current.id ? "correct" : "wrong");
+    const ok = w.id === current.id;
+    playTone(ok ? "correct" : "wrong");
+    setFeedback(ok ? "correct" : "wrong");
+    if (ok) {
+      setCombo((c) => c + 1);
+      setCorrectCount((c) => c + 1);
+      setParticleTrigger((t) => t + 1);
+    } else {
+      setCombo(0);
+    }
     setTimeout(goNext, 500);
   }
 
-  if (done) return <EndScreen text="완주했어요!" />;
+  if (done) return <ResultScreen correct={correctCount} total={queue.length} onDone={onDone} />;
 
   const [left, right] = options;
 
   return (
-    <div className="flex flex-col items-center gap-4">
+    <div className={`relative rounded-3xl overflow-hidden p-3 flex flex-col items-center gap-4 ${THEME_BG.runner}`}>
+      <DriftDecor kind="runner" />
+      <Particles trigger={particleTrigger} />
+      <ComboBadge combo={combo} />
+      <SideCheer feedback={feedback} />
       <p className="text-sm text-gray-500">
         {index + 1} / {queue.length}
       </p>
-      <div className="w-full max-w-sm h-3 rounded-full bg-gray-100 overflow-hidden">
-        <div className="h-full bg-sky-400 transition-all" style={{ width: `${progress}%` }} />
+      <div className="relative w-full max-w-sm h-8">
+        <div className="absolute inset-y-0 left-0 right-0 flex items-center">
+          <div className="w-full h-2 rounded-full bg-white/60 overflow-hidden">
+            <div className="h-full bg-sky-400 transition-all" style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+        <span
+          className="absolute -top-3 text-2xl transition-all duration-100"
+          style={{ left: `calc(${progress}% - 12px)` }}
+        >
+          🏃
+        </span>
+        <span className="absolute -top-3 right-0 text-2xl">🏁</span>
       </div>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={getPetImagePath(pet)}
-        alt="캐릭터"
-        className={`w-16 h-16 object-contain transition-transform duration-300 ${
-          feedback === "correct" ? "scale-110" : feedback === "wrong" ? "-rotate-6" : ""
-        }`}
-      />
       <p className="text-lg font-bold text-sky-700">{current.korean}</p>
       <div className="flex gap-4 w-full max-w-sm">
         <button
@@ -465,7 +691,7 @@ function RunnerGame({ words, onDone }: { words: VocabWord[]; onDone: () => void 
               ? left.id === current.id
                 ? "bg-sky-100 border-sky-500 text-sky-700"
                 : "bg-red-50 border-red-400 text-red-500"
-              : "bg-gray-50 border-gray-200 text-gray-700"
+              : "bg-white border-gray-200 text-gray-700"
           }`}
         >
           {left.english}
@@ -478,7 +704,7 @@ function RunnerGame({ words, onDone }: { words: VocabWord[]; onDone: () => void 
               ? right.id === current.id
                 ? "bg-sky-100 border-sky-500 text-sky-700"
                 : "bg-red-50 border-red-400 text-red-500"
-              : "bg-gray-50 border-gray-200 text-gray-700"
+              : "bg-white border-gray-200 text-gray-700"
           }`}
         >
           {right.english}
