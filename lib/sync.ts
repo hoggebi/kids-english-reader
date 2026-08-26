@@ -8,7 +8,8 @@ import {
   mergePetState,
   type PetState,
 } from "./pet";
-import type { Chapter } from "./types";
+import { loadVocabSets, saveVocabSets } from "./vocabStorage";
+import type { Chapter, VocabSet } from "./types";
 
 const SYNC_CODE_KEY = "little-reader-sync-code";
 
@@ -41,6 +42,7 @@ function currentPayload() {
     chapters: loadChapters(),
     doneChapterIds: getAllDoneChapterIds(),
     pet: loadPet(),
+    vocabSets: loadVocabSets(),
   };
 }
 
@@ -61,12 +63,18 @@ export async function pushSync(code: string) {
 export async function pullSync(code: string): Promise<{
   chapters: Chapter[];
   pet: PetState;
+  vocabSets: VocabSet[];
 }> {
   try {
     const res = await fetch(`/api/sync?code=${encodeURIComponent(code)}`);
     const json = await res.json();
     const data = json.data as
-      | { chapters: Chapter[]; doneChapterIds?: string[]; pet?: PetState }
+      | {
+          chapters: Chapter[];
+          doneChapterIds?: string[];
+          pet?: PetState;
+          vocabSets?: VocabSet[];
+        }
       | null;
 
     if (data) {
@@ -76,12 +84,23 @@ export async function pullSync(code: string): Promise<{
       saveChapters(merged);
       if (data.doneChapterIds) mergeDoneChapterIds(data.doneChapterIds);
       if (data.pet) mergePetState(data.pet);
+
+      // 단어장도 챕터와 같은 방식으로: 내 기기에 없는 세트만 추가로 합침
+      if (data.vocabSets) {
+        const existingVocab = loadVocabSets();
+        const existingVocabIds = new Set(existingVocab.map((s) => s.id));
+        const mergedVocab = [
+          ...existingVocab,
+          ...data.vocabSets.filter((s) => !existingVocabIds.has(s.id)),
+        ];
+        saveVocabSets(mergedVocab);
+      }
     }
   } catch {
     // 네트워크 오류 등은 조용히 무시
   }
 
-  return { chapters: loadChapters(), pet: loadPet() };
+  return { chapters: loadChapters(), pet: loadPet(), vocabSets: loadVocabSets() };
 }
 
 // 받아오고(pull) 나서 합쳐진 최신 상태를 다시 서버에 올림(push) — 양쪽 기기를 완전히 맞춤
