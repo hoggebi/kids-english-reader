@@ -76,6 +76,7 @@ export default function Home() {
       syncNow(code).then((result) => {
         setChapters(result.chapters);
         setPet(result.pet);
+        setVocabSets(result.vocabSets);
         setSyncing(false);
       });
     }
@@ -105,6 +106,7 @@ export default function Home() {
     const result = await syncNow(code);
     setChapters(result.chapters);
     setPet(result.pet);
+    setVocabSets(result.vocabSets);
     setSyncing(false);
     setShowJoinBox(false);
     setJoinInput("");
@@ -123,6 +125,7 @@ export default function Home() {
     const result = await syncNow(syncCode);
     setChapters(result.chapters);
     setPet(result.pet);
+    setVocabSets(result.vocabSets);
     setSyncing(false);
     setSyncMessage("동기화됐어요!");
   }
@@ -185,14 +188,17 @@ export default function Home() {
     setVocabSets(addVocabSet(set));
     setActiveVocabSet(set);
     setVocabView("read");
+    autoPush();
   }
 
   function handleVocabDelete(id: string) {
     setVocabSets(deleteVocabSet(id));
+    autoPush();
   }
 
   function handleVocabRename(id: string, newTitle: string) {
     setVocabSets(renameVocabSet(id, newTitle));
+    autoPush();
   }
 
   function handleVocabSelect(set: VocabSet) {
