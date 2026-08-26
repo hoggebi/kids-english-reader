@@ -163,8 +163,8 @@ if (session.cards.length === 0 || session.phase === "done") {
   return (
     <div className="w-full max-w-4xl flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <button onClick={onBack} className="text-sm text-gray-400 underline">
-          단어장 목록
+       <button onClick={() => setMode("hub")} className="text-sm text-gray-400 underline">
+          허브로
         </button>
         <h2 className="text-lg font-bold text-gray-800">{set.title}</h2>
         <span className="text-xs text-gray-400">
