@@ -11,6 +11,8 @@ import {
 } from "@/lib/vocabStorage";
 import VocabGame from "./VocabGame";
 
+type Mode = "hub" | "study" | "gameOnly";
+
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
