@@ -82,7 +82,12 @@ export async function POST(req: NextRequest) {
     const merged = mergePayload(existing, data);
 
     await redis.set(key, merged);
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({
+      ok: true,
+      receivedVocabSets: data.vocabSets?.length ?? 0,
+      existingVocabSetsBeforeMerge: existing?.vocabSets?.length ?? 0,
+      finalVocabSetsAfterMerge: merged.vocabSets?.length ?? 0,
+    });
   } catch (err) {
     console.error(err);
     const message = err instanceof Error ? err.message : "알 수 없는 오류";
