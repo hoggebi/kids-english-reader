@@ -30,6 +30,12 @@ export default function VocabList({
     setEditingId(null);
   }
 
+  function statusLabel(status: VocabSet["status"]) {
+    if (status === "active") return { text: "진행중", style: "bg-sky-100 text-sky-600" };
+    if (status === "completed") return { text: "완료", style: "bg-gray-200 text-gray-500" };
+    return { text: "잠김", style: "bg-gray-100 text-gray-400" };
+  }
+
   return (
     <div className="w-full max-w-4xl flex flex-col gap-4">
       <button
@@ -47,13 +53,15 @@ export default function VocabList({
         <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:gap-4">
           {sets.map((s) => {
             const isEditing = editingId === s.id;
+            const isLocked = s.status === "locked";
+            const badge = statusLabel(s.status);
             return (
               <div
                 key={s.id}
                 className={`rounded-2xl bg-gray-50 p-4 flex items-center justify-between transition ${
-                  isEditing ? "" : "cursor-pointer active:scale-[0.98]"
-                }`}
-                onClick={() => !isEditing && onSelect(s)}
+                  isEditing || isLocked ? "" : "cursor-pointer active:scale-[0.98]"
+                } ${isLocked ? "opacity-50" : ""}`}
+                onClick={() => !isEditing && !isLocked && onSelect(s)}
               >
                 {isEditing ? (
                   <input
@@ -69,8 +77,16 @@ export default function VocabList({
                   />
                 ) : (
                   <div className="min-w-0">
-                    <div className="font-bold truncate text-gray-800">{s.title}</div>
-                    <div className="text-xs text-gray-400">{s.words.length}개 단어</div>
+                    <div className="flex items-center gap-2">
+                      <div className="font-bold truncate text-gray-800">{s.title}</div>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full shrink-0 ${badge.style}`}>
+                        {badge.text}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-400 mt-0.5">
+                      {s.words.length}개 단어
+                      {isLocked && " · 이전 단어장을 다 끝내면 열려요"}
+                    </div>
                   </div>
                 )}
 
