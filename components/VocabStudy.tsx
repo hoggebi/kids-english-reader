@@ -103,6 +103,17 @@ export default function VocabStudy({ set, onBack }: { set: VocabSet; onBack: () 
             한 번 더 복습하기
           </button>
         )}
+
+        <button
+          onClick={() => {
+            const fresh = buildDailySession(set);
+            setSession(fresh);
+            setMode("hub");
+          }}
+          className="text-xs text-gray-300 underline self-center mt-2"
+        >
+          오늘 학습 처음부터 다시 (테스트용)
+        </button>
       </div>
     );
   }
