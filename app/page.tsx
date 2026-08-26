@@ -78,6 +78,9 @@ export default function Home() {
         setPet(result.pet);
         setVocabSets(result.vocabSets);
         setSyncing(false);
+        setSyncMessage(
+          `동기화됐어요! (챕터 ${result.chapters.length}개, 단어장 ${result.vocabSets.length}개)`
+        );
       });
     }
   }, []);
@@ -110,7 +113,9 @@ export default function Home() {
     setSyncing(false);
     setShowJoinBox(false);
     setJoinInput("");
-    setSyncMessage("동기화됐어요!");
+    setSyncMessage(
+      `동기화됐어요! (챕터 ${result.chapters.length}개, 단어장 ${result.vocabSets.length}개)`
+    );
   }
 
   function handleStopSync() {
@@ -127,7 +132,9 @@ export default function Home() {
     setPet(result.pet);
     setVocabSets(result.vocabSets);
     setSyncing(false);
-    setSyncMessage("동기화됐어요!");
+    setSyncMessage(
+      `동기화됐어요! (챕터 ${result.chapters.length}개, 단어장 ${result.vocabSets.length}개)`
+    );
   }
 
   async function handleExport() {
@@ -243,72 +250,72 @@ export default function Home() {
         </button>
       </div>
 
+      {/* 기기 간 자동 동기화 설정 (챕터/단어장 어느 목록 화면에서든 항상 보임) */}
+      <div className="w-full max-w-4xl rounded-2xl bg-gray-50 p-4 flex flex-col gap-3">
+        {syncCode ? (
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs text-gray-400">동기화 코드</p>
+              <p className="font-title text-2xl tracking-widest text-sky-700">{syncCode}</p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleManualSync}
+                disabled={syncing}
+                className="px-4 py-2 rounded-full bg-sky-600 text-white text-sm font-bold disabled:opacity-50"
+              >
+                {syncing ? "동기화 중..." : "지금 동기화"}
+              </button>
+              <button
+                onClick={handleStopSync}
+                className="px-4 py-2 rounded-full bg-gray-200 text-gray-600 text-sm font-bold"
+              >
+                끄기
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <p className="text-sm text-gray-600">
+              다른 기기와 자동으로 동기화하려면 코드를 만들고, 다른 기기에서 같은 코드를 입력하세요.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={handleCreateSyncCode}
+                className="flex-1 py-3 rounded-full bg-sky-600 text-white font-bold"
+              >
+                새 동기화 코드 만들기
+              </button>
+              <button
+                onClick={() => setShowJoinBox((v) => !v)}
+                className="flex-1 py-3 rounded-full bg-gray-100 text-gray-700 font-bold"
+              >
+                코드로 연결하기
+              </button>
+            </div>
+            {showJoinBox && (
+              <div className="flex gap-2">
+                <input
+                  value={joinInput}
+                  onChange={(e) => setJoinInput(e.target.value)}
+                  placeholder="예: AB12CD"
+                  className="flex-1 rounded-xl border-2 border-gray-200 px-3 py-2 uppercase"
+                />
+                <button
+                  onClick={handleJoinSyncCode}
+                  className="px-4 py-2 rounded-full bg-sky-600 text-white font-bold"
+                >
+                  연결
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
       {section === "chapters" && view === "list" && (
         <>
           {pet && <PetDisplay pet={pet} />}
-
-          {/* 기기 간 자동 동기화 설정 */}
-          <div className="w-full max-w-4xl rounded-2xl bg-gray-50 p-4 flex flex-col gap-3">
-            {syncCode ? (
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs text-gray-400">동기화 코드</p>
-                  <p className="font-title text-2xl tracking-widest text-sky-700">{syncCode}</p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleManualSync}
-                    disabled={syncing}
-                    className="px-4 py-2 rounded-full bg-sky-600 text-white text-sm font-bold disabled:opacity-50"
-                  >
-                    {syncing ? "동기화 중..." : "지금 동기화"}
-                  </button>
-                  <button
-                    onClick={handleStopSync}
-                    className="px-4 py-2 rounded-full bg-gray-200 text-gray-600 text-sm font-bold"
-                  >
-                    끄기
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <p className="text-sm text-gray-600">
-                  다른 기기와 자동으로 동기화하려면 코드를 만들고, 다른 기기에서 같은 코드를 입력하세요.
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleCreateSyncCode}
-                    className="flex-1 py-3 rounded-full bg-sky-600 text-white font-bold"
-                  >
-                    새 동기화 코드 만들기
-                  </button>
-                  <button
-                    onClick={() => setShowJoinBox((v) => !v)}
-                    className="flex-1 py-3 rounded-full bg-gray-100 text-gray-700 font-bold"
-                  >
-                    코드로 연결하기
-                  </button>
-                </div>
-                {showJoinBox && (
-                  <div className="flex gap-2">
-                    <input
-                      value={joinInput}
-                      onChange={(e) => setJoinInput(e.target.value)}
-                      placeholder="예: AB12CD"
-                      className="flex-1 rounded-xl border-2 border-gray-200 px-3 py-2 uppercase"
-                    />
-                    <button
-                      onClick={handleJoinSyncCode}
-                      className="px-4 py-2 rounded-full bg-sky-600 text-white font-bold"
-                    >
-                      연결
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
 
           <button
             onClick={handleExport}
