@@ -30,3 +30,15 @@ export type QuizItem = {
   // order_words 전용: 섞인 단어들
   words?: string[];
 };
+export type VocabWord = {
+  english: string;
+  korean: string;
+  pos?: string; // 품사 (n., v., adj., adv., int. 등) - 없을 수도 있음
+};
+
+export type VocabSet = {
+  id: string;
+  title: string;
+  words: VocabWord[];
+  createdAt: number;
+};
