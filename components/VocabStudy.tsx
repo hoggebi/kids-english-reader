@@ -49,6 +49,12 @@ export default function VocabStudy({ set, onBack }: { set: VocabSet; onBack: () 
         </button>
         <p className="text-xl font-bold text-gray-800">오늘의 공부 완료!</p>
         <p className="text-sm text-gray-500">내일 또 만나요.</p>
+        <button
+          onClick={() => setSession(buildDailySession(set))}
+          className="text-sm text-sky-600 font-bold underline"
+        >
+          한 번 더 복습하기
+        </button>
       </div>
     );
   }
