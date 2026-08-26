@@ -4,7 +4,6 @@ export type QuizQuestion = {
   correctIndex: number;
   explanation: string;
 };
-
 export type ExtractedPage = {
   title: string;
   sentences: string[];
@@ -16,29 +15,49 @@ export type Chapter = {
   createdAt: number;
 };
 export type QuizItemKind = "fill_blank" | "find_sentence" | "order_words" | "listen_word";
-
 export type QuizItem = {
   kind: QuizItemKind;
-  // 정답 확인 후 다시 보여주고 TTS로 들려줄 원문 문장
   sourceSentence: string;
-  // fill_blank 전용: 빈칸이 있는 문장 (예: "Tom has a ___ ball.")
   prompt?: string;
-  // fill_blank / find_sentence / listen_word 전용 선택지
   options?: string[];
-  // 정답값 (fill_blank/find_sentence/listen_word는 options 중 하나, order_words는 완성 문장)
   answer?: string;
-  // order_words 전용: 섞인 단어들
   words?: string[];
 };
+
+// ---- 단어장 ----
+export type LeitnerBox = 0 | 1 | 2 | 3 | 4 | 5; // 0=미학습, 1~4=복습중, 5=마스터
+
 export type VocabWord = {
+  id: string;
   english: string;
   korean: string;
-  pos?: string; // 품사 (n., v., adj., adv., int. 등) - 없을 수도 있음
+  pos?: string;
+  box: LeitnerBox;
+  nextDueAt: number; // timestamp(ms). 0이면 즉시 학습 대상
+  wrongCount: number;
 };
+
+export type VocabSetStatus = "locked" | "active" | "completed";
 
 export type VocabSet = {
   id: string;
   title: string;
   words: VocabWord[];
   createdAt: number;
+  status: VocabSetStatus;
+};
+
+export type VocabStudyMode = "flash" | "meaning" | "listen" | "spell";
+
+export type VocabDailyCard = {
+  wordId: string;
+  mode: VocabStudyMode;
+};
+
+export type VocabDailySession = {
+  setId: string;
+  dateKey: string; // "2026-08-26"
+  cards: VocabDailyCard[];
+  cursor: number;
+  phase: "study" | "game" | "done";
 };
