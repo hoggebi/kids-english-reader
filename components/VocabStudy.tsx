@@ -33,7 +33,9 @@ function speak(text: string) {
 
 export default function VocabStudy({ set, onBack }: { set: VocabSet; onBack: () => void }) {
   const [session, setSession] = useState<VocabDailySession | null>(null);
-
+const [mode, setMode] = useState<Mode>("hub");
+  const [gameWords, setGameWords] = useState<VocabWord[]>([]);
+  
   useEffect(() => {
     const existing = loadTodaySession(set.id);
     setSession(existing ?? buildDailySession(set));
