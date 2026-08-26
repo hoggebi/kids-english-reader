@@ -30,13 +30,6 @@ const THEME_BG: Record<GameKind, string> = {
   runner: "bg-gradient-to-b from-orange-100 via-sky-100 to-white",
 };
 
-const THEME_DECOR: Record<GameKind, { emoji: string; count: number }> = {
-  hunt: { emoji: "☁️", count: 3 },
-  feed: { emoji: "🍃", count: 4 },
-  mole: { emoji: "🌼", count: 3 },
-  runner: { emoji: "🌳", count: 4 },
-};
-
 // 공통 애니메이션 정의 (게임 화면에서 한 번만 렌더)
 function GameStyles() {
   return (
@@ -55,10 +48,6 @@ function GameStyles() {
         60% { transform: scale(1.3) rotate(10deg); }
         100% { transform: scale(1) rotate(0deg); opacity: 1; }
       }
-      @keyframes drift {
-        0% { transform: translateX(-15%); }
-        100% { transform: translateX(115%); }
-      }
       @keyframes bounceCorrect {
         0%, 100% { transform: translateY(0) scale(1); }
         50% { transform: translateY(-10px) scale(1.15); }
@@ -68,14 +57,18 @@ function GameStyles() {
         25% { transform: rotate(-10deg); }
         75% { transform: rotate(10deg); }
       }
+      @keyframes runBob {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-6px); }
+      }
       .particle { position: absolute; left: 50%; top: 50%; animation: particlePop 0.7s ease-out forwards; }
       .combo-badge { position: absolute; left: 50%; top: 12%; animation: comboPop 0.7s ease-out forwards; }
       .star-pop { animation: starPop 0.5s ease-out forwards; }
-      .drift-item { position: absolute; animation: drift linear infinite; }
       .char-correct { animation: bounceCorrect 0.5s ease-out; }
       .char-wrong { animation: wobbleWrong 0.4s ease-out; }
+      .run-bob { animation: runBob 0.4s ease-in-out infinite; }
       @media (prefers-reduced-motion: reduce) {
-        .particle, .combo-badge, .star-pop, .drift-item, .char-correct, .char-wrong { animation: none; }
+        .particle, .combo-badge, .star-pop, .char-correct, .char-wrong, .run-bob { animation: none; }
       }
     `}</style>
   );
@@ -116,28 +109,6 @@ function playTone(kind: "correct" | "wrong") {
   osc.stop(now + 0.3);
 }
 
-// ---------- 배경 장식(떠다니는 구름/나뭇잎 등) ----------
-function DriftDecor({ kind }: { kind: GameKind }) {
-  const { emoji, count } = THEME_DECOR[kind];
-  return (
-    <>
-      {Array.from({ length: count }).map((_, i) => (
-        <span
-          key={i}
-          className="drift-item text-xl opacity-70 select-none"
-          style={{
-            top: `${10 + i * 22}%`,
-            animationDuration: `${9 + i * 3}s`,
-            animationDelay: `${i * 1.4}s`,
-          }}
-        >
-          {emoji}
-        </span>
-      ))}
-    </>
-  );
-}
-
 // ---------- 정답/오답 파티클 ----------
 function Particles({ trigger }: { trigger: number }) {
   const [items, setItems] = useState<{ id: number; dx: number; dy: number; emoji: string }[]>([]);
@@ -176,39 +147,6 @@ function ComboBadge({ combo }: { combo: number }) {
   return (
     <div key={combo} className="combo-badge text-sky-500 font-black text-xl z-20 -translate-x-1/2">
       {combo} 콤보!
-    </div>
-  );
-}
-
-// ---------- 캐릭터: 이제 구석에서 작게 응원만 (보조 역할) ----------
-const CHEER_LINES = ["잘했어!", "최고야!", "그렇지!", "굿굿!"];
-const MISS_LINES = ["괜찮아!", "아깝다!", "다시!", "힘내!"];
-const IDLE_LINE = "화이팅!";
-
-function useCharacterLine(feedback: Feedback) {
-  const [line, setLine] = useState(IDLE_LINE);
-  useEffect(() => {
-    if (feedback === "correct") {
-      setLine(CHEER_LINES[Math.floor(Math.random() * CHEER_LINES.length)]);
-    } else if (feedback === "wrong") {
-      setLine(MISS_LINES[Math.floor(Math.random() * MISS_LINES.length)]);
-    }
-  }, [feedback]);
-  return line;
-}
-
-function SideCheer({ feedback }: { feedback: Feedback }) {
-  const [pet] = useState(() => loadPet());
-  const line = useCharacterLine(feedback);
-  const animClass = feedback === "correct" ? "char-correct" : feedback === "wrong" ? "char-wrong" : "";
-
-  return (
-    <div className="absolute top-2 right-2 flex flex-col items-center gap-0.5 z-10">
-      <div className="bg-white/90 border border-sky-200 rounded-lg px-1.5 py-0.5 shadow-sm max-w-[76px]">
-        <p className="text-[10px] font-bold text-gray-700 text-center leading-tight">{line}</p>
-      </div>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={getPetImagePath(pet)} alt="캐릭터" className={`w-10 h-10 object-contain ${animClass}`} />
     </div>
   );
 }
@@ -310,6 +248,7 @@ export default function VocabGame({ words, onDone }: { words: VocabWord[]; onDon
 
 // ---------- 1) 단어 사냥: 낙하산 타고 떨어지는 정답 탭 ----------
 function HuntGame({ words, onDone }: { words: VocabWord[]; onDone: () => void }) {
+  const [pet] = useState(() => loadPet());
   const [queue] = useState(() => shuffle(words));
   const [index, setIndex] = useState(0);
   const [options, setOptions] = useState(() => buildOptions(words, queue[0], 3));
@@ -364,8 +303,6 @@ function HuntGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
 
   return (
     <div className={`relative rounded-3xl overflow-hidden p-3 flex flex-col items-center gap-3 ${THEME_BG.hunt}`}>
-      <DriftDecor kind="hunt" />
-      <SideCheer feedback={feedback} />
       <p className="text-sm text-gray-500">
         {index + 1} / {queue.length}
       </p>
@@ -373,27 +310,44 @@ function HuntGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
       <div className="relative w-full max-w-sm h-72 rounded-2xl bg-white/60 border-2 border-gray-200 overflow-hidden">
         <Particles trigger={particleTrigger} />
         <ComboBadge combo={combo} />
-        {options.map((w, i) => (
-          <button
-            key={w.id}
-            onClick={() => tap(w)}
-            style={{ left: `${positions[i]}%`, top: `${fallY}%` }}
-            className={`absolute -translate-x-1/2 flex flex-col items-center transition-colors`}
-          >
-            <span className="text-lg -mb-1">🪂</span>
-            <span
-              className={`px-3 py-2 rounded-xl font-bold border-2 ${
-                feedback && w.id === current.id
-                  ? "bg-sky-100 border-sky-500 text-sky-700"
-                  : feedback === "wrong" && w.id !== current.id
-                  ? "bg-gray-50 border-gray-200 text-gray-300"
-                  : "bg-white border-sky-200 text-gray-700 shadow"
+        {options.map((w, i) => {
+          const isCaught = feedback === "correct" && w.id === current.id;
+          return (
+            <button
+              key={w.id}
+              onClick={() => tap(w)}
+              style={
+                isCaught
+                  ? { left: "50%", bottom: "8%", top: "auto" }
+                  : { left: `${positions[i]}%`, top: `${fallY}%` }
+              }
+              className={`absolute -translate-x-1/2 flex flex-col items-center transition-all duration-500 ${
+                isCaught ? "scale-75 opacity-0" : ""
               }`}
             >
-              {w.english}
-            </span>
-          </button>
-        ))}
+              <span className="text-lg -mb-1">🪂</span>
+              <span
+                className={`px-3 py-2 rounded-xl font-bold border-2 ${
+                  feedback && w.id === current.id
+                    ? "bg-sky-100 border-sky-500 text-sky-700"
+                    : feedback === "wrong" && w.id !== current.id
+                    ? "bg-gray-50 border-gray-200 text-gray-300"
+                    : "bg-white border-sky-200 text-gray-700 shadow"
+                }`}
+              >
+                {w.english}
+              </span>
+            </button>
+          );
+        })}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={getPetImagePath(pet)}
+          alt="캐릭터"
+          className={`absolute bottom-1 left-1/2 -translate-x-1/2 w-12 h-12 object-contain ${
+            feedback === "correct" ? "char-correct" : feedback === "wrong" ? "char-wrong" : ""
+          }`}
+        />
       </div>
     </div>
   );
@@ -401,6 +355,7 @@ function HuntGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
 
 // ---------- 2) 바구니 담기: 드래그해서 바구니에 넣기 ----------
 function FeedGame({ words, onDone }: { words: VocabWord[]; onDone: () => void }) {
+  const [pet] = useState(() => loadPet());
   const [queue] = useState(() => shuffle(words));
   const [index, setIndex] = useState(0);
   const [options, setOptions] = useState(() => buildOptions(words, queue[0], 3));
@@ -460,25 +415,21 @@ function FeedGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
       onPointerUp={onPointerUp}
       className={`relative rounded-3xl overflow-hidden p-3 flex flex-col items-center gap-5 select-none touch-none ${THEME_BG.feed}`}
     >
-      <DriftDecor kind="feed" />
       <Particles trigger={particleTrigger} />
       <ComboBadge combo={combo} />
-      <SideCheer feedback={feedback} />
       <p className="text-sm text-gray-500">
         {index + 1} / {queue.length}
       </p>
 
       <div
         ref={basketRef}
-        className={`w-28 h-28 rounded-2xl flex items-center justify-center border-4 text-6xl transition-transform duration-300 ${
-          feedback === "correct"
-            ? "bg-sky-100 border-sky-400 scale-110"
-            : feedback === "wrong"
-            ? "bg-red-100 border-red-400"
-            : "bg-white/70 border-amber-300"
-        }`}
+        className={`relative w-28 h-28 rounded-2xl flex items-center justify-center transition-transform duration-300 ${
+          feedback === "correct" ? "scale-110" : ""
+        } ${feedback === "correct" ? "char-correct" : feedback === "wrong" ? "char-wrong" : ""}`}
       >
-        🧺
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={getPetImagePath(pet)} alt="캐릭터" className="w-24 h-24 object-contain" />
+        <span className="absolute -bottom-1 -right-1 text-3xl">🧺</span>
       </div>
       <p className="text-lg font-bold text-sky-700">{current.korean}</p>
       <div className="flex gap-4 flex-wrap justify-center">
@@ -509,6 +460,7 @@ function FeedGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
 
 // ---------- 3) 두더지 잡기 ----------
 function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void }) {
+  const [pet] = useState(() => loadPet());
   const [queue] = useState(() => shuffle(words));
   const [index, setIndex] = useState(0);
   const holes = 6;
@@ -519,6 +471,7 @@ function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
   const [particleTrigger, setParticleTrigger] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const [shake, setShake] = useState(false);
+  const [swing, setSwing] = useState(0);
 
   const current = queue[index];
   const done = index >= queue.length;
@@ -539,6 +492,7 @@ function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
   function tap(slot: number) {
     if (selected !== null || !visible[slot]) return;
     setSelected(slot);
+    setSwing((s) => s + 1);
     const ok = visible[slot].id === current.id;
     playTone(ok ? "correct" : "wrong");
     setFeedback(ok ? "correct" : "wrong");
@@ -562,10 +516,18 @@ function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
         shake ? "animate-pulse" : ""
       }`}
     >
-      <DriftDecor kind="mole" />
       <Particles trigger={particleTrigger} />
       <ComboBadge combo={combo} />
-      <SideCheer feedback={feedback} />
+      <div className="absolute top-2 right-2 flex flex-col items-center z-10">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          key={swing}
+          src={getPetImagePath(pet)}
+          alt="캐릭터"
+          className={`w-12 h-12 object-contain ${swing > 0 ? "char-correct" : ""}`}
+        />
+        <span className="text-xl -mt-2">🔨</span>
+      </div>
       <p className="text-sm text-gray-500">
         {index + 1} / {queue.length}
       </p>
@@ -605,6 +567,7 @@ function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
 
 // ---------- 4) 함께 달리기: 갈림길 선택 ----------
 function RunnerGame({ words, onDone }: { words: VocabWord[]; onDone: () => void }) {
+  const [pet] = useState(() => loadPet());
   const [queue] = useState(() => shuffle(words));
   const [index, setIndex] = useState(0);
   const [options, setOptions] = useState(() => buildOptions(words, queue[0], 2));
@@ -660,25 +623,26 @@ function RunnerGame({ words, onDone }: { words: VocabWord[]; onDone: () => void 
 
   return (
     <div className={`relative rounded-3xl overflow-hidden p-3 flex flex-col items-center gap-4 ${THEME_BG.runner}`}>
-      <DriftDecor kind="runner" />
       <Particles trigger={particleTrigger} />
       <ComboBadge combo={combo} />
-      <SideCheer feedback={feedback} />
       <p className="text-sm text-gray-500">
         {index + 1} / {queue.length}
       </p>
-      <div className="relative w-full max-w-sm h-8">
+      <div className="relative w-full max-w-sm h-10">
         <div className="absolute inset-y-0 left-0 right-0 flex items-center">
           <div className="w-full h-2 rounded-full bg-white/60 overflow-hidden">
             <div className="h-full bg-sky-400 transition-all" style={{ width: `${progress}%` }} />
           </div>
         </div>
-        <span
-          className="absolute -top-3 text-2xl transition-all duration-100"
-          style={{ left: `calc(${progress}% - 12px)` }}
-        >
-          🏃
-        </span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={getPetImagePath(pet)}
+          alt="캐릭터"
+          className={`absolute -top-5 w-9 h-9 object-contain transition-all duration-100 ${
+            choice ? (feedback === "correct" ? "char-correct" : "char-wrong") : "run-bob"
+          }`}
+          style={{ left: `calc(${progress}% - 18px)` }}
+        />
         <span className="absolute -top-3 right-0 text-2xl">🏁</span>
       </div>
       <p className="text-lg font-bold text-sky-700">{current.korean}</p>
