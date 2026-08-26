@@ -2,7 +2,7 @@
 import type { VocabSet, VocabWord, VocabDailySession, VocabStudyMode } from "./types";
 
 const VOCAB_KEY = "little-reader-vocab-sets";
-const SESSION_KEY_PREFIX = "little-reader-vocab-session-"; // + setId
+const SESSION_KEY_PREFIX = "little-reader-vocab-session-";
 
 // 박스별 복습 간격(일). 3주 완주 목표에 맞춰 촘촘하게 설정.
 const BOX_INTERVAL_DAYS: Record<number, number> = { 1: 1, 2: 2, 3: 3, 4: 5 };
@@ -13,15 +13,14 @@ function makeId() {
 }
 
 function todayKey(d = new Date()) {
-  return d.toISOString().slice(0, 10); // "2026-08-26"
+  return d.toISOString().slice(0, 10);
 }
 
 function daysFromNow(days: number) {
   return Date.now() + days * 24 * 60 * 60 * 1000;
 }
 
-// ---------- 마이그레이션 ----------
-// 예전 데이터(단어에 id/box 등이 없는 경우)를 자동으로 채워준다.
+// ---------- 마이그레이션 (예전 데이터에 신규 필드 채워넣기) ----------
 function migrateWord(w: VocabWord): VocabWord {
   return {
     ...w,
@@ -45,7 +44,7 @@ function migrateSets(sets: VocabSet[]): VocabSet[] {
   });
 }
 
-// ---------- 세트 CRUD (기존 함수 유지) ----------
+// ---------- 세트 CRUD ----------
 export function loadVocabSets(): VocabSet[] {
   if (typeof window === "undefined") return [];
   try {
@@ -137,7 +136,12 @@ export function recordAnswer(setId: string, wordId: string, correct: boolean) {
       const interval = BOX_INTERVAL_DAYS[nextBox] ?? 0;
       return { ...w, box: nextBox, nextDueAt: nextBox >= 5 ? 0 : daysFromNow(interval) };
     } else {
-      return { ...w, box: 1 as VocabWord["box"], nextDueAt: daysFromNow(BOX_INTERVAL_DAYS[1]), wrongCount: w.wrongCount + 1 };
+      return {
+        ...w,
+        box: 1 as VocabWord["box"],
+        nextDueAt: daysFromNow(BOX_INTERVAL_DAYS[1]),
+        wrongCount: w.wrongCount + 1,
+      };
     }
   });
   sets[setIdx] = { ...sets[setIdx], words };
@@ -178,23 +182,23 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-// 오늘의 10개 단어로부터 카드 큐 생성
-// - 신규단어(box 0): flash 먼저 → 나머지 3개 랜덤 순서로 테스트
-// - 복습단어(box>=1): 4개 중 랜덤 1개만 테스트
+// 스펠링 제외, 단어당 랜덤 2개만 진행
+// - 신규단어(box 0): flash 노출(보장) + 나머지(뜻고르기/듣고맞추기) 중 랜덤 1개 테스트
+// - 복습단어(box>=1): flash 포함 3개 중 랜덤 2개
 export function buildDailySession(set: VocabSet): VocabDailySession {
   const dailyWords = selectDailyWords(set);
-  const allModes: VocabStudyMode[] = ["meaning", "listen", "spell"];
+  const testModes: VocabStudyMode[] = ["meaning", "listen"];
   const cards: VocabDailySession["cards"] = [];
 
   for (const w of dailyWords) {
     if (w.box === 0) {
+      const testMode = shuffle(testModes)[0];
       cards.push({ wordId: w.id, mode: "flash" });
-      for (const m of shuffle(allModes)) {
-        cards.push({ wordId: w.id, mode: m });
-      }
+      cards.push({ wordId: w.id, mode: testMode });
     } else {
-      const m = shuffle(["flash", ...allModes] as VocabStudyMode[])[0];
-      cards.push({ wordId: w.id, mode: m });
+      const pool: VocabStudyMode[] = ["flash", ...testModes];
+      const picked = shuffle(pool).slice(0, 2);
+      for (const m of picked) cards.push({ wordId: w.id, mode: m });
     }
   }
 
