@@ -108,17 +108,20 @@ const [mode, setMode] = useState<Mode>("hub");
 
   if (mode === "gameOnly") {
     return <VocabGame words={gameWords} onDone={() => setMode("hub")} />;
-  }if (session.cards.length === 0 || session.phase === "done") {
+if (session.cards.length === 0 || session.phase === "done") {
     return (
       <div className="w-full max-w-4xl flex flex-col items-center gap-4 py-10">
-        <button onClick={onBack} className="self-start text-sm text-gray-400 underline">
-          단어장 목록
-        </button>
         <p className="text-xl font-bold text-gray-800">오늘의 공부 완료!</p>
         <p className="text-sm text-gray-500">내일 또 만나요.</p>
+        <button
+          onClick={() => setMode("hub")}
+          className="text-sm text-sky-600 font-bold underline"
+        >
+          허브로 돌아가기
+        </button>
       </div>
     );
-  }
+}
 
   if (session.phase === "game") {
     const wordIds = Array.from(new Set(session.cards.map((c) => c.wordId)));
