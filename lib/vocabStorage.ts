@@ -182,21 +182,21 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-// 스펠링 제외, 단어당 랜덤 2개만 진행
-// - 신규단어(box 0): flash 노출(보장) + 나머지(뜻고르기/듣고맞추기) 중 랜덤 1개 테스트
-// - 복습단어(box>=1): flash 포함 3개 중 랜덤 2개
+// 단어당 랜덤 2개만 진행
+// - 신규단어(box 0): 노출(expose) 보장 + 나머지(뜻고르기/영어고르기/스펠링) 중 랜덤 1개 테스트
+// - 복습단어(box>=1): expose 포함 4개 중 랜덤 2개
 export function buildDailySession(set: VocabSet): VocabDailySession {
   const dailyWords = selectDailyWords(set);
-  const testModes: VocabStudyMode[] = ["meaning", "listen"];
+  const testModes: VocabStudyMode[] = ["meaning", "toEnglish", "spell"];
   const cards: VocabDailySession["cards"] = [];
 
   for (const w of dailyWords) {
     if (w.box === 0) {
       const testMode = shuffle(testModes)[0];
-      cards.push({ wordId: w.id, mode: "flash" });
+      cards.push({ wordId: w.id, mode: "expose" });
       cards.push({ wordId: w.id, mode: testMode });
     } else {
-      const pool: VocabStudyMode[] = ["flash", ...testModes];
+      const pool: VocabStudyMode[] = ["expose", ...testModes];
       const picked = shuffle(pool).slice(0, 2);
       for (const m of picked) cards.push({ wordId: w.id, mode: m });
     }
