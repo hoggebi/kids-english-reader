@@ -93,6 +93,8 @@ export async function POST(req: NextRequest) {
     await redis.set(key, merged);
     return NextResponse.json({
       ok: true,
+      usedKey: key,
+      existingWasNull: existing === null,
       receivedVocabSets: data.vocabSets?.length ?? 0,
       existingVocabSetsBeforeMerge: existing?.vocabSets?.length ?? 0,
       finalVocabSetsAfterMerge: merged.vocabSets?.length ?? 0,
