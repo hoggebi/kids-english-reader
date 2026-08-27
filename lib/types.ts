@@ -47,8 +47,8 @@ export type VocabSet = {
   status: VocabSetStatus;
 };
 
-// 스펠링 쓰기 제외, 3가지만 사용
-export type VocabStudyMode = "flash" | "meaning" | "listen";
+// 노출(영어+한글 동시), 뜻고르기(영→한), 영어고르기(한→영), 스펠링(배열/빈칸채우기)
+export type VocabStudyMode = "expose" | "meaning" | "toEnglish" | "spell";
 
 export type VocabDailyCard = {
   wordId: string;
@@ -60,5 +60,5 @@ export type VocabDailySession = {
   dateKey: string;
   cards: VocabDailyCard[];
   cursor: number;
-  phase: "study" | "game" | "done";
+  phase: "study" | "done";
 };
