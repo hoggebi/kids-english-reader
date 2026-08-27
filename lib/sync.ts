@@ -90,7 +90,9 @@ export async function pullSync(code: string): Promise<{
   vocabSets: VocabSet[];
 }> {
   try {
-    const res = await fetch(`/api/sync?code=${encodeURIComponent(code)}`);
+    const res = await fetch(`/api/sync?code=${encodeURIComponent(code)}`, {
+      cache: "no-store",
+    });
     const json = await res.json();
     const data = json.data as
       | {
