@@ -334,7 +334,7 @@ function HuntGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
             >
               <span className="text-lg -mb-1">🪂</span>
               <span
-                className={`px-3 py-2 rounded-xl font-bold border-2 ${
+                className={`px-4 py-3 rounded-xl font-extrabold text-lg border-2 ${
                   feedback && w.id === current.id
                     ? "bg-sky-100 border-sky-500 text-sky-700"
                     : feedback === "wrong" && w.id !== current.id
@@ -451,7 +451,7 @@ function FeedGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
         <img src={getPetImagePath(pet)} alt="캐릭터" className="w-24 h-24 object-contain" />
       </div>
       <p className="text-lg font-bold text-sky-700">{current.korean}</p>
-      <div className="flex gap-3 flex-wrap justify-center">
+      <div className="flex gap-0.5 flex-wrap justify-center">
         {options.map((w) => (
           <div
             key={w.id}
@@ -461,16 +461,16 @@ function FeedGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
             }}
             style={
               dragId === w.id && dragPos
-                ? { position: "fixed", left: dragPos.x - 64, top: dragPos.y - 32, zIndex: 50 }
+                ? { position: "fixed", left: dragPos.x - 88, top: dragPos.y - 44, zIndex: 50 }
                 : undefined
             }
-            className={`relative w-32 h-16 flex items-center justify-center cursor-grab active:cursor-grabbing ${
+            className={`relative w-44 h-24 flex items-center justify-center cursor-grab active:cursor-grabbing ${
               dragId === w.id ? "scale-110" : ""
             }`}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/bread.png" alt="빵" className="absolute inset-0 w-full h-full object-contain select-none" />
-            <span className="relative text-base font-extrabold text-amber-900 text-center leading-tight px-2">
+            <span className="relative text-lg font-extrabold text-amber-900 text-center leading-tight px-2">
               {w.english}
             </span>
           </div>
@@ -485,7 +485,7 @@ function FeedGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
 function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void }) {
   const [queue] = useState(() => shuffle(words));
   const [index, setIndex] = useState(0);
-  const holes = 6;
+  const holes = 3;
   const [visible, setVisible] = useState<Record<number, VocabWord>>({});
   const [selected, setSelected] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<Feedback>(null);
@@ -545,7 +545,7 @@ function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
         {index + 1} / {queue.length}
       </p>
       <p className="text-lg font-bold text-sky-700">&quot;{current.korean}&quot; 이(가) 나온 구멍을 탭!</p>
-      <div className="grid grid-cols-3 gap-4 w-full max-w-sm">
+      <div className="grid grid-cols-3 gap-8 w-full max-w-lg">
         {Array.from({ length: holes }, (_, slot) => {
           const w = visible[slot];
           const isPicked = selected === slot;
@@ -559,21 +559,21 @@ function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
               onClick={() => tap(slot)}
               className={`relative aspect-square flex items-end justify-center ${ringStyle}`}
             >
-              {/* 작은 구멍 (두더지 아래쪽) */}
+              {/* 구멍 (두더지 아래쪽) */}
               <div
-                className="absolute bottom-1 w-[62%] h-[26%] rounded-[50%]"
+                className="absolute bottom-2 w-[68%] h-[28%] rounded-[50%]"
                 style={{
                   background:
                     "radial-gradient(ellipse at 50% 40%, #5c3a1e 0%, #3f2712 70%, #2c1a0b 100%)",
-                  boxShadow: "inset 0 2px 4px rgba(0,0,0,0.5)",
+                  boxShadow: "inset 0 3px 6px rgba(0,0,0,0.5)",
                 }}
               />
               {w && (
-                <div className="relative w-[78%] mb-[6%] animate-bounce">
+                <div className="relative w-[96%] mb-[6%] animate-bounce">
                   <div className="relative w-full flex justify-center">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src="/mole.png" alt="두더지" className="w-full object-contain" />
-                    <span className="absolute top-[11%] w-[58%] text-center text-[12px] font-bold text-amber-900 leading-tight break-words">
+                    <span className="absolute top-[11%] w-[58%] text-center text-base font-extrabold text-amber-900 leading-tight break-words">
                       {w.english}
                     </span>
                   </div>
@@ -581,7 +581,7 @@ function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
               )}
               {/* 뿅망치: 탭한 두더지 머리 위로 실제로 내려침 */}
               {hitSlot === slot && (
-                <div className="absolute -top-2 right-0 w-10 h-10 pointer-events-none mallet-hit">
+                <div className="absolute -top-4 right-2 w-16 h-16 pointer-events-none mallet-hit">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="/mollet.png" alt="뿅망치" className="w-full h-full object-contain" />
                 </div>
