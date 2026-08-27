@@ -61,10 +61,11 @@ function GameStyles() {
         0%, 100% { transform: translateY(0); }
         50% { transform: translateY(-6px); }
       }
-      @keyframes malletSwing {
-        0% { transform: rotate(-35deg); }
-        45% { transform: rotate(20deg); }
-        100% { transform: rotate(0deg); }
+      @keyframes malletHit {
+        0% { transform: translate(30%, -90%) rotate(-45deg); opacity: 0; }
+        35% { transform: translate(0%, -10%) rotate(5deg); opacity: 1; }
+        55% { transform: translate(0%, 5%) rotate(15deg); }
+        100% { transform: translate(30%, -90%) rotate(-45deg); opacity: 0; }
       }
       .particle { position: absolute; left: 50%; top: 50%; animation: particlePop 0.7s ease-out forwards; }
       .combo-badge { position: absolute; left: 50%; top: 12%; animation: comboPop 0.7s ease-out forwards; }
@@ -72,9 +73,9 @@ function GameStyles() {
       .char-correct { animation: bounceCorrect 0.5s ease-out; }
       .char-wrong { animation: wobbleWrong 0.4s ease-out; }
       .run-bob { animation: runBob 0.4s ease-in-out infinite; }
-      .mallet-swing { animation: malletSwing 0.35s ease-out; transform-origin: 75% 20%; }
+      .mallet-hit { animation: malletHit 0.45s ease-out; transform-origin: 70% 30%; }
       @media (prefers-reduced-motion: reduce) {
-        .particle, .combo-badge, .star-pop, .char-correct, .char-wrong, .run-bob, .mallet-swing { animation: none; }
+        .particle, .combo-badge, .star-pop, .char-correct, .char-wrong, .run-bob, .mallet-hit { animation: none; }
       }
     `}</style>
   );
@@ -438,11 +439,10 @@ function FeedGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/basket.png" alt="바구니" className="w-20 h-16 object-contain" />
           {correctCount > 0 && (
-            <div className="absolute top-1 left-1/2 -translate-x-1/2 flex -space-x-1.5">
+            <div className="absolute top-1 left-1/2 -translate-x-1/2 flex -space-x-2">
               {Array.from({ length: Math.min(correctCount, 6) }).map((_, i) => (
-                <span key={i} className="text-base">
-                  🍞
-                </span>
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={i} src="/bread.png" alt="빵" className="w-6 h-3.5 object-contain" />
               ))}
             </div>
           )}
@@ -461,15 +461,16 @@ function FeedGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
             }}
             style={
               dragId === w.id && dragPos
-                ? { position: "fixed", left: dragPos.x - 40, top: dragPos.y - 32, zIndex: 50 }
+                ? { position: "fixed", left: dragPos.x - 64, top: dragPos.y - 32, zIndex: 50 }
                 : undefined
             }
-            className={`relative w-20 h-16 flex items-center justify-center cursor-grab active:cursor-grabbing ${
+            className={`relative w-32 h-16 flex items-center justify-center cursor-grab active:cursor-grabbing ${
               dragId === w.id ? "scale-110" : ""
             }`}
           >
-            <span className="absolute text-6xl leading-none select-none">🍞</span>
-            <span className="relative text-[11px] font-bold text-amber-900 text-center leading-tight px-1">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/bread.png" alt="빵" className="absolute inset-0 w-full h-full object-contain select-none" />
+            <span className="relative text-base font-extrabold text-amber-900 text-center leading-tight px-2">
               {w.english}
             </span>
           </div>
@@ -492,7 +493,7 @@ function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
   const [particleTrigger, setParticleTrigger] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const [shake, setShake] = useState(false);
-  const [swing, setSwing] = useState(0);
+  const [hitSlot, setHitSlot] = useState<number | null>(null);
 
   const current = queue[index];
   const done = index >= queue.length;
@@ -507,13 +508,14 @@ function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
     setVisible(map);
     setSelected(null);
     setFeedback(null);
+    setHitSlot(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, done]);
 
   function tap(slot: number) {
     if (selected !== null || !visible[slot]) return;
     setSelected(slot);
-    setSwing((s) => s + 1);
+    setHitSlot(slot);
     const ok = visible[slot].id === current.id;
     playTone(ok ? "correct" : "wrong");
     setFeedback(ok ? "correct" : "wrong");
@@ -539,16 +541,6 @@ function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
     >
       <Particles trigger={particleTrigger} />
       <ComboBadge combo={combo} />
-      {/* 뿅망치: 탭할 때마다 내려치는 모션 */}
-      <div className="absolute top-2 right-2 z-10">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          key={swing}
-          src="/mallet.png"
-          alt="뿅망치"
-          className={`w-14 h-14 object-contain ${swing > 0 ? "mallet-swing" : ""}`}
-        />
-      </div>
       <p className="text-sm text-gray-500">
         {index + 1} / {queue.length}
       </p>
@@ -559,27 +551,39 @@ function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
           const isPicked = selected === slot;
           const isAnswerSlot = w?.id === current.id;
           let ringStyle = "";
-          if (isPicked && isAnswerSlot) ringStyle = "ring-4 ring-sky-400";
-          if (isPicked && !isAnswerSlot) ringStyle = "ring-4 ring-red-400";
+          if (isPicked && isAnswerSlot) ringStyle = "ring-4 ring-sky-400 rounded-2xl";
+          if (isPicked && !isAnswerSlot) ringStyle = "ring-4 ring-red-400 rounded-2xl";
           return (
             <button
               key={slot}
               onClick={() => tap(slot)}
-              className={`relative aspect-square rounded-full overflow-hidden ${ringStyle}`}
-              style={{
-                background:
-                  "radial-gradient(circle at 50% 35%, #8a5a2b 0%, #6b431f 55%, #4a2e14 100%)",
-              }}
+              className={`relative aspect-square flex items-end justify-center ${ringStyle}`}
             >
+              {/* 작은 구멍 (두더지 아래쪽) */}
+              <div
+                className="absolute bottom-1 w-[62%] h-[26%] rounded-[50%]"
+                style={{
+                  background:
+                    "radial-gradient(ellipse at 50% 40%, #5c3a1e 0%, #3f2712 70%, #2c1a0b 100%)",
+                  boxShadow: "inset 0 2px 4px rgba(0,0,0,0.5)",
+                }}
+              />
               {w && (
-                <div className="absolute inset-x-0 bottom-0 flex flex-col items-center animate-bounce">
+                <div className="relative w-[78%] mb-[6%] animate-bounce">
                   <div className="relative w-full flex justify-center">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="/mole.png" alt="두더지" className="w-[85%] object-contain" />
-                    <span className="absolute top-[13%] w-[46%] text-center text-[9px] font-bold text-amber-900 leading-tight break-words">
+                    <img src="/mole.png" alt="두더지" className="w-full object-contain" />
+                    <span className="absolute top-[11%] w-[58%] text-center text-[12px] font-bold text-amber-900 leading-tight break-words">
                       {w.english}
                     </span>
                   </div>
+                </div>
+              )}
+              {/* 뿅망치: 탭한 두더지 머리 위로 실제로 내려침 */}
+              {hitSlot === slot && (
+                <div className="absolute -top-2 right-0 w-10 h-10 pointer-events-none mallet-hit">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/mollet.png" alt="뿅망치" className="w-full h-full object-contain" />
                 </div>
               )}
             </button>
@@ -653,7 +657,7 @@ function RunnerGame({ words, onDone }: { words: VocabWord[]; onDone: () => void 
       <p className="text-sm text-gray-500">
         {index + 1} / {queue.length}
       </p>
-      <div className="relative w-full max-w-sm h-36">
+      <div className="relative w-full max-w-sm h-28">
         <div className="absolute bottom-2 left-0 right-0 h-2 rounded-full bg-white/60 overflow-hidden">
           <div className="h-full bg-sky-400 transition-all" style={{ width: `${progress}%` }} />
         </div>
@@ -661,10 +665,10 @@ function RunnerGame({ words, onDone }: { words: VocabWord[]; onDone: () => void 
         <img
           src={getPetImagePath(pet)}
           alt="캐릭터"
-          className={`absolute bottom-3 w-32 h-32 object-contain transition-all duration-100 ${
+          className={`absolute bottom-3 w-24 h-24 object-contain transition-all duration-100 ${
             choice ? (feedback === "correct" ? "char-correct" : "char-wrong") : "run-bob"
           }`}
-          style={{ left: `calc(${progress}% - 64px)` }}
+          style={{ left: `calc(${progress}% - 48px)` }}
         />
         <span className="absolute bottom-2 right-0 text-2xl">🏁</span>
       </div>
