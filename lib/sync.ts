@@ -52,6 +52,9 @@ export async function pushSync(code: string): Promise<{
   error?: string;
   sentVocabSets?: number;
   serverVocabSetsAfter?: number;
+  existingBefore?: number;
+  existingWasNull?: boolean;
+  usedKey?: string;
 }> {
   const payload = currentPayload();
   try {
@@ -73,6 +76,9 @@ export async function pushSync(code: string): Promise<{
       ok: true,
       sentVocabSets: payload.vocabSets.length,
       serverVocabSetsAfter: json?.finalVocabSetsAfterMerge,
+      existingBefore: json?.existingVocabSetsBeforeMerge,
+      existingWasNull: json?.existingWasNull,
+      usedKey: json?.usedKey,
     };
   } catch (err) {
     return {
@@ -139,6 +145,9 @@ export async function syncNow(code: string) {
     pushError: pushResult.error,
     sentVocabSets: pushResult.sentVocabSets,
     serverVocabSetsAfter: pushResult.serverVocabSetsAfter,
+    existingBefore: pushResult.existingBefore,
+    existingWasNull: pushResult.existingWasNull,
+    usedKey: pushResult.usedKey,
   };
 }
 
