@@ -61,14 +61,20 @@ function GameStyles() {
         0%, 100% { transform: translateY(0); }
         50% { transform: translateY(-6px); }
       }
+      @keyframes malletSwing {
+        0% { transform: rotate(-35deg); }
+        45% { transform: rotate(20deg); }
+        100% { transform: rotate(0deg); }
+      }
       .particle { position: absolute; left: 50%; top: 50%; animation: particlePop 0.7s ease-out forwards; }
       .combo-badge { position: absolute; left: 50%; top: 12%; animation: comboPop 0.7s ease-out forwards; }
       .star-pop { animation: starPop 0.5s ease-out forwards; }
       .char-correct { animation: bounceCorrect 0.5s ease-out; }
       .char-wrong { animation: wobbleWrong 0.4s ease-out; }
       .run-bob { animation: runBob 0.4s ease-in-out infinite; }
+      .mallet-swing { animation: malletSwing 0.35s ease-out; transform-origin: 75% 20%; }
       @media (prefers-reduced-motion: reduce) {
-        .particle, .combo-badge, .star-pop, .char-correct, .char-wrong, .run-bob { animation: none; }
+        .particle, .combo-badge, .star-pop, .char-correct, .char-wrong, .run-bob, .mallet-swing { animation: none; }
       }
     `}</style>
   );
@@ -423,16 +429,29 @@ function FeedGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
 
       <div
         ref={basketRef}
-        className={`relative w-28 h-28 rounded-2xl flex items-center justify-center transition-transform duration-300 ${
+        className={`relative flex flex-col items-center transition-transform duration-300 ${
           feedback === "correct" ? "scale-110" : ""
         } ${feedback === "correct" ? "char-correct" : feedback === "wrong" ? "char-wrong" : ""}`}
       >
+        {/* 캐릭터 머리 위 바구니 (실제 이미지) */}
+        <div className="relative z-10 -mb-8 w-20 h-16">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/basket.png" alt="바구니" className="w-20 h-16 object-contain" />
+          {correctCount > 0 && (
+            <div className="absolute top-1 left-1/2 -translate-x-1/2 flex -space-x-1.5">
+              {Array.from({ length: Math.min(correctCount, 6) }).map((_, i) => (
+                <span key={i} className="text-base">
+                  🍞
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={getPetImagePath(pet)} alt="캐릭터" className="w-24 h-24 object-contain" />
-        <span className="absolute -bottom-1 -right-1 text-3xl">🧺</span>
       </div>
       <p className="text-lg font-bold text-sky-700">{current.korean}</p>
-      <div className="flex gap-4 flex-wrap justify-center">
+      <div className="flex gap-3 flex-wrap justify-center">
         {options.map((w) => (
           <div
             key={w.id}
@@ -442,25 +461,27 @@ function FeedGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
             }}
             style={
               dragId === w.id && dragPos
-                ? { position: "fixed", left: dragPos.x - 40, top: dragPos.y - 20, zIndex: 50 }
+                ? { position: "fixed", left: dragPos.x - 40, top: dragPos.y - 32, zIndex: 50 }
                 : undefined
             }
-            className={`px-4 py-3 rounded-xl bg-white border-2 border-gray-200 font-bold cursor-grab active:cursor-grabbing shadow-sm ${
-              dragId === w.id ? "shadow-xl" : ""
+            className={`relative w-20 h-16 flex items-center justify-center cursor-grab active:cursor-grabbing ${
+              dragId === w.id ? "scale-110" : ""
             }`}
           >
-            🍎 {w.english}
+            <span className="absolute text-6xl leading-none select-none">🍞</span>
+            <span className="relative text-[11px] font-bold text-amber-900 text-center leading-tight px-1">
+              {w.english}
+            </span>
           </div>
         ))}
       </div>
-      <p className="text-xs text-gray-400">단어를 바구니에 끌어다 놓으세요</p>
+      <p className="text-xs text-gray-400">빵을 바구니에 끌어다 놓으세요</p>
     </div>
   );
 }
 
 // ---------- 3) 두더지 잡기 ----------
 function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void }) {
-  const [pet] = useState(() => loadPet());
   const [queue] = useState(() => shuffle(words));
   const [index, setIndex] = useState(0);
   const holes = 6;
@@ -518,45 +539,49 @@ function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
     >
       <Particles trigger={particleTrigger} />
       <ComboBadge combo={combo} />
-      <div className="absolute top-2 right-2 flex flex-col items-center z-10">
+      {/* 뿅망치: 탭할 때마다 내려치는 모션 */}
+      <div className="absolute top-2 right-2 z-10">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           key={swing}
-          src={getPetImagePath(pet)}
-          alt="캐릭터"
-          className={`w-12 h-12 object-contain ${swing > 0 ? "char-correct" : ""}`}
+          src="/mallet.png"
+          alt="뿅망치"
+          className={`w-14 h-14 object-contain ${swing > 0 ? "mallet-swing" : ""}`}
         />
-        <span className="text-xl -mt-2">🔨</span>
       </div>
       <p className="text-sm text-gray-500">
         {index + 1} / {queue.length}
       </p>
-      <p className="text-lg font-bold text-sky-700">🐹 &quot;{current.korean}&quot; 이(가) 나온 구멍을 탭!</p>
-      <div className="grid grid-cols-3 gap-3 w-full max-w-sm">
+      <p className="text-lg font-bold text-sky-700">&quot;{current.korean}&quot; 이(가) 나온 구멍을 탭!</p>
+      <div className="grid grid-cols-3 gap-4 w-full max-w-sm">
         {Array.from({ length: holes }, (_, slot) => {
           const w = visible[slot];
           const isPicked = selected === slot;
           const isAnswerSlot = w?.id === current.id;
-          let style = "bg-amber-300/50 border-amber-400 text-transparent";
-          let content: React.ReactNode = "";
-          if (w) {
-            style = "bg-white border-amber-400 text-amber-800 font-bold shadow";
-            content = (
-              <span className="flex flex-col items-center leading-none">
-                <span className="text-lg">🐹</span>
-                <span className="text-[11px]">{w.english}</span>
-              </span>
-            );
-          }
-          if (isPicked && isAnswerSlot) style = "bg-sky-100 border-sky-500 text-sky-700 font-bold";
-          if (isPicked && !isAnswerSlot) style = "bg-red-50 border-red-400 text-red-500";
+          let ringStyle = "";
+          if (isPicked && isAnswerSlot) ringStyle = "ring-4 ring-sky-400";
+          if (isPicked && !isAnswerSlot) ringStyle = "ring-4 ring-red-400";
           return (
             <button
               key={slot}
               onClick={() => tap(slot)}
-              className={`aspect-square rounded-full border-2 flex items-center justify-center text-sm px-1 text-center transition ${style}`}
+              className={`relative aspect-square rounded-full overflow-hidden ${ringStyle}`}
+              style={{
+                background:
+                  "radial-gradient(circle at 50% 35%, #8a5a2b 0%, #6b431f 55%, #4a2e14 100%)",
+              }}
             >
-              {content}
+              {w && (
+                <div className="absolute inset-x-0 bottom-0 flex flex-col items-center animate-bounce">
+                  <div className="relative w-full flex justify-center">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/mole.png" alt="두더지" className="w-[85%] object-contain" />
+                    <span className="absolute top-[13%] w-[46%] text-center text-[9px] font-bold text-amber-900 leading-tight break-words">
+                      {w.english}
+                    </span>
+                  </div>
+                </div>
+              )}
             </button>
           );
         })}
@@ -628,22 +653,20 @@ function RunnerGame({ words, onDone }: { words: VocabWord[]; onDone: () => void 
       <p className="text-sm text-gray-500">
         {index + 1} / {queue.length}
       </p>
-      <div className="relative w-full max-w-sm h-10">
-        <div className="absolute inset-y-0 left-0 right-0 flex items-center">
-          <div className="w-full h-2 rounded-full bg-white/60 overflow-hidden">
-            <div className="h-full bg-sky-400 transition-all" style={{ width: `${progress}%` }} />
-          </div>
+      <div className="relative w-full max-w-sm h-36">
+        <div className="absolute bottom-2 left-0 right-0 h-2 rounded-full bg-white/60 overflow-hidden">
+          <div className="h-full bg-sky-400 transition-all" style={{ width: `${progress}%` }} />
         </div>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={getPetImagePath(pet)}
           alt="캐릭터"
-          className={`absolute -top-5 w-9 h-9 object-contain transition-all duration-100 ${
+          className={`absolute bottom-3 w-32 h-32 object-contain transition-all duration-100 ${
             choice ? (feedback === "correct" ? "char-correct" : "char-wrong") : "run-bob"
           }`}
-          style={{ left: `calc(${progress}% - 18px)` }}
+          style={{ left: `calc(${progress}% - 64px)` }}
         />
-        <span className="absolute -top-3 right-0 text-2xl">🏁</span>
+        <span className="absolute bottom-2 right-0 text-2xl">🏁</span>
       </div>
       <p className="text-lg font-bold text-sky-700">{current.korean}</p>
       <div className="flex gap-4 w-full max-w-sm">
