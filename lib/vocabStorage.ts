@@ -151,6 +151,8 @@ export function recordAnswer(setId: string, wordId: string, correct: boolean) {
 }
 
 // ---------- 오늘의 세션(카드 큐) 저장/조회 ----------
+const VALID_STUDY_MODES: VocabStudyMode[] = ["expose", "meaning", "toEnglish", "spell"];
+
 function sessionKey(setId: string) {
   return SESSION_KEY_PREFIX + setId;
 }
@@ -162,6 +164,10 @@ export function loadTodaySession(setId: string): VocabDailySession | null {
     if (!raw) return null;
     const s = JSON.parse(raw) as VocabDailySession;
     if (s.dateKey !== todayKey()) return null; // 날짜 바뀌면 무효
+    // 예전 버전(flash/listen/game phase 등)으로 저장된 캐시면 무효 처리하고 새로 만들게 함
+    const hasUnknownMode = s.cards.some((c) => !VALID_STUDY_MODES.includes(c.mode));
+    const hasUnknownPhase = s.phase !== "study" && s.phase !== "done";
+    if (hasUnknownMode || hasUnknownPhase) return null;
     return s;
   } catch {
     return null;
