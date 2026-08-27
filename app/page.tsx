@@ -103,7 +103,7 @@ export default function Home() {
   }
 
   async function handleJoinSyncCode() {
-    const code = joinInput.trim();
+    const code = joinInput.trim().toUpperCase();
     if (!code) return;
     saveSyncCode(code);
     setSyncCodeState(code);
@@ -303,7 +303,7 @@ export default function Home() {
               <div className="flex gap-2">
                 <input
                   value={joinInput}
-                  onChange={(e) => setJoinInput(e.target.value)}
+                  onChange={(e) => setJoinInput(e.target.value.toUpperCase())}
                   placeholder="예: AB12CD"
                   className="flex-1 rounded-xl border-2 border-gray-200 px-3 py-2 uppercase"
                 />
