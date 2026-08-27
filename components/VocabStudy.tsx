@@ -99,6 +99,17 @@ export default function VocabStudy({ set, onBack }: { set: VocabSet; onBack: () 
           게임하기
           {!studyDone && <span className="text-xs font-normal">오늘의 학습을 먼저 끝내야 열려요</span>}
         </button>
+
+        <button
+          onClick={() => {
+            const fresh = buildDailySession(set);
+            setSession(fresh);
+            setMode("hub");
+          }}
+          className="text-sm text-gray-400 underline self-center mt-1"
+        >
+          오늘 학습 처음부터 다시
+        </button>
       </div>
     );
   }
