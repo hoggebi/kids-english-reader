@@ -164,30 +164,53 @@ export default function VocabStudy({ set, onBack }: { set: VocabSet; onBack: () 
 
   return (
     <div className="w-full max-w-4xl flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <button onClick={() => setMode("hub")} className="text-sm text-gray-400 underline">
-          허브로
-        </button>
+      <div className="flex items-center justify-center gap-3">
         <h2 className="text-lg font-bold text-gray-800">{set.title}</h2>
         <span className="text-xs text-gray-400">
           {session.cursor + 1} / {session.cards.length}
         </span>
       </div>
 
-      {card.mode === "expose" && <ExposureCard word={word} onNext={() => advanceCard()} />}
+      {card.mode === "expose" && (
+        <ExposureCard word={word} isLast={session.cursor + 1 >= session.cards.length} onNext={() => advanceCard()} />
+      )}
       {card.mode === "meaning" && (
-        <MeaningCard words={set.words} word={word} onAnswer={(ok) => advanceCard(ok)} />
+        <MeaningCard
+          words={set.words}
+          word={word}
+          isLast={session.cursor + 1 >= session.cards.length}
+          onAnswer={(ok) => advanceCard(ok)}
+        />
       )}
       {card.mode === "toEnglish" && (
-        <ToEnglishCard words={set.words} word={word} onAnswer={(ok) => advanceCard(ok)} />
+        <ToEnglishCard
+          words={set.words}
+          word={word}
+          isLast={session.cursor + 1 >= session.cards.length}
+          onAnswer={(ok) => advanceCard(ok)}
+        />
       )}
-      {card.mode === "spell" && <SpellCard word={word} onAnswer={(ok) => advanceCard(ok)} />}
+      {card.mode === "spell" && (
+        <SpellCard
+          word={word}
+          isLast={session.cursor + 1 >= session.cards.length}
+          onAnswer={(ok) => advanceCard(ok)}
+        />
+      )}
     </div>
   );
 }
 
 // ---------- 1) 노출: 영어+한글 뜻 동시에 보여주기 ----------
-function ExposureCard({ word, onNext }: { word: VocabWord; onNext: () => void }) {
+function ExposureCard({
+  word,
+  isLast,
+  onNext,
+}: {
+  word: VocabWord;
+  isLast: boolean;
+  onNext: () => void;
+}) {
   return (
     <div className="flex flex-col items-center gap-4">
       <div className="w-full max-w-sm aspect-[4/3] rounded-3xl bg-gray-50 border-2 border-gray-200 flex flex-col items-center justify-center gap-3 px-6">
@@ -201,8 +224,13 @@ function ExposureCard({ word, onNext }: { word: VocabWord; onNext: () => void })
       >
         듣기
       </button>
-      <button onClick={onNext} className="w-full max-w-sm py-3 rounded-full bg-sky-600 text-white font-bold">
-        다음
+      <button
+        onClick={onNext}
+        className={`w-full max-w-sm py-3 rounded-full text-white font-bold ${
+          isLast ? "bg-emerald-600" : "bg-sky-600"
+        }`}
+      >
+        {isLast ? "완료!" : "다음"}
       </button>
     </div>
   );
@@ -226,10 +254,12 @@ function buildEnglishOptions(words: VocabWord[], target: VocabWord) {
 function MeaningCard({
   words,
   word,
+  isLast,
   onAnswer,
 }: {
   words: VocabWord[];
   word: VocabWord;
+  isLast: boolean;
   onAnswer: (correct: boolean) => void;
 }) {
   const [options] = useState(() => buildMeaningOptions(words, word));
@@ -265,9 +295,11 @@ function MeaningCard({
       {selected && (
         <button
           onClick={() => onAnswer(selected === word.korean)}
-          className="w-full max-w-sm py-3 rounded-full bg-sky-600 text-white font-bold"
+          className={`w-full max-w-sm py-3 rounded-full text-white font-bold ${
+            isLast ? "bg-emerald-600" : "bg-sky-600"
+          }`}
         >
-          다음
+          {isLast ? "완료!" : "다음"}
         </button>
       )}
     </div>
@@ -278,10 +310,12 @@ function MeaningCard({
 function ToEnglishCard({
   words,
   word,
+  isLast,
   onAnswer,
 }: {
   words: VocabWord[];
   word: VocabWord;
+  isLast: boolean;
   onAnswer: (correct: boolean) => void;
 }) {
   const [options] = useState(() => buildEnglishOptions(words, word));
@@ -318,9 +352,11 @@ function ToEnglishCard({
       {selected && (
         <button
           onClick={() => onAnswer(selected === word.english)}
-          className="w-full max-w-sm py-3 rounded-full bg-sky-600 text-white font-bold"
+          className={`w-full max-w-sm py-3 rounded-full text-white font-bold ${
+            isLast ? "bg-emerald-600" : "bg-sky-600"
+          }`}
         >
-          다음
+          {isLast ? "완료!" : "다음"}
         </button>
       )}
     </div>
@@ -328,17 +364,33 @@ function ToEnglishCard({
 }
 
 // ---------- 4) 스펠링: 배열형 / 빈칸채우기형 랜덤 ----------
-function SpellCard({ word, onAnswer }: { word: VocabWord; onAnswer: (correct: boolean) => void }) {
+function SpellCard({
+  word,
+  isLast,
+  onAnswer,
+}: {
+  word: VocabWord;
+  isLast: boolean;
+  onAnswer: (correct: boolean) => void;
+}) {
   const [variant] = useState(() => (Math.random() < 0.5 ? "arrange" : "fill"));
   return variant === "arrange" ? (
-    <SpellArrange word={word} onAnswer={onAnswer} />
+    <SpellArrange word={word} isLast={isLast} onAnswer={onAnswer} />
   ) : (
-    <SpellFill word={word} onAnswer={onAnswer} />
+    <SpellFill word={word} isLast={isLast} onAnswer={onAnswer} />
   );
 }
 
 // 4-a) 알파벳을 순서대로 배열하기
-function SpellArrange({ word, onAnswer }: { word: VocabWord; onAnswer: (correct: boolean) => void }) {
+function SpellArrange({
+  word,
+  isLast,
+  onAnswer,
+}: {
+  word: VocabWord;
+  isLast: boolean;
+  onAnswer: (correct: boolean) => void;
+}) {
   const target = word.english;
   const [pool, setPool] = useState(() =>
     shuffle(target.split("").map((ch, i) => ({ ch, id: i })))
@@ -404,16 +456,22 @@ function SpellArrange({ word, onAnswer }: { word: VocabWord; onAnswer: (correct:
       {feedback === "wrong" && (
         <div className="flex flex-col items-center gap-2 w-full max-w-sm">
           <p className="text-red-500 font-bold">아쉬워요! 정답: {target}</p>
-          <button onClick={() => onAnswer(false)} className="w-full py-3 rounded-full bg-sky-600 text-white font-bold">
-            다음
+          <button
+            onClick={() => onAnswer(false)}
+            className={`w-full py-3 rounded-full text-white font-bold ${isLast ? "bg-emerald-600" : "bg-sky-600"}`}
+          >
+            {isLast ? "완료!" : "다음"}
           </button>
         </div>
       )}
       {feedback === "correct" && (
         <div className="flex flex-col items-center gap-2 w-full max-w-sm">
           <p className="text-sky-600 font-bold">정답이에요!</p>
-          <button onClick={() => onAnswer(true)} className="w-full py-3 rounded-full bg-sky-600 text-white font-bold">
-            다음
+          <button
+            onClick={() => onAnswer(true)}
+            className={`w-full py-3 rounded-full text-white font-bold ${isLast ? "bg-emerald-600" : "bg-sky-600"}`}
+          >
+            {isLast ? "완료!" : "다음"}
           </button>
         </div>
       )}
@@ -427,7 +485,15 @@ function SpellArrange({ word, onAnswer }: { word: VocabWord; onAnswer: (correct:
 }
 
 // 4-b) 빈칸에 알맞은 글자 선택해서 채우기
-function SpellFill({ word, onAnswer }: { word: VocabWord; onAnswer: (correct: boolean) => void }) {
+function SpellFill({
+  word,
+  isLast,
+  onAnswer,
+}: {
+  word: VocabWord;
+  isLast: boolean;
+  onAnswer: (correct: boolean) => void;
+}) {
   const target = word.english;
 
   const positions = useMemo(() => {
@@ -502,9 +568,9 @@ function SpellFill({ word, onAnswer }: { word: VocabWord; onAnswer: (correct: bo
           </p>
           <button
             onClick={() => onAnswer(feedback === "correct")}
-            className="w-full py-3 rounded-full bg-sky-600 text-white font-bold"
+            className={`w-full py-3 rounded-full text-white font-bold ${isLast ? "bg-emerald-600" : "bg-sky-600"}`}
           >
-            다음
+            {isLast ? "완료!" : "다음"}
           </button>
         </div>
       )}

@@ -16,18 +16,18 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-const GAME_INFO: { kind: GameKind; title: string; desc: string; emoji: string }[] = [
+const GAME_INFO: { kind: GameKind; title: string; desc: string; emoji?: string; img?: string }[] = [
   { kind: "hunt", title: "단어 사냥", desc: "떨어지는 단어를 탭해서 잡아요", emoji: "🎯" },
-  { kind: "feed", title: "바구니 담기", desc: "맞는 단어를 끌어서 바구니에 담아요", emoji: "🧺" },
-  { kind: "mole", title: "두더지 잡기", desc: "튀어나온 정답을 빠르게 탭해요", emoji: "🐹" },
+  { kind: "feed", title: "바구니 담기", desc: "맞는 단어를 끌어서 바구니에 담아요", img: "/basket.png" },
+  { kind: "mole", title: "두더지 잡기", desc: "튀어나온 정답을 빠르게 탭해요", img: "/mole.png" },
   { kind: "runner", title: "함께 달리기", desc: "갈림길에서 정답 쪽을 골라요", emoji: "🏃" },
 ];
 
 const THEME_BG: Record<GameKind, string> = {
-  hunt: "bg-gradient-to-b from-sky-200 via-sky-50 to-white",
-  feed: "bg-gradient-to-b from-lime-100 via-emerald-50 to-white",
-  mole: "bg-gradient-to-b from-amber-100 via-yellow-50 to-white",
-  runner: "bg-gradient-to-b from-orange-100 via-sky-100 to-white",
+  hunt: "bg-gray-100",
+  feed: "bg-gray-100",
+  mole: "bg-gray-100",
+  runner: "bg-gray-100",
 };
 
 // 공통 애니메이션 정의 (게임 화면에서 한 번만 렌더)
@@ -229,7 +229,12 @@ export default function VocabGame({ words, onDone }: { words: VocabWord[]; onDon
               onClick={() => setKind(g.kind)}
               className="flex flex-col items-center gap-1 py-6 rounded-2xl bg-gray-50 border-2 border-transparent hover:border-sky-300 active:scale-95 transition"
             >
-              <span className="text-4xl">{g.emoji}</span>
+              {g.img ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={g.img} alt={g.title} className="w-14 h-14 object-contain" />
+              ) : (
+                <span className="text-4xl">{g.emoji}</span>
+              )}
               <span className="font-bold text-gray-800">{g.title}</span>
               <span className="text-xs text-gray-400 text-center px-2">{g.desc}</span>
             </button>
@@ -257,6 +262,9 @@ export default function VocabGame({ words, onDone }: { words: VocabWord[]; onDon
 function HuntGame({ words, onDone }: { words: VocabWord[]; onDone: () => void }) {
   const [pet] = useState(() => loadPet());
   const [queue] = useState(() => shuffle(words));
+  const [dirs] = useState<("toEng" | "toKor")[]>(() =>
+    queue.map(() => (Math.random() < 0.5 ? "toEng" : "toKor"))
+  );
   const [index, setIndex] = useState(0);
   const [options, setOptions] = useState(() => buildOptions(words, queue[0], 3));
   const [positions, setPositions] = useState<number[]>([10, 45, 80]);
@@ -267,6 +275,7 @@ function HuntGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
   const [correctCount, setCorrectCount] = useState(0);
 
   const current = queue[index];
+  const direction = dirs[index];
   const done = index >= queue.length;
 
   useEffect(() => {
@@ -308,12 +317,14 @@ function HuntGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
 
   if (done) return <ResultScreen correct={correctCount} total={queue.length} onDone={onDone} />;
 
+  const promptText = direction === "toEng" ? current.korean : current.english;
+
   return (
     <div className={`relative rounded-3xl overflow-hidden p-3 flex flex-col items-center gap-3 ${THEME_BG.hunt}`}>
       <p className="text-sm text-gray-500">
         {index + 1} / {queue.length}
       </p>
-      <p className="text-lg font-bold text-sky-700">🎯 &quot;{current.korean}&quot; 을(를) 찾아 탭!</p>
+      <p className="text-lg font-bold text-black">🎯 &quot;{promptText}&quot;에 맞는 답을 찾아 탭!</p>
       <div className="relative w-full max-w-sm h-72 rounded-2xl bg-white/60 border-2 border-gray-200 overflow-hidden">
         <Particles trigger={particleTrigger} />
         <ComboBadge combo={combo} />
@@ -336,13 +347,13 @@ function HuntGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
               <span
                 className={`px-4 py-3 rounded-xl font-extrabold text-lg border-2 ${
                   feedback && w.id === current.id
-                    ? "bg-sky-100 border-sky-500 text-sky-700"
+                    ? "bg-sky-100 border-sky-500 text-black"
                     : feedback === "wrong" && w.id !== current.id
                     ? "bg-gray-50 border-gray-200 text-gray-300"
-                    : "bg-white border-sky-200 text-gray-700 shadow"
+                    : "bg-white border-sky-200 text-black shadow"
                 }`}
               >
-                {w.english}
+                {direction === "toEng" ? w.english : w.korean}
               </span>
             </button>
           );
@@ -364,6 +375,9 @@ function HuntGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
 function FeedGame({ words, onDone }: { words: VocabWord[]; onDone: () => void }) {
   const [pet] = useState(() => loadPet());
   const [queue] = useState(() => shuffle(words));
+  const [dirs] = useState<("toEng" | "toKor")[]>(() =>
+    queue.map(() => (Math.random() < 0.5 ? "toEng" : "toKor"))
+  );
   const [index, setIndex] = useState(0);
   const [options, setOptions] = useState(() => buildOptions(words, queue[0], 3));
   const [dragId, setDragId] = useState<string | null>(null);
@@ -375,6 +389,7 @@ function FeedGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
   const basketRef = useRef<HTMLDivElement>(null);
 
   const current = queue[index];
+  const direction = dirs[index];
   const done = index >= queue.length;
 
   function goNext() {
@@ -439,19 +454,34 @@ function FeedGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/basket.png" alt="바구니" className="w-20 h-16 object-contain" />
           {correctCount > 0 && (
-            <div className="absolute top-1 left-1/2 -translate-x-1/2 flex -space-x-2">
-              {Array.from({ length: Math.min(correctCount, 6) }).map((_, i) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img key={i} src="/bread.png" alt="빵" className="w-6 h-3.5 object-contain" />
-              ))}
+            <div
+              className="absolute left-1/2 top-1 -translate-x-1/2 flex items-end justify-center pointer-events-none"
+              style={{ height: "26px" }}
+            >
+              {Array.from({ length: Math.min(correctCount, 6) }).map((_, i) => {
+                const count = Math.min(correctCount, 6);
+                const fan = (i - (count - 1) / 2) * 14;
+                return (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={i}
+                    src="/bread.png"
+                    alt="빵"
+                    className="w-7 h-3 object-contain -mx-1"
+                    style={{ transform: `rotate(${90 + fan}deg)` }}
+                  />
+                );
+              })}
             </div>
           )}
         </div>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={getPetImagePath(pet)} alt="캐릭터" className="w-24 h-24 object-contain" />
       </div>
-      <p className="text-lg font-bold text-sky-700">{current.korean}</p>
-      <div className="flex gap-0.5 flex-wrap justify-center">
+      <p className="text-lg font-bold text-black">
+        {direction === "toEng" ? current.korean : current.english}
+      </p>
+      <div className="flex gap-x-1 gap-y-0 flex-wrap justify-center">
         {options.map((w) => (
           <div
             key={w.id}
@@ -461,17 +491,17 @@ function FeedGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
             }}
             style={
               dragId === w.id && dragPos
-                ? { position: "fixed", left: dragPos.x - 88, top: dragPos.y - 44, zIndex: 50 }
+                ? { position: "fixed", left: dragPos.x - 88, top: dragPos.y - 32, zIndex: 50 }
                 : undefined
             }
-            className={`relative w-44 h-24 flex items-center justify-center cursor-grab active:cursor-grabbing ${
+            className={`relative w-44 h-16 flex items-center justify-center cursor-grab active:cursor-grabbing ${
               dragId === w.id ? "scale-110" : ""
             }`}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/bread.png" alt="빵" className="absolute inset-0 w-full h-full object-contain select-none" />
-            <span className="relative text-lg font-extrabold text-amber-900 text-center leading-tight px-2">
-              {w.english}
+            <span className="relative text-lg font-extrabold text-black text-center leading-tight px-2">
+              {direction === "toEng" ? w.english : w.korean}
             </span>
           </div>
         ))}
@@ -484,6 +514,9 @@ function FeedGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
 // ---------- 3) 두더지 잡기 ----------
 function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void }) {
   const [queue] = useState(() => shuffle(words));
+  const [dirs] = useState<("toEng" | "toKor")[]>(() =>
+    queue.map(() => (Math.random() < 0.5 ? "toEng" : "toKor"))
+  );
   const [index, setIndex] = useState(0);
   const holes = 3;
   const [visible, setVisible] = useState<Record<number, VocabWord>>({});
@@ -496,6 +529,7 @@ function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
   const [hitSlot, setHitSlot] = useState<number | null>(null);
 
   const current = queue[index];
+  const direction = dirs[index];
   const done = index >= queue.length;
 
   useEffect(() => {
@@ -544,8 +578,10 @@ function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
       <p className="text-sm text-gray-500">
         {index + 1} / {queue.length}
       </p>
-      <p className="text-lg font-bold text-sky-700">&quot;{current.korean}&quot; 이(가) 나온 구멍을 탭!</p>
-      <div className="grid grid-cols-3 gap-8 w-full max-w-lg">
+      <p className="text-lg font-bold text-black">
+        &quot;{direction === "toEng" ? current.korean : current.english}&quot; 이(가) 나온 구멍을 탭!
+      </p>
+      <div className="grid grid-cols-3 gap-1 w-full max-w-2xl">
         {Array.from({ length: holes }, (_, slot) => {
           const w = visible[slot];
           const isPicked = selected === slot;
@@ -561,7 +597,7 @@ function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
             >
               {/* 구멍 (두더지 아래쪽) */}
               <div
-                className="absolute bottom-2 w-[68%] h-[28%] rounded-[50%]"
+                className="absolute bottom-1 w-[68%] h-[26%] rounded-[50%]"
                 style={{
                   background:
                     "radial-gradient(ellipse at 50% 40%, #5c3a1e 0%, #3f2712 70%, #2c1a0b 100%)",
@@ -569,19 +605,19 @@ function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
                 }}
               />
               {w && (
-                <div className="relative w-[96%] mb-[6%] animate-bounce">
+                <div className="relative w-full mb-[2%] animate-bounce">
                   <div className="relative w-full flex justify-center">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src="/mole.png" alt="두더지" className="w-full object-contain" />
-                    <span className="absolute top-[11%] w-[58%] text-center text-base font-extrabold text-amber-900 leading-tight break-words">
-                      {w.english}
+                    <span className="absolute top-[10%] w-[72%] text-center text-lg font-extrabold text-black leading-tight whitespace-nowrap overflow-hidden text-ellipsis">
+                      {direction === "toEng" ? w.english : w.korean}
                     </span>
                   </div>
                 </div>
               )}
               {/* 뿅망치: 탭한 두더지 머리 위로 실제로 내려침 */}
               {hitSlot === slot && (
-                <div className="absolute -top-4 right-2 w-16 h-16 pointer-events-none mallet-hit">
+                <div className="absolute -top-4 right-0 w-20 h-20 pointer-events-none mallet-hit">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="/mollet.png" alt="뿅망치" className="w-full h-full object-contain" />
                 </div>
@@ -598,6 +634,9 @@ function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
 function RunnerGame({ words, onDone }: { words: VocabWord[]; onDone: () => void }) {
   const [pet] = useState(() => loadPet());
   const [queue] = useState(() => shuffle(words));
+  const [dirs] = useState<("toEng" | "toKor")[]>(() =>
+    queue.map(() => (Math.random() < 0.5 ? "toEng" : "toKor"))
+  );
   const [index, setIndex] = useState(0);
   const [options, setOptions] = useState(() => buildOptions(words, queue[0], 2));
   const [progress, setProgress] = useState(0);
@@ -608,6 +647,7 @@ function RunnerGame({ words, onDone }: { words: VocabWord[]; onDone: () => void 
   const [correctCount, setCorrectCount] = useState(0);
 
   const current = queue[index];
+  const direction = dirs[index];
   const done = index >= queue.length;
 
   useEffect(() => {
@@ -672,7 +712,9 @@ function RunnerGame({ words, onDone }: { words: VocabWord[]; onDone: () => void 
         />
         <span className="absolute bottom-2 right-0 text-2xl">🏁</span>
       </div>
-      <p className="text-lg font-bold text-sky-700">{current.korean}</p>
+      <p className="text-lg font-bold text-black">
+        {direction === "toEng" ? current.korean : current.english}
+      </p>
       <div className="flex gap-4 w-full max-w-sm">
         <button
           onClick={() => pick("left", left)}
@@ -680,12 +722,12 @@ function RunnerGame({ words, onDone }: { words: VocabWord[]; onDone: () => void 
           className={`flex-1 py-6 rounded-2xl font-bold border-2 transition ${
             choice === "left"
               ? left.id === current.id
-                ? "bg-sky-100 border-sky-500 text-sky-700"
+                ? "bg-sky-100 border-sky-500 text-black"
                 : "bg-red-50 border-red-400 text-red-500"
-              : "bg-white border-gray-200 text-gray-700"
+              : "bg-white border-gray-200 text-black"
           }`}
         >
-          {left.english}
+          {direction === "toEng" ? left.english : left.korean}
         </button>
         <button
           onClick={() => pick("right", right)}
@@ -693,12 +735,12 @@ function RunnerGame({ words, onDone }: { words: VocabWord[]; onDone: () => void 
           className={`flex-1 py-6 rounded-2xl font-bold border-2 transition ${
             choice === "right"
               ? right.id === current.id
-                ? "bg-sky-100 border-sky-500 text-sky-700"
+                ? "bg-sky-100 border-sky-500 text-black"
                 : "bg-red-50 border-red-400 text-red-500"
-              : "bg-white border-gray-200 text-gray-700"
+              : "bg-white border-gray-200 text-black"
           }`}
         >
-          {right.english}
+          {direction === "toEng" ? right.english : right.korean}
         </button>
       </div>
     </div>
