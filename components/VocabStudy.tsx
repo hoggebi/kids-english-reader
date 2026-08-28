@@ -8,6 +8,7 @@ import {
   saveTodaySession,
   recordAnswer,
   selectDailyWords,
+  extendDailySession,
 } from "@/lib/vocabStorage";
 import VocabGame from "./VocabGame";
 
@@ -66,6 +67,15 @@ export default function VocabStudy({ set, onBack }: { set: VocabSet; onBack: () 
     setMode("game");
   }
 
+  // 다음 10개 이어서 학습하기: 오늘 학습을 마친 뒤, 원하면 다음 배치도 이어서 볼 수 있음
+  const moreWordsAvailable = studyDone ? selectDailyWords(set).length : 0;
+
+  function handleExtendStudy() {
+    const extended = extendDailySession(set, session!);
+    setSession(extended);
+    setMode("study");
+  }
+
   // ---------- 허브 화면: 큰 탭 2개 ----------
   if (mode === "hub") {
     return (
@@ -85,6 +95,16 @@ export default function VocabStudy({ set, onBack }: { set: VocabSet; onBack: () 
           <span className="text-2xl">📖</span>
           {studyDone ? "학습 다시 하기" : "학습하기"}
         </button>
+
+        {studyDone && moreWordsAvailable > 0 && (
+          <button
+            onClick={handleExtendStudy}
+            className="w-full py-5 rounded-3xl bg-amber-500 text-white font-bold text-base active:scale-[0.98] transition flex flex-col items-center gap-1"
+          >
+            <span className="text-xl">➕</span>
+            다음 {moreWordsAvailable}개도 이어서 학습하기
+          </button>
+        )}
 
         <button
           onClick={handleGameEnter}

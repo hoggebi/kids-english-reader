@@ -19,7 +19,7 @@ function shuffle<T>(arr: T[]): T[] {
 const GAME_INFO: { kind: GameKind; title: string; desc: string; emoji?: string; img?: string }[] = [
   { kind: "hunt", title: "단어 사냥", desc: "떨어지는 단어를 탭해서 잡아요", emoji: "🎯" },
   { kind: "feed", title: "바구니 담기", desc: "맞는 단어를 끌어서 바구니에 담아요", img: "/basket.png" },
-  { kind: "mole", title: "두더지 잡기", desc: "튀어나온 정답을 빠르게 탭해요", img: "/mole.png" },
+  { kind: "mole", title: "두더지 잡기", desc: "튀어나온 정답을 빠르게 탭해요", img: "/main-mole.png" },
   { kind: "runner", title: "함께 달리기", desc: "갈림길에서 정답 쪽을 골라요", emoji: "🏃" },
 ];
 
@@ -63,9 +63,13 @@ function GameStyles() {
       }
       @keyframes malletHit {
         0% { transform: translate(30%, -90%) rotate(-45deg); opacity: 0; }
-        35% { transform: translate(0%, -10%) rotate(5deg); opacity: 1; }
-        55% { transform: translate(0%, 5%) rotate(15deg); }
-        100% { transform: translate(30%, -90%) rotate(-45deg); opacity: 0; }
+        40% { transform: translate(0%, 0%) rotate(10deg); opacity: 1; }
+        100% { transform: translate(0%, 0%) rotate(10deg); opacity: 0; }
+      }
+      @keyframes dartHit {
+        0% { transform: scale(0) rotate(-30deg); opacity: 0; }
+        60% { transform: scale(1.3) rotate(10deg); opacity: 1; }
+        100% { transform: scale(1) rotate(0deg); opacity: 1; }
       }
       .particle { position: absolute; left: 50%; top: 50%; animation: particlePop 0.7s ease-out forwards; }
       .combo-badge { position: absolute; left: 50%; top: 12%; animation: comboPop 0.7s ease-out forwards; }
@@ -73,9 +77,10 @@ function GameStyles() {
       .char-correct { animation: bounceCorrect 0.5s ease-out; }
       .char-wrong { animation: wobbleWrong 0.4s ease-out; }
       .run-bob { animation: runBob 0.4s ease-in-out infinite; }
-      .mallet-hit { animation: malletHit 0.45s ease-out; transform-origin: 70% 30%; }
+      .mallet-hit { animation: malletHit 0.6s ease-out; transform-origin: 70% 30%; }
+      .dart-hit { animation: dartHit 0.3s ease-out; }
       @media (prefers-reduced-motion: reduce) {
-        .particle, .combo-badge, .star-pop, .char-correct, .char-wrong, .run-bob, .mallet-hit { animation: none; }
+        .particle, .combo-badge, .star-pop, .char-correct, .char-wrong, .run-bob, .mallet-hit, .dart-hit { animation: none; }
       }
     `}</style>
   );
@@ -163,19 +168,16 @@ function ResultScreen({
   correct,
   total,
   onDone,
+  onRetry,
 }: {
   correct: number;
   total: number;
   onDone: () => void;
+  onRetry: () => void;
 }) {
   const [pet] = useState(() => loadPet());
   const ratio = total > 0 ? correct / total : 0;
   const stars = ratio >= 0.9 ? 3 : ratio >= 0.6 ? 2 : ratio > 0 ? 1 : 0;
-
-  useEffect(() => {
-    const t = setTimeout(onDone, 2000);
-    return () => clearTimeout(t);
-  }, [onDone]);
 
   return (
     <div className="flex flex-col items-center gap-3 py-10">
@@ -195,6 +197,20 @@ function ResultScreen({
       <p className="text-lg font-bold text-gray-800">
         {total}개 중 {correct}개 맞혔어요!
       </p>
+      <div className="flex gap-3 mt-1">
+        <button
+          onClick={onRetry}
+          className="px-5 py-2.5 rounded-full bg-emerald-500 text-white font-bold"
+        >
+          다시하기
+        </button>
+        <button
+          onClick={onDone}
+          className="px-5 py-2.5 rounded-full bg-sky-600 text-white font-bold"
+        >
+          완료
+        </button>
+      </div>
     </div>
   );
 }
@@ -206,6 +222,7 @@ function buildOptions(words: VocabWord[], target: VocabWord, count = 3) {
 
 export default function VocabGame({ words, onDone }: { words: VocabWord[]; onDone: () => void }) {
   const [kind, setKind] = useState<GameKind | null>(null);
+  const [playKey, setPlayKey] = useState(0);
 
   if (words.length === 0) {
     return (
@@ -226,15 +243,20 @@ export default function VocabGame({ words, onDone }: { words: VocabWord[]; onDon
           {GAME_INFO.map((g) => (
             <button
               key={g.kind}
-              onClick={() => setKind(g.kind)}
+              onClick={() => {
+                setKind(g.kind);
+                setPlayKey(0);
+              }}
               className="flex flex-col items-center gap-1 py-6 rounded-2xl bg-gray-50 border-2 border-transparent hover:border-sky-300 active:scale-95 transition"
             >
-              {g.img ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={g.img} alt={g.title} className="w-14 h-14 object-contain" />
-              ) : (
-                <span className="text-4xl">{g.emoji}</span>
-              )}
+              <div className="w-14 h-14 flex items-center justify-center">
+                {g.img ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={g.img} alt={g.title} className="w-14 h-14 object-contain" />
+                ) : (
+                  <span className="text-4xl">{g.emoji}</span>
+                )}
+              </div>
               <span className="font-bold text-gray-800">{g.title}</span>
               <span className="text-xs text-gray-400 text-center px-2">{g.desc}</span>
             </button>
@@ -244,22 +266,24 @@ export default function VocabGame({ words, onDone }: { words: VocabWord[]; onDon
     );
   }
 
+  const handleRetry = () => setPlayKey((k) => k + 1);
+
   return (
     <div className="w-full max-w-4xl flex flex-col gap-4">
       <GameStyles />
       <button onClick={() => setKind(null)} className="self-start text-sm text-gray-400 underline">
         게임 다시 고르기
       </button>
-      {kind === "hunt" && <HuntGame words={words} onDone={onDone} />}
-      {kind === "feed" && <FeedGame words={words} onDone={onDone} />}
-      {kind === "mole" && <MoleGame words={words} onDone={onDone} />}
-      {kind === "runner" && <RunnerGame words={words} onDone={onDone} />}
+      {kind === "hunt" && <HuntGame key={playKey} words={words} onDone={onDone} onRetry={handleRetry} />}
+      {kind === "feed" && <FeedGame key={playKey} words={words} onDone={onDone} onRetry={handleRetry} />}
+      {kind === "mole" && <MoleGame key={playKey} words={words} onDone={onDone} onRetry={handleRetry} />}
+      {kind === "runner" && <RunnerGame key={playKey} words={words} onDone={onDone} onRetry={handleRetry} />}
     </div>
   );
 }
 
 // ---------- 1) 단어 사냥: 낙하산 타고 떨어지는 정답 탭 ----------
-function HuntGame({ words, onDone }: { words: VocabWord[]; onDone: () => void }) {
+function HuntGame({ words, onDone, onRetry }: { words: VocabWord[]; onDone: () => void; onRetry: () => void }) {
   const [pet] = useState(() => loadPet());
   const [queue] = useState(() => shuffle(words));
   const [dirs] = useState<("toEng" | "toKor")[]>(() =>
@@ -273,6 +297,7 @@ function HuntGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
   const [combo, setCombo] = useState(0);
   const [particleTrigger, setParticleTrigger] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
+  const [hitId, setHitId] = useState<string | null>(null);
 
   const current = queue[index];
   const direction = dirs[index];
@@ -294,6 +319,7 @@ function HuntGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
     setIndex(next);
     setFallY(0);
     setFeedback(null);
+    setHitId(null);
     if (queue[next]) {
       setOptions(buildOptions(words, queue[next], 3));
       setPositions(shuffle([10, 45, 80]));
@@ -302,6 +328,7 @@ function HuntGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
 
   function tap(w: VocabWord) {
     if (feedback) return;
+    setHitId(w.id);
     const ok = w.id === current.id;
     playTone(ok ? "correct" : "wrong");
     setFeedback(ok ? "correct" : "wrong");
@@ -315,7 +342,7 @@ function HuntGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
     setTimeout(goNext, 500);
   }
 
-  if (done) return <ResultScreen correct={correctCount} total={queue.length} onDone={onDone} />;
+  if (done) return <ResultScreen correct={correctCount} total={queue.length} onDone={onDone} onRetry={onRetry} />;
 
   const promptText = direction === "toEng" ? current.korean : current.english;
 
@@ -345,7 +372,7 @@ function HuntGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
             >
               <span className="text-lg -mb-1">🪂</span>
               <span
-                className={`px-4 py-3 rounded-xl font-extrabold text-lg border-2 ${
+                className={`relative px-4 py-3 rounded-xl font-extrabold text-lg border-2 ${
                   feedback && w.id === current.id
                     ? "bg-sky-100 border-sky-500 text-black"
                     : feedback === "wrong" && w.id !== current.id
@@ -354,6 +381,7 @@ function HuntGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
                 }`}
               >
                 {direction === "toEng" ? w.english : w.korean}
+                {hitId === w.id && <span className="absolute -right-2 -top-2 text-2xl dart-hit">🎯</span>}
               </span>
             </button>
           );
@@ -372,7 +400,7 @@ function HuntGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
 }
 
 // ---------- 2) 바구니 담기: 드래그해서 바구니에 넣기 ----------
-function FeedGame({ words, onDone }: { words: VocabWord[]; onDone: () => void }) {
+function FeedGame({ words, onDone, onRetry }: { words: VocabWord[]; onDone: () => void; onRetry: () => void }) {
   const [pet] = useState(() => loadPet());
   const [queue] = useState(() => shuffle(words));
   const [dirs] = useState<("toEng" | "toKor")[]>(() =>
@@ -429,7 +457,7 @@ function FeedGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
     setDragPos(null);
   }
 
-  if (done) return <ResultScreen correct={correctCount} total={queue.length} onDone={onDone} />;
+  if (done) return <ResultScreen correct={correctCount} total={queue.length} onDone={onDone} onRetry={onRetry} />;
 
   return (
     <div
@@ -512,7 +540,7 @@ function FeedGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
 }
 
 // ---------- 3) 두더지 잡기 ----------
-function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void }) {
+function MoleGame({ words, onDone, onRetry }: { words: VocabWord[]; onDone: () => void; onRetry: () => void }) {
   const [queue] = useState(() => shuffle(words));
   const [dirs] = useState<("toEng" | "toKor")[]>(() =>
     queue.map(() => (Math.random() < 0.5 ? "toEng" : "toKor"))
@@ -565,7 +593,7 @@ function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
     setTimeout(() => setIndex((i) => i + 1), 500);
   }
 
-  if (done) return <ResultScreen correct={correctCount} total={queue.length} onDone={onDone} />;
+  if (done) return <ResultScreen correct={correctCount} total={queue.length} onDone={onDone} onRetry={onRetry} />;
 
   return (
     <div
@@ -608,8 +636,8 @@ function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
                 <div className="relative w-full mb-[2%] animate-bounce">
                   <div className="relative w-full flex justify-center">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="/mole.png" alt="두더지" className="w-full object-contain" />
-                    <span className="absolute top-[10%] w-[72%] text-center text-lg font-extrabold text-black leading-tight whitespace-nowrap overflow-hidden text-ellipsis">
+                    <img src="/main-mole.png" alt="두더지" className="w-full object-contain" />
+                    <span className="absolute top-[4%] w-[52%] text-center text-base font-extrabold text-black leading-tight whitespace-nowrap overflow-hidden text-ellipsis">
                       {direction === "toEng" ? w.english : w.korean}
                     </span>
                   </div>
@@ -631,16 +659,16 @@ function MoleGame({ words, onDone }: { words: VocabWord[]; onDone: () => void })
 }
 
 // ---------- 4) 함께 달리기: 갈림길 선택 ----------
-function RunnerGame({ words, onDone }: { words: VocabWord[]; onDone: () => void }) {
+function RunnerGame({ words, onDone, onRetry }: { words: VocabWord[]; onDone: () => void; onRetry: () => void }) {
   const [pet] = useState(() => loadPet());
   const [queue] = useState(() => shuffle(words));
   const [dirs] = useState<("toEng" | "toKor")[]>(() =>
     queue.map(() => (Math.random() < 0.5 ? "toEng" : "toKor"))
   );
   const [index, setIndex] = useState(0);
-  const [options, setOptions] = useState(() => buildOptions(words, queue[0], 2));
+  const [options, setOptions] = useState(() => buildOptions(words, queue[0], 3));
   const [progress, setProgress] = useState(0);
-  const [choice, setChoice] = useState<"left" | "right" | null>(null);
+  const [choiceId, setChoiceId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [combo, setCombo] = useState(0);
   const [particleTrigger, setParticleTrigger] = useState(0);
@@ -651,13 +679,13 @@ function RunnerGame({ words, onDone }: { words: VocabWord[]; onDone: () => void 
   const done = index >= queue.length;
 
   useEffect(() => {
-    if (done || choice) return;
-    const t = setInterval(() => setProgress((p) => Math.min(100, p + 2.5)), 80);
+    if (done || choiceId) return;
+    const t = setInterval(() => setProgress((p) => Math.min(100, p + 1.2)), 80);
     return () => clearInterval(t);
-  }, [done, choice]);
+  }, [done, choiceId]);
 
   useEffect(() => {
-    if (progress >= 100 && !choice) goNext();
+    if (progress >= 100 && !choiceId) goNext();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [progress]);
 
@@ -665,14 +693,14 @@ function RunnerGame({ words, onDone }: { words: VocabWord[]; onDone: () => void 
     const next = index + 1;
     setIndex(next);
     setProgress(0);
-    setChoice(null);
+    setChoiceId(null);
     setFeedback(null);
-    if (queue[next]) setOptions(buildOptions(words, queue[next], 2));
+    if (queue[next]) setOptions(buildOptions(words, queue[next], 3));
   }
 
-  function pick(side: "left" | "right", w: VocabWord) {
-    if (choice) return;
-    setChoice(side);
+  function pick(w: VocabWord) {
+    if (choiceId) return;
+    setChoiceId(w.id);
     const ok = w.id === current.id;
     playTone(ok ? "correct" : "wrong");
     setFeedback(ok ? "correct" : "wrong");
@@ -686,9 +714,7 @@ function RunnerGame({ words, onDone }: { words: VocabWord[]; onDone: () => void 
     setTimeout(goNext, 500);
   }
 
-  if (done) return <ResultScreen correct={correctCount} total={queue.length} onDone={onDone} />;
-
-  const [left, right] = options;
+  if (done) return <ResultScreen correct={correctCount} total={queue.length} onDone={onDone} onRetry={onRetry} />;
 
   return (
     <div className={`relative rounded-3xl overflow-hidden p-3 flex flex-col items-center gap-4 ${THEME_BG.runner}`}>
@@ -706,42 +732,32 @@ function RunnerGame({ words, onDone }: { words: VocabWord[]; onDone: () => void 
           src={getPetImagePath(pet)}
           alt="캐릭터"
           className={`absolute bottom-3 w-24 h-24 object-contain transition-all duration-100 ${
-            choice ? (feedback === "correct" ? "char-correct" : "char-wrong") : "run-bob"
+            choiceId ? (feedback === "correct" ? "char-correct" : "char-wrong") : "run-bob"
           }`}
           style={{ left: `calc(${progress}% - 48px)` }}
         />
-        <span className="absolute bottom-2 right-0 text-2xl">🏁</span>
+        <span className="absolute -bottom-1 right-0 text-5xl">🏁</span>
       </div>
       <p className="text-lg font-bold text-black">
         {direction === "toEng" ? current.korean : current.english}
       </p>
-      <div className="flex gap-4 w-full max-w-sm">
-        <button
-          onClick={() => pick("left", left)}
-          disabled={!!choice}
-          className={`flex-1 py-6 rounded-2xl font-bold border-2 transition ${
-            choice === "left"
-              ? left.id === current.id
-                ? "bg-sky-100 border-sky-500 text-black"
-                : "bg-red-50 border-red-400 text-red-500"
-              : "bg-white border-gray-200 text-black"
-          }`}
-        >
-          {direction === "toEng" ? left.english : left.korean}
-        </button>
-        <button
-          onClick={() => pick("right", right)}
-          disabled={!!choice}
-          className={`flex-1 py-6 rounded-2xl font-bold border-2 transition ${
-            choice === "right"
-              ? right.id === current.id
-                ? "bg-sky-100 border-sky-500 text-black"
-                : "bg-red-50 border-red-400 text-red-500"
-              : "bg-white border-gray-200 text-black"
-          }`}
-        >
-          {direction === "toEng" ? right.english : right.korean}
-        </button>
+      <div className="flex gap-2 w-full max-w-sm">
+        {options.map((w) => (
+          <button
+            key={w.id}
+            onClick={() => pick(w)}
+            disabled={!!choiceId}
+            className={`flex-1 py-6 rounded-2xl font-bold border-2 transition ${
+              choiceId === w.id
+                ? w.id === current.id
+                  ? "bg-sky-100 border-sky-500 text-black"
+                  : "bg-red-50 border-red-400 text-red-500"
+                : "bg-white border-gray-200 text-black"
+            }`}
+          >
+            {direction === "toEng" ? w.english : w.korean}
+          </button>
+        ))}
       </div>
     </div>
   );
