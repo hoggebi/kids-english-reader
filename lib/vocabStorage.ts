@@ -212,10 +212,20 @@ export function buildDailySession(set: VocabSet): VocabDailySession {
   return session;
 }
 
-// 오늘의 학습(10개)을 다 마친 뒤, 원하면 다음 10개를 이어서 학습할 수 있게 세션을 확장한다.
-// 이미 오늘 처리된 단어는 다음 복습일이 미래로 밀려있어서 selectDailyWords가 자동으로 제외해준다.
+// 오늘 복습 기한이 된 단어가 없더라도, 아직 세트에 안 배운/덜 외운 단어가 남아있으면 계속 이어서 학습할 수 있게 해준다.
+// (라이트너 스케줄과 무관하게, 오늘 이미 다룬 단어만 제외하고 박스가 낮은 순으로 뽑아줌)
+export function getMoreStudyCandidates(set: VocabSet, session: VocabDailySession): VocabWord[] {
+  const alreadyIncluded = new Set(session.cards.map((c) => c.wordId));
+  const due = selectDailyWords(set).filter((w) => !alreadyIncluded.has(w.id));
+  if (due.length > 0) return due;
+
+  const remaining = set.words.filter((w) => !alreadyIncluded.has(w.id));
+  return [...remaining].sort((a, b) => a.box - b.box).slice(0, DAILY_TARGET);
+}
+
+// 오늘의 학습을 다 마친 뒤, 원하면 이어서 더 학습할 수 있게 세션을 확장한다.
 export function extendDailySession(set: VocabSet, session: VocabDailySession): VocabDailySession {
-  const moreWords = selectDailyWords(set);
+  const moreWords = getMoreStudyCandidates(set, session);
   const testModes: VocabStudyMode[] = ["meaning", "toEnglish", "spell"];
   const newCards: VocabDailySession["cards"] = [];
 
