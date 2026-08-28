@@ -19,7 +19,7 @@ function shuffle<T>(arr: T[]): T[] {
 const GAME_INFO: { kind: GameKind; title: string; desc: string; emoji?: string; img?: string }[] = [
   { kind: "hunt", title: "단어 사냥", desc: "떨어지는 단어를 탭해서 잡아요", emoji: "🎯" },
   { kind: "feed", title: "바구니 담기", desc: "맞는 단어를 끌어서 바구니에 담아요", img: "/basket.png" },
-  { kind: "mole", title: "두더지 잡기", desc: "튀어나온 정답을 빠르게 탭해요", img: "/main-mole.png" },
+  { kind: "mole", title: "두더지 잡기", desc: "튀어나온 정답을 빠르게 탭해요", img: "/mole.png" },
   { kind: "runner", title: "함께 달리기", desc: "갈림길에서 정답 쪽을 골라요", emoji: "🏃" },
 ];
 
@@ -62,14 +62,15 @@ function GameStyles() {
         50% { transform: translateY(-6px); }
       }
       @keyframes malletHit {
-        0% { transform: translate(30%, -90%) rotate(-45deg); opacity: 0; }
-        40% { transform: translate(0%, 0%) rotate(10deg); opacity: 1; }
-        100% { transform: translate(0%, 0%) rotate(10deg); opacity: 0; }
+        0% { transform: translate(-50%, -30%); opacity: 0; }
+        30% { transform: translate(-50%, -30%); opacity: 1; }
+        60% { transform: translate(-50%, 15%); opacity: 1; }
+        100% { transform: translate(-50%, 15%); opacity: 0; }
       }
       @keyframes dartHit {
-        0% { transform: scale(0) rotate(-30deg); opacity: 0; }
-        60% { transform: scale(1.3) rotate(10deg); opacity: 1; }
-        100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        0% { transform: rotate(135deg) scale(0); opacity: 0; }
+        60% { transform: rotate(135deg) scale(1.3); opacity: 1; }
+        100% { transform: rotate(135deg) scale(1); opacity: 1; }
       }
       .particle { position: absolute; left: 50%; top: 50%; animation: particlePop 0.7s ease-out forwards; }
       .combo-badge { position: absolute; left: 50%; top: 12%; animation: comboPop 0.7s ease-out forwards; }
@@ -77,8 +78,8 @@ function GameStyles() {
       .char-correct { animation: bounceCorrect 0.5s ease-out; }
       .char-wrong { animation: wobbleWrong 0.4s ease-out; }
       .run-bob { animation: runBob 0.4s ease-in-out infinite; }
-      .mallet-hit { animation: malletHit 0.6s ease-out; transform-origin: 70% 30%; }
-      .dart-hit { animation: dartHit 0.3s ease-out; }
+      .mallet-hit { animation: malletHit 0.6s ease-out; }
+      .dart-hit { animation: dartHit 0.3s ease-out forwards; }
       @media (prefers-reduced-motion: reduce) {
         .particle, .combo-badge, .star-pop, .char-correct, .char-wrong, .run-bob, .mallet-hit, .dart-hit { animation: none; }
       }
@@ -381,7 +382,14 @@ function HuntGame({ words, onDone, onRetry }: { words: VocabWord[]; onDone: () =
                 }`}
               >
                 {direction === "toEng" ? w.english : w.korean}
-                {hitId === w.id && <span className="absolute -right-2 -top-2 text-2xl dart-hit">🎯</span>}
+                {hitId === w.id && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src="/arrow.png"
+                    alt="화살"
+                    className="absolute -right-4 -top-5 w-10 h-10 object-contain dart-hit"
+                  />
+                )}
               </span>
             </button>
           );
@@ -636,16 +644,16 @@ function MoleGame({ words, onDone, onRetry }: { words: VocabWord[]; onDone: () =
                 <div className="relative w-full mb-[2%] animate-bounce">
                   <div className="relative w-full flex justify-center">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="/main-mole.png" alt="두더지" className="w-full object-contain" />
-                    <span className="absolute top-[4%] w-[52%] text-center text-base font-extrabold text-black leading-tight whitespace-nowrap overflow-hidden text-ellipsis">
+                    <img src="/mole.png" alt="두더지" className="w-full object-contain" />
+                    <span className="absolute top-[10%] w-[72%] text-center text-lg font-extrabold text-black leading-tight whitespace-nowrap overflow-hidden text-ellipsis">
                       {direction === "toEng" ? w.english : w.korean}
                     </span>
                   </div>
                 </div>
               )}
-              {/* 뿅망치: 탭한 두더지 머리 위로 실제로 내려침 */}
+              {/* 뿅망치: 두더지 머리 위 제자리에서 수직으로 한 번 내려침 */}
               {hitSlot === slot && (
-                <div className="absolute -top-4 right-0 w-20 h-20 pointer-events-none mallet-hit">
+                <div className="absolute top-2 left-1/2 w-20 h-20 pointer-events-none mallet-hit">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="/mollet.png" alt="뿅망치" className="w-full h-full object-contain" />
                 </div>
