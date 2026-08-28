@@ -9,6 +9,7 @@ import {
   recordAnswer,
   selectDailyWords,
   extendDailySession,
+  getMoreStudyCandidates,
 } from "@/lib/vocabStorage";
 import VocabGame from "./VocabGame";
 
@@ -68,7 +69,7 @@ export default function VocabStudy({ set, onBack }: { set: VocabSet; onBack: () 
   }
 
   // 다음 10개 이어서 학습하기: 오늘 학습을 마친 뒤, 원하면 다음 배치도 이어서 볼 수 있음
-  const moreWordsAvailable = studyDone ? selectDailyWords(set).length : 0;
+  const moreWordsAvailable = studyDone ? getMoreStudyCandidates(set, session).length : 0;
 
   function handleExtendStudy() {
     const extended = extendDailySession(set, session!);
