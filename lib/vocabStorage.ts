@@ -211,3 +211,26 @@ export function buildDailySession(set: VocabSet): VocabDailySession {
   saveTodaySession(session);
   return session;
 }
+
+// 오늘의 학습(10개)을 다 마친 뒤, 원하면 다음 10개를 이어서 학습할 수 있게 세션을 확장한다.
+// 이미 오늘 처리된 단어는 다음 복습일이 미래로 밀려있어서 selectDailyWords가 자동으로 제외해준다.
+export function extendDailySession(set: VocabSet, session: VocabDailySession): VocabDailySession {
+  const moreWords = selectDailyWords(set);
+  const testModes: VocabStudyMode[] = ["meaning", "toEnglish", "spell"];
+  const newCards: VocabDailySession["cards"] = [];
+
+  for (const w of moreWords) {
+    const testMode = shuffle(testModes)[0];
+    newCards.push({ wordId: w.id, mode: "expose" });
+    newCards.push({ wordId: w.id, mode: testMode });
+  }
+
+  const updated: VocabDailySession = {
+    ...session,
+    cards: [...session.cards, ...newCards],
+    cursor: session.cards.length,
+    phase: newCards.length > 0 ? "study" : "done",
+  };
+  saveTodaySession(updated);
+  return updated;
+}
