@@ -117,15 +117,18 @@ export async function pullSync(code: string): Promise<{
       if (data.doneChapterIds) mergeDoneChapterIds(data.doneChapterIds);
       if (data.pet) mergePetState(data.pet);
 
-      // 단어장도 챕터와 같은 방식으로: 내 기기에 없는 세트만 추가로 합침
+      // 단어장: 새로 생긴 세트는 추가하고, 이미 있는 세트는 제목만 서버 최신값으로 맞춤
+      // (단어별 학습 진행상황/세트 상태는 기기마다 다를 수 있어서 로컬 걸 그대로 유지)
       if (data.vocabSets) {
         const existingVocab = loadVocabSets();
+        const remoteVocabMap = new Map(data.vocabSets.map((s) => [s.id, s]));
+        const updatedExisting = existingVocab.map((s) => {
+          const remote = remoteVocabMap.get(s.id);
+          return remote && remote.title !== s.title ? { ...s, title: remote.title } : s;
+        });
         const existingVocabIds = new Set(existingVocab.map((s) => s.id));
-        const mergedVocab = [
-          ...existingVocab,
-          ...data.vocabSets.filter((s) => !existingVocabIds.has(s.id)),
-        ];
-        saveVocabSets(mergedVocab);
+        const onlyRemoteVocab = data.vocabSets.filter((s) => !existingVocabIds.has(s.id));
+        saveVocabSets([...updatedExisting, ...onlyRemoteVocab]);
       }
     }
   } catch {
