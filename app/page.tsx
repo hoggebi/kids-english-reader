@@ -247,7 +247,10 @@ export default function Home() {
           챕터
         </button>
         <button
-          onClick={() => setSection("vocab")}
+          onClick={() => {
+            setSection("vocab");
+            setPet(loadPet());
+          }}
           className={`flex-1 py-2 rounded-full font-bold transition ${
             section === "vocab" ? "bg-sky-600 text-white" : "text-gray-500"
           }`}
@@ -350,13 +353,17 @@ export default function Home() {
       )}
 
       {section === "vocab" && vocabView === "list" && (
-        <VocabList
-          sets={vocabSets}
-          onSelect={handleVocabSelect}
-          onAdd={() => setVocabView("add")}
-          onDelete={handleVocabDelete}
-          onRename={handleVocabRename}
-        />
+        <>
+          {pet && <PetDisplay pet={pet} />}
+
+          <VocabList
+            sets={vocabSets}
+            onSelect={handleVocabSelect}
+            onAdd={() => setVocabView("add")}
+            onDelete={handleVocabDelete}
+            onRename={handleVocabRename}
+          />
+        </>
       )}
 
       {section === "vocab" && vocabView === "add" && (
@@ -367,7 +374,13 @@ export default function Home() {
       )}
 
       {section === "vocab" && vocabView === "read" && activeVocabSet && (
-        <VocabStudy set={activeVocabSet} onBack={() => setVocabView("list")} />
+        <VocabStudy
+          set={activeVocabSet}
+          onBack={() => {
+            setVocabView("list");
+            setPet(loadPet());
+          }}
+        />
       )}
     </div>
   );
