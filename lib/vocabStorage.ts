@@ -1,8 +1,10 @@
 "use client";
 import type { VocabSet, VocabWord, VocabDailySession, VocabStudyMode } from "./types";
+import { completeChapter } from "./pet";
 
 const VOCAB_KEY = "little-reader-vocab-sets";
 const SESSION_KEY_PREFIX = "little-reader-vocab-session-";
+const GAMES_PLAYED_PREFIX = "little-reader-vocab-games-";
 
 // 박스별 복습 간격(일). 3주 완주 목표에 맞춰 촘촘하게 설정.
 const BOX_INTERVAL_DAYS: Record<number, number> = { 1: 1, 2: 2, 3: 3, 4: 5 };
@@ -243,4 +245,33 @@ export function extendDailySession(set: VocabSet, session: VocabDailySession): V
   };
   saveTodaySession(updated);
   return updated;
+}
+
+// ---------- 오늘 이 단어장으로 어떤 게임을 마쳤는지 기록 ----------
+// 오늘의 학습 + 게임 4종류(단어사냥/바구니담기/두더지잡기/함께달리기)를 전부 한 번씩 마치면
+// 챕터 완료 때와 똑같은 방식으로 캐릭터가 한 단계 성장한다.
+const ALL_GAME_KINDS = ["hunt", "feed", "mole", "runner"];
+
+export function recordVocabGamePlayed(
+  setId: string,
+  kind: string
+): { allGamesDoneToday: boolean } {
+  if (typeof window === "undefined") return { allGamesDoneToday: false };
+  const key = `${GAMES_PLAYED_PREFIX}${setId}-${todayKey()}`;
+  let played: string[] = [];
+  try {
+    const raw = localStorage.getItem(key);
+    played = raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    played = [];
+  }
+  if (!played.includes(kind)) played.push(kind);
+  localStorage.setItem(key, JSON.stringify(played));
+
+  const allDone = ALL_GAME_KINDS.every((k) => played.includes(k));
+  if (allDone) {
+    // completeChapter는 같은 id로 이미 오늘 처리됐으면 아무 일도 안 하므로 중복 성장 걱정 없음
+    completeChapter(`vocab-${setId}-${todayKey()}`);
+  }
+  return { allGamesDoneToday: allDone };
 }
