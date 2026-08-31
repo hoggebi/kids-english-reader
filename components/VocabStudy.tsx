@@ -137,7 +137,7 @@ export default function VocabStudy({ set, onBack }: { set: VocabSet; onBack: () 
 
   // ---------- 게임하기 ----------
   if (mode === "game") {
-    return <VocabGame words={gameWords} onDone={() => setMode("hub")} />;
+    return <VocabGame words={gameWords} setId={set.id} onDone={() => setMode("hub")} />;
   }
 
   // ---------- 학습하기 (카드 흐름) ----------

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { VocabWord } from "@/lib/types";
 import { loadPet, getPetImagePath } from "@/lib/pet";
+import { recordVocabGamePlayed } from "@/lib/vocabStorage";
 
 type GameKind = "hunt" | "feed" | "mole" | "runner";
 type Feedback = "correct" | "wrong" | null;
@@ -221,7 +222,15 @@ function buildOptions(words: VocabWord[], target: VocabWord, count = 3) {
   return shuffle([target, ...distractors]);
 }
 
-export default function VocabGame({ words, onDone }: { words: VocabWord[]; onDone: () => void }) {
+export default function VocabGame({
+  words,
+  onDone,
+  setId,
+}: {
+  words: VocabWord[];
+  onDone: () => void;
+  setId: string;
+}) {
   const [kind, setKind] = useState<GameKind | null>(null);
   const [playKey, setPlayKey] = useState(0);
 
@@ -269,16 +278,25 @@ export default function VocabGame({ words, onDone }: { words: VocabWord[]; onDon
 
   const handleRetry = () => setPlayKey((k) => k + 1);
 
+  // 게임을 완료(onDone)하면 오늘 이 게임 종류를 마쳤다고 기록하고,
+  // 4종류를 다 마쳤으면 캐릭터가 한 단계 성장한다(챕터 완료와 동일한 로직 재사용).
+  function handleGameDone() {
+    if (kind) recordVocabGamePlayed(setId, kind);
+    onDone();
+  }
+
   return (
     <div className="w-full max-w-4xl flex flex-col gap-4">
       <GameStyles />
       <button onClick={() => setKind(null)} className="self-start text-sm text-gray-400 underline">
         게임 다시 고르기
       </button>
-      {kind === "hunt" && <HuntGame key={playKey} words={words} onDone={onDone} onRetry={handleRetry} />}
-      {kind === "feed" && <FeedGame key={playKey} words={words} onDone={onDone} onRetry={handleRetry} />}
-      {kind === "mole" && <MoleGame key={playKey} words={words} onDone={onDone} onRetry={handleRetry} />}
-      {kind === "runner" && <RunnerGame key={playKey} words={words} onDone={onDone} onRetry={handleRetry} />}
+      {kind === "hunt" && <HuntGame key={playKey} words={words} onDone={handleGameDone} onRetry={handleRetry} />}
+      {kind === "feed" && <FeedGame key={playKey} words={words} onDone={handleGameDone} onRetry={handleRetry} />}
+      {kind === "mole" && <MoleGame key={playKey} words={words} onDone={handleGameDone} onRetry={handleRetry} />}
+      {kind === "runner" && (
+        <RunnerGame key={playKey} words={words} onDone={handleGameDone} onRetry={handleRetry} />
+      )}
     </div>
   );
 }
