@@ -5,6 +5,7 @@ const VOCAB_PET_KEY = "little-reader-vocab-pet";
 const DONE_CHAPTERS_KEY = "little-reader-done-chapters";
 const DONE_VOCAB_ROUNDS_KEY = "little-reader-done-vocab-rounds";
 const CHAPTER_SPECIES_RESET_FLAG = "little-reader-chapter-species-reset-v2";
+const VOCAB_STAGE_BOOST_FLAG = "little-reader-vocab-stage-boost-v1";
 
 export const MAX_STAGE = 8;
 
@@ -330,11 +331,17 @@ export function loadPet(track: PetTrack = "chapter"): PetState {
       stage: Math.min(Math.max(parsed.stage ?? 1, 1), MAX_STAGE),
       generation: parsed.generation ?? 1,
     };
-    // 챕터 캐릭터 목록을 흑표범→늑대로 새로 바꾼 요청 반영: 처음 한 번만 흑표범(1번째)으로 되돌려줌
+    // 챕터 캐릭터 목록을 흑표범→늑대로 새로 바꾼 요청 반영: 처음 한 번만 흑표범 1단계로 완전히 리셋
     if (track === "chapter" && localStorage.getItem(CHAPTER_SPECIES_RESET_FLAG) !== "1") {
-      result = { ...result, generation: 1 };
+      result = { stage: 1, generation: 1 };
       savePet(result, "chapter");
       localStorage.setItem(CHAPTER_SPECIES_RESET_FLAG, "1");
+    }
+    // 단어장 여우는 처음 한 번만 3단계로 맞춰줌 (예전에 같이 쓰던 진행 단계를 단어장 쪽으로 옮김)
+    if (track === "vocab" && localStorage.getItem(VOCAB_STAGE_BOOST_FLAG) !== "1") {
+      result = { stage: 3, generation: 1 };
+      savePet(result, "vocab");
+      localStorage.setItem(VOCAB_STAGE_BOOST_FLAG, "1");
     }
     return result;
   } catch {
