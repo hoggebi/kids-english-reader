@@ -19,9 +19,9 @@ import {
 } from "@/lib/vocabStorage";
 import {
   loadPet,
-  needsChapterSpeciesReset,
-  resetChapterPetLocally,
-  markChapterSpeciesResetDone,
+  savePet,
+  hasAdoptedChapterMigration,
+  markChapterMigrationAdopted,
   boostVocabStageOnce,
   type PetState,
 } from "@/lib/pet";
@@ -32,7 +32,6 @@ import {
   makeRandomCode,
   syncNow,
   autoPush,
-  pushSync,
 } from "@/lib/sync";
 import ChapterList from "@/components/ChapterList";
 import ChapterUpload from "@/components/ChapterUpload";
@@ -79,21 +78,14 @@ export default function Home() {
       window.history.replaceState(null, "", window.location.pathname);
     }
 
-    // 챕터(흑표범 1단계)/단어장(여우 3단계) 캐릭터 조정은 동기화가 끝난 뒤에 실행해야
-    // 서버의 예전 진행상황이 다시 덮어쓰는 걸 막을 수 있음.
-    // 서버 강제반영이 "진짜 성공"한 걸 확인한 다음에만 완료 표시를 함(실패하면 다음 접속 때 재시도됨).
-    async function applyPetAdjustmentsAfterSync() {
-      if (needsChapterSpeciesReset()) {
-        const fresh = resetChapterPetLocally();
+    // 동기화를 안 쓰는 기기는 서버 기준을 알 수 없으니, 로컬에서만 한 번 흑표범 1단계로 맞춰줌.
+    // (동기화를 쓰는 기기는 syncNow 내부에서 서버 기준으로 알아서 처리됨 — lib/sync.ts 참고)
+    function applyOfflinePetAdjustments() {
+      if (!hasAdoptedChapterMigration()) {
+        const fresh: PetState = { stage: 1, generation: 1 };
+        savePet(fresh, "chapter");
         setPet(fresh);
-        const code = getSyncCode();
-        if (code) {
-          const result = await pushSync(code, { forcePetOverwrite: true });
-          if (result.ok) markChapterSpeciesResetDone();
-        } else {
-          // 동기화 자체를 안 쓰는 기기는 서버 확인이 필요 없으니 바로 완료 처리
-          markChapterSpeciesResetDone();
-        }
+        markChapterMigrationAdopted();
       }
       const boostedVocab = boostVocabStageOnce();
       if (boostedVocab) {
@@ -116,10 +108,14 @@ export default function Home() {
             ? `동기화됐어요! (챕터 ${result.chapters.length}개, 단어장 ${result.vocabSets.length}개 · 보낸 ${result.sentVocabSets ?? "?"}개, 병합전서버 ${result.existingBefore ?? "?"}개(키없음:${result.existingWasNull ?? "?"}), 최종 ${result.serverVocabSetsAfter ?? "?"}개, 키:${result.usedKey ?? "?"})`
             : `⚠️ 서버 저장 실패: ${result.pushError ?? "알 수 없는 오류"}`
         );
-        applyPetAdjustmentsAfterSync();
+        const boostedVocab = boostVocabStageOnce();
+        if (boostedVocab) {
+          setVocabPet(boostedVocab);
+          autoPush();
+        }
       });
     } else {
-      applyPetAdjustmentsAfterSync();
+      applyOfflinePetAdjustments();
     }
   }, []);
 
