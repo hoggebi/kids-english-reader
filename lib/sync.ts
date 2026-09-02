@@ -47,7 +47,10 @@ function currentPayload() {
 }
 
 // 지금 내 기기 상태를 서버에 올림 — 성공 여부와 실패 이유, 디버그 개수를 반환
-export async function pushSync(code: string): Promise<{
+export async function pushSync(
+  code: string,
+  options?: { forcePetOverwrite?: boolean }
+): Promise<{
   ok: boolean;
   error?: string;
   sentVocabSets?: number;
@@ -61,7 +64,10 @@ export async function pushSync(code: string): Promise<{
     const res = await fetch("/api/sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code, data: payload }),
+      body: JSON.stringify({
+        code,
+        data: { ...payload, forcePetOverwrite: options?.forcePetOverwrite ?? false },
+      }),
     });
     const json = await res.json().catch(() => null);
     if (!res.ok) {
@@ -155,7 +161,7 @@ export async function syncNow(code: string) {
 }
 
 // 동기화 코드가 설정돼 있으면, 지금 상태를 서버에 올림 (변경이 생길 때마다 호출)
-export async function autoPush() {
+export async function autoPush(options?: { forcePetOverwrite?: boolean }) {
   const code = getSyncCode();
-  if (code) await pushSync(code);
+  if (code) await pushSync(code, options);
 }
