@@ -102,12 +102,12 @@ export default function Home() {
       syncNow(code).then((result) => {
         setChapters(result.chapters);
         setPet(result.pet);
-        setMigratedStatus(result.chapterSpeciesMigrated);
+        setMigratedStatus(result.chapterSpeciesMigratedV2);
         setVocabSets(result.vocabSets);
         setSyncing(false);
         setSyncMessage(
           result.pushOk
-            ? `동기화됐어요! (챕터 ${result.chapters.length}개, 단어장 ${result.vocabSets.length}개 · 캐릭터마이그레이션:${result.chapterSpeciesMigrated}, pet:${result.pet.generation}세대 ${result.pet.stage}단계 · 보낸 ${result.sentVocabSets ?? "?"}개, 병합전서버 ${result.existingBefore ?? "?"}개(키없음:${result.existingWasNull ?? "?"}), 최종 ${result.serverVocabSetsAfter ?? "?"}개, 키:${result.usedKey ?? "?"})`
+            ? `동기화됐어요! (챕터 ${result.chapters.length}개, 단어장 ${result.vocabSets.length}개 · 캐릭터마이그레이션:${result.chapterSpeciesMigratedV2}, pet:${result.pet.generation}세대 ${result.pet.stage}단계 · 보낸 ${result.sentVocabSets ?? "?"}개, 병합전서버 ${result.existingBefore ?? "?"}개(키없음:${result.existingWasNull ?? "?"}), 최종 ${result.serverVocabSetsAfter ?? "?"}개, 키:${result.usedKey ?? "?"})`
             : `⚠️ 서버 저장 실패: ${result.pushError ?? "알 수 없는 오류"}`
         );
         const boostedVocab = boostVocabStageOnce();
@@ -145,14 +145,14 @@ export default function Home() {
     const result = await syncNow(code);
     setChapters(result.chapters);
     setPet(result.pet);
-    setMigratedStatus(result.chapterSpeciesMigrated);
+    setMigratedStatus(result.chapterSpeciesMigratedV2);
     setVocabSets(result.vocabSets);
     setSyncing(false);
     setShowJoinBox(false);
     setJoinInput("");
     setSyncMessage(
       result.pushOk
-        ? `동기화됐어요! (챕터 ${result.chapters.length}개, 단어장 ${result.vocabSets.length}개 · 캐릭터마이그레이션:${result.chapterSpeciesMigrated}, pet:${result.pet.generation}세대 ${result.pet.stage}단계 · 보낸 ${result.sentVocabSets ?? "?"}개, 병합전서버 ${result.existingBefore ?? "?"}개(키없음:${result.existingWasNull ?? "?"}), 최종 ${result.serverVocabSetsAfter ?? "?"}개, 키:${result.usedKey ?? "?"})`
+        ? `동기화됐어요! (챕터 ${result.chapters.length}개, 단어장 ${result.vocabSets.length}개 · 캐릭터마이그레이션:${result.chapterSpeciesMigratedV2}, pet:${result.pet.generation}세대 ${result.pet.stage}단계 · 보낸 ${result.sentVocabSets ?? "?"}개, 병합전서버 ${result.existingBefore ?? "?"}개(키없음:${result.existingWasNull ?? "?"}), 최종 ${result.serverVocabSetsAfter ?? "?"}개, 키:${result.usedKey ?? "?"})`
         : `⚠️ 서버 저장 실패: ${result.pushError ?? "알 수 없는 오류"}`
     );
   }
@@ -169,12 +169,12 @@ export default function Home() {
     const result = await syncNow(syncCode);
     setChapters(result.chapters);
     setPet(result.pet);
-    setMigratedStatus(result.chapterSpeciesMigrated);
+    setMigratedStatus(result.chapterSpeciesMigratedV2);
     setVocabSets(result.vocabSets);
     setSyncing(false);
     setSyncMessage(
       result.pushOk
-        ? `동기화됐어요! (챕터 ${result.chapters.length}개, 단어장 ${result.vocabSets.length}개 · 캐릭터마이그레이션:${result.chapterSpeciesMigrated}, pet:${result.pet.generation}세대 ${result.pet.stage}단계 · 보낸 ${result.sentVocabSets ?? "?"}개, 병합전서버 ${result.existingBefore ?? "?"}개(키없음:${result.existingWasNull ?? "?"}), 최종 ${result.serverVocabSetsAfter ?? "?"}개, 키:${result.usedKey ?? "?"})`
+        ? `동기화됐어요! (챕터 ${result.chapters.length}개, 단어장 ${result.vocabSets.length}개 · 캐릭터마이그레이션:${result.chapterSpeciesMigratedV2}, pet:${result.pet.generation}세대 ${result.pet.stage}단계 · 보낸 ${result.sentVocabSets ?? "?"}개, 병합전서버 ${result.existingBefore ?? "?"}개(키없음:${result.existingWasNull ?? "?"}), 최종 ${result.serverVocabSetsAfter ?? "?"}개, 키:${result.usedKey ?? "?"})`
         : `⚠️ 서버 저장 실패: ${result.pushError ?? "알 수 없는 오류"}`
     );
   }
