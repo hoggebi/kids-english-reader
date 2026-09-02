@@ -17,7 +17,14 @@ import {
   deleteVocabSet,
   renameVocabSet,
 } from "@/lib/vocabStorage";
-import { loadPet, resetChapterSpeciesOnce, boostVocabStageOnce, type PetState } from "@/lib/pet";
+import {
+  loadPet,
+  needsChapterSpeciesReset,
+  resetChapterPetLocally,
+  markChapterSpeciesResetDone,
+  boostVocabStageOnce,
+  type PetState,
+} from "@/lib/pet";
 import {
   getSyncCode,
   setSyncCode as saveSyncCode,
@@ -25,6 +32,7 @@ import {
   makeRandomCode,
   syncNow,
   autoPush,
+  pushSync,
 } from "@/lib/sync";
 import ChapterList from "@/components/ChapterList";
 import ChapterUpload from "@/components/ChapterUpload";
@@ -72,14 +80,26 @@ export default function Home() {
     }
 
     // 챕터(흑표범 1단계)/단어장(여우 3단계) 캐릭터 조정은 동기화가 끝난 뒤에 실행해야
-    // 서버의 예전 진행상황이 다시 덮어쓰는 걸 막을 수 있음. 조정했으면 바로 서버에도 강제로 반영.
-    function applyPetAdjustmentsAfterSync() {
-      const resetChapter = resetChapterSpeciesOnce();
+    // 서버의 예전 진행상황이 다시 덮어쓰는 걸 막을 수 있음.
+    // 서버 강제반영이 "진짜 성공"한 걸 확인한 다음에만 완료 표시를 함(실패하면 다음 접속 때 재시도됨).
+    async function applyPetAdjustmentsAfterSync() {
+      if (needsChapterSpeciesReset()) {
+        const fresh = resetChapterPetLocally();
+        setPet(fresh);
+        const code = getSyncCode();
+        if (code) {
+          const result = await pushSync(code, { forcePetOverwrite: true });
+          if (result.ok) markChapterSpeciesResetDone();
+        } else {
+          // 동기화 자체를 안 쓰는 기기는 서버 확인이 필요 없으니 바로 완료 처리
+          markChapterSpeciesResetDone();
+        }
+      }
       const boostedVocab = boostVocabStageOnce();
-      if (resetChapter) setPet(resetChapter);
-      if (boostedVocab) setVocabPet(boostedVocab);
-      if (resetChapter) autoPush({ forcePetOverwrite: true });
-      else if (boostedVocab) autoPush();
+      if (boostedVocab) {
+        setVocabPet(boostedVocab);
+        autoPush();
+      }
     }
 
     const code = getSyncCode();
