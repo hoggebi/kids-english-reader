@@ -43,6 +43,7 @@ export default function Home() {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [activeChapter, setActiveChapter] = useState<Chapter | null>(null);
   const [pet, setPet] = useState<PetState | null>(null);
+  const [vocabPet, setVocabPet] = useState<PetState | null>(null);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   const [vocabView, setVocabView] = useState<View>("list");
@@ -57,6 +58,7 @@ export default function Home() {
   useEffect(() => {
     setChapters(loadChapters());
     setPet(loadPet());
+    setVocabPet(loadPet("vocab"));
     setVocabSets(loadVocabSets());
 
     // 다른 기기에서 받은 동기화 링크로 열었으면, 그 안의 챕터들을 가져와서 합침
@@ -249,7 +251,7 @@ export default function Home() {
         <button
           onClick={() => {
             setSection("vocab");
-            setPet(loadPet());
+            setVocabPet(loadPet("vocab"));
           }}
           className={`flex-1 py-2 rounded-full font-bold transition ${
             section === "vocab" ? "bg-sky-600 text-white" : "text-gray-500"
@@ -354,7 +356,7 @@ export default function Home() {
 
       {section === "vocab" && vocabView === "list" && (
         <>
-          {pet && <PetDisplay pet={pet} />}
+          {vocabPet && <PetDisplay pet={vocabPet} track="vocab" />}
 
           <VocabList
             sets={vocabSets}
@@ -378,7 +380,7 @@ export default function Home() {
           set={activeVocabSet}
           onBack={() => {
             setVocabView("list");
-            setPet(loadPet());
+            setVocabPet(loadPet("vocab"));
           }}
         />
       )}
