@@ -4,7 +4,7 @@ const CHAPTER_PET_KEY = "little-reader-pet";
 const VOCAB_PET_KEY = "little-reader-vocab-pet";
 const DONE_CHAPTERS_KEY = "little-reader-done-chapters";
 const DONE_VOCAB_ROUNDS_KEY = "little-reader-done-vocab-rounds";
-const CHAPTER_SPECIES_RESET_FLAG = "little-reader-chapter-species-reset-v2";
+const CHAPTER_SPECIES_RESET_FLAG = "little-reader-chapter-species-reset-v3";
 const VOCAB_STAGE_BOOST_FLAG = "little-reader-vocab-stage-boost-v1";
 
 export const MAX_STAGE = 8;
