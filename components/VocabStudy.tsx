@@ -89,6 +89,29 @@ export default function VocabStudy({ set, onBack }: { set: VocabSet; onBack: () 
           <span className="w-10" />
         </div>
 
+        {set.words.length > 0 && (
+          <div className="flex items-center gap-2 px-1">
+            <div className="flex-1 h-1.5 rounded-full bg-gray-200 overflow-hidden relative">
+              <div
+                className="h-full bg-sky-200 absolute inset-y-0 left-0"
+                style={{
+                  width: `${(set.words.filter((w) => w.box > 0).length / set.words.length) * 100}%`,
+                }}
+              />
+              <div
+                className="h-full bg-sky-500 absolute inset-y-0 left-0"
+                style={{
+                  width: `${(set.words.filter((w) => w.box === 5).length / set.words.length) * 100}%`,
+                }}
+              />
+            </div>
+            <span className="text-[11px] text-gray-400 shrink-0">
+              {set.words.filter((w) => w.box === 5).length}개 완전히 외움 ·{" "}
+              {set.words.filter((w) => w.box === 0).length}개 남음
+            </span>
+          </div>
+        )}
+
         <button
           onClick={handleStudyEnter}
           className="w-full py-7 rounded-3xl bg-sky-600 text-white font-bold text-lg active:scale-[0.98] transition flex flex-col items-center gap-1"
