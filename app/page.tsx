@@ -72,13 +72,14 @@ export default function Home() {
     }
 
     // 챕터(흑표범 1단계)/단어장(여우 3단계) 캐릭터 조정은 동기화가 끝난 뒤에 실행해야
-    // 서버의 예전 진행상황이 다시 덮어쓰는 걸 막을 수 있음. 조정했으면 바로 서버에도 반영.
+    // 서버의 예전 진행상황이 다시 덮어쓰는 걸 막을 수 있음. 조정했으면 바로 서버에도 강제로 반영.
     function applyPetAdjustmentsAfterSync() {
       const resetChapter = resetChapterSpeciesOnce();
       const boostedVocab = boostVocabStageOnce();
       if (resetChapter) setPet(resetChapter);
       if (boostedVocab) setVocabPet(boostedVocab);
-      if (resetChapter || boostedVocab) autoPush();
+      if (resetChapter) autoPush({ forcePetOverwrite: true });
+      else if (boostedVocab) autoPush();
     }
 
     const code = getSyncCode();
