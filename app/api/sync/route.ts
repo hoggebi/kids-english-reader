@@ -41,7 +41,7 @@ type SyncPayload = {
   pet?: PetState;
   vocabSets?: StoredItem[];
   forcePetOverwrite?: boolean;
-  chapterSpeciesMigrated?: boolean;
+  chapterSpeciesMigratedV2?: boolean;
 };
 
 function mergePayload(existing: SyncPayload | null, incoming: SyncPayload): SyncPayload {
@@ -53,7 +53,7 @@ function mergePayload(existing: SyncPayload | null, incoming: SyncPayload): Sync
     pet: incoming.forcePetOverwrite ? incoming.pet : mergePet(existing.pet, incoming.pet),
     vocabSets: mergeById(existing.vocabSets, incoming.vocabSets),
     // 한 번이라도 true가 오면 계속 true로 유지 (어떤 기기가 언제 요청하든 절대 false로 되돌아가지 않음)
-    chapterSpeciesMigrated: !!(existing.chapterSpeciesMigrated || incoming.chapterSpeciesMigrated),
+    chapterSpeciesMigratedV2: !!(existing.chapterSpeciesMigratedV2 || incoming.chapterSpeciesMigratedV2),
   };
 }
 
