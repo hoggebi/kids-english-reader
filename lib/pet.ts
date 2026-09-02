@@ -327,26 +327,35 @@ export function loadPet(track: PetTrack = "chapter"): PetState {
   try {
     const raw = localStorage.getItem(petKey(track));
     const parsed = raw ? (JSON.parse(raw) as PetState) : { stage: 1, generation: 1 };
-    let result: PetState = {
+    return {
       stage: Math.min(Math.max(parsed.stage ?? 1, 1), MAX_STAGE),
       generation: parsed.generation ?? 1,
     };
-    // 챕터 캐릭터 목록을 흑표범→늑대로 새로 바꾼 요청 반영: 처음 한 번만 흑표범 1단계로 완전히 리셋
-    if (track === "chapter" && localStorage.getItem(CHAPTER_SPECIES_RESET_FLAG) !== "1") {
-      result = { stage: 1, generation: 1 };
-      savePet(result, "chapter");
-      localStorage.setItem(CHAPTER_SPECIES_RESET_FLAG, "1");
-    }
-    // 단어장 여우는 처음 한 번만 3단계로 맞춰줌 (예전에 같이 쓰던 진행 단계를 단어장 쪽으로 옮김)
-    if (track === "vocab" && localStorage.getItem(VOCAB_STAGE_BOOST_FLAG) !== "1") {
-      result = { stage: 3, generation: 1 };
-      savePet(result, "vocab");
-      localStorage.setItem(VOCAB_STAGE_BOOST_FLAG, "1");
-    }
-    return result;
   } catch {
     return { stage: 1, generation: 1 };
   }
+}
+
+// 챕터 캐릭터 목록을 흑표범→늑대로 새로 바꾼 요청 반영: 처음 한 번만 흑표범 1단계로 완전히 리셋.
+// 동기화가 예전 진행상황을 다시 덮어쓸 수 있으니, 반드시 동기화가 다 끝난 뒤에 호출하고
+// 리셋했으면 바로 서버에도 올려야(autoPush) 다음 동기화 때 다시 안 덮어써짐.
+export function resetChapterSpeciesOnce(): PetState | null {
+  if (typeof window === "undefined") return null;
+  if (localStorage.getItem(CHAPTER_SPECIES_RESET_FLAG) === "1") return null;
+  const fresh: PetState = { stage: 1, generation: 1 };
+  savePet(fresh, "chapter");
+  localStorage.setItem(CHAPTER_SPECIES_RESET_FLAG, "1");
+  return fresh;
+}
+
+// 단어장 여우는 처음 한 번만 3단계로 맞춰줌 (예전에 같이 쓰던 진행 단계를 단어장 쪽으로 옮김)
+export function boostVocabStageOnce(): PetState | null {
+  if (typeof window === "undefined") return null;
+  if (localStorage.getItem(VOCAB_STAGE_BOOST_FLAG) === "1") return null;
+  const fresh: PetState = { stage: 3, generation: 1 };
+  savePet(fresh, "vocab");
+  localStorage.setItem(VOCAB_STAGE_BOOST_FLAG, "1");
+  return fresh;
 }
 
 export function savePet(pet: PetState, track: PetTrack = "chapter") {
