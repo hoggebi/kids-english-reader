@@ -5,7 +5,10 @@ import {
   getAllDoneChapterIds,
   mergeDoneChapterIds,
   loadPet,
+  savePet,
   mergePetState,
+  hasAdoptedChapterMigration,
+  markChapterMigrationAdopted,
   type PetState,
 } from "./pet";
 import { loadVocabSets, saveVocabSets } from "./vocabStorage";
@@ -66,7 +69,13 @@ export async function pushSync(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         code,
-        data: { ...payload, forcePetOverwrite: options?.forcePetOverwrite ?? false },
+        data: {
+          ...payload,
+          forcePetOverwrite: options?.forcePetOverwrite ?? false,
+          // 이 코드가 실행된다는 것 자체가 "흑표범/늑대로 바뀐 버전"이라는 뜻이라, 항상 표시해둠
+          // (서버는 한 번이라도 true를 받으면 계속 true로 유지함)
+          chapterSpeciesMigrated: true,
+        },
       }),
     });
     const json = await res.json().catch(() => null);
@@ -100,7 +109,9 @@ export async function pullSync(code: string): Promise<{
   chapters: Chapter[];
   pet: PetState;
   vocabSets: VocabSet[];
+  chapterSpeciesMigrated: boolean;
 }> {
+  let migratedOnServer = false;
   try {
     const res = await fetch(`/api/sync?code=${encodeURIComponent(code)}`, {
       cache: "no-store",
@@ -112,6 +123,7 @@ export async function pullSync(code: string): Promise<{
           doneChapterIds?: string[];
           pet?: PetState;
           vocabSets?: VocabSet[];
+          chapterSpeciesMigrated?: boolean;
         }
       | null;
 
@@ -121,7 +133,25 @@ export async function pullSync(code: string): Promise<{
       const merged = [...existing, ...data.chapters.filter((c) => !existingIds.has(c.id))];
       saveChapters(merged);
       if (data.doneChapterIds) mergeDoneChapterIds(data.doneChapterIds);
-      if (data.pet) mergePetState(data.pet);
+
+      migratedOnServer = !!data.chapterSpeciesMigrated;
+
+      // 챕터 캐릭터(흑표범/늑대) 값 결정: "리셋했는지"를 기기별로 각자 판단하지 않고,
+      // 서버가 이미 마이그레이션됐다고 하는지를 기준으로 삼는다.
+      if (migratedOnServer) {
+        if (!hasAdoptedChapterMigration()) {
+          // 서버 값을 순위 비교 없이 그대로 한 번 받아들임(내 기기 값이 뭐였든 상관없이)
+          savePet(data.pet ?? { stage: 1, generation: 1 }, "chapter");
+          markChapterMigrationAdopted();
+        } else if (data.pet) {
+          // 이미 한 번 받아들인 뒤로는 평소처럼 "더 많이 자란 쪽" 기준으로 정상 동기화
+          mergePetState(data.pet, "chapter");
+        }
+      } else {
+        // 서버가 아직 마이그레이션 전이면, 지금 이 기기가 기준값(흑표범 1단계)을 세운다
+        savePet({ stage: 1, generation: 1 }, "chapter");
+        markChapterMigrationAdopted();
+      }
 
       // 단어장: 새로 생긴 세트는 추가하고, 이미 있는 세트는 제목만 서버 최신값으로 맞춤
       // (단어별 학습 진행상황/세트 상태는 기기마다 다를 수 있어서 로컬 걸 그대로 유지)
@@ -141,13 +171,19 @@ export async function pullSync(code: string): Promise<{
     // 네트워크 오류 등은 조용히 무시
   }
 
-  return { chapters: loadChapters(), pet: loadPet(), vocabSets: loadVocabSets() };
+  return {
+    chapters: loadChapters(),
+    pet: loadPet("chapter"),
+    vocabSets: loadVocabSets(),
+    chapterSpeciesMigrated: migratedOnServer,
+  };
 }
 
 // 받아오고(pull) 나서 합쳐진 최신 상태를 다시 서버에 올림(push) — 양쪽 기기를 완전히 맞춤
 export async function syncNow(code: string) {
   const pulled = await pullSync(code);
-  const pushResult = await pushSync(code);
+  // 서버가 아직 마이그레이션 전이었으면, 방금 이 기기가 세운 기준값을 순위 비교 없이 강제로 올림
+  const pushResult = await pushSync(code, { forcePetOverwrite: !pulled.chapterSpeciesMigrated });
   return {
     ...pulled,
     pushOk: pushResult.ok,
