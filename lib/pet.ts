@@ -4,7 +4,7 @@ const CHAPTER_PET_KEY = "little-reader-pet";
 const VOCAB_PET_KEY = "little-reader-vocab-pet";
 const DONE_CHAPTERS_KEY = "little-reader-done-chapters";
 const DONE_VOCAB_ROUNDS_KEY = "little-reader-done-vocab-rounds";
-const CHAPTER_SPECIES_RESET_FLAG = "little-reader-chapter-species-reset-v4";
+const CHAPTER_SPECIES_RESET_FLAG = "little-reader-chapter-species-reset-v5";
 const VOCAB_STAGE_BOOST_FLAG = "little-reader-vocab-stage-boost-v1";
 
 export const MAX_STAGE = 8;
@@ -337,15 +337,23 @@ export function loadPet(track: PetTrack = "chapter"): PetState {
 }
 
 // 챕터 캐릭터 목록을 흑표범→늑대로 새로 바꾼 요청 반영: 처음 한 번만 흑표범 1단계로 완전히 리셋.
-// 동기화가 예전 진행상황을 다시 덮어쓸 수 있으니, 반드시 동기화가 다 끝난 뒤에 호출하고
-// 리셋했으면 바로 서버에도 올려야(autoPush) 다음 동기화 때 다시 안 덮어써짐.
-export function resetChapterSpeciesOnce(): PetState | null {
-  if (typeof window === "undefined") return null;
-  if (localStorage.getItem(CHAPTER_SPECIES_RESET_FLAG) === "1") return null;
+// 동기화가 예전 진행상황을 다시 덮어쓸 수 있으니, 반드시 동기화가 다 끝난 뒤에 호출해야 하고,
+// 서버에 강제 반영(forcePetOverwrite)이 "진짜로 성공"한 걸 확인한 다음에만 완료 표시를 해야 함
+// (실패했는데 완료 표시부터 해버리면 다음부턴 재시도를 안 해서 영영 안 고쳐짐).
+export function needsChapterSpeciesReset(): boolean {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(CHAPTER_SPECIES_RESET_FLAG) !== "1";
+}
+
+export function resetChapterPetLocally(): PetState {
   const fresh: PetState = { stage: 1, generation: 1 };
   savePet(fresh, "chapter");
-  localStorage.setItem(CHAPTER_SPECIES_RESET_FLAG, "1");
   return fresh;
+}
+
+export function markChapterSpeciesResetDone(): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(CHAPTER_SPECIES_RESET_FLAG, "1");
 }
 
 // 단어장 여우는 처음 한 번만 3단계로 맞춰줌 (예전에 같이 쓰던 진행 단계를 단어장 쪽으로 옮김)
