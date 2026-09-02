@@ -177,7 +177,7 @@ function ResultScreen({
   onDone: () => void;
   onRetry: () => void;
 }) {
-  const [pet] = useState(() => loadPet());
+  const [pet] = useState(() => loadPet("vocab"));
   const ratio = total > 0 ? correct / total : 0;
   const stars = ratio >= 0.9 ? 3 : ratio >= 0.6 ? 2 : ratio > 0 ? 1 : 0;
 
@@ -195,7 +195,7 @@ function ResultScreen({
         ))}
       </div>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={getPetImagePath(pet)} alt="캐릭터" className="w-20 h-20 object-contain" />
+      <img src={getPetImagePath(pet, "vocab")} alt="캐릭터" className="w-20 h-20 object-contain" />
       <p className="text-lg font-bold text-gray-800">
         {total}개 중 {correct}개 맞혔어요!
       </p>
@@ -303,7 +303,7 @@ export default function VocabGame({
 
 // ---------- 1) 단어 사냥: 낙하산 타고 떨어지는 정답 탭 ----------
 function HuntGame({ words, onDone, onRetry }: { words: VocabWord[]; onDone: () => void; onRetry: () => void }) {
-  const [pet] = useState(() => loadPet());
+  const [pet] = useState(() => loadPet("vocab"));
   const [queue] = useState(() => shuffle(words));
   const [dirs] = useState<("toEng" | "toKor")[]>(() =>
     queue.map(() => (Math.random() < 0.5 ? "toEng" : "toKor"))
@@ -414,7 +414,7 @@ function HuntGame({ words, onDone, onRetry }: { words: VocabWord[]; onDone: () =
         })}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={getPetImagePath(pet)}
+          src={getPetImagePath(pet, "vocab")}
           alt="캐릭터"
           className={`absolute bottom-1 left-1/2 -translate-x-1/2 w-12 h-12 object-contain ${
             feedback === "correct" ? "char-correct" : feedback === "wrong" ? "char-wrong" : ""
@@ -427,7 +427,7 @@ function HuntGame({ words, onDone, onRetry }: { words: VocabWord[]; onDone: () =
 
 // ---------- 2) 바구니 담기: 드래그해서 바구니에 넣기 ----------
 function FeedGame({ words, onDone, onRetry }: { words: VocabWord[]; onDone: () => void; onRetry: () => void }) {
-  const [pet] = useState(() => loadPet());
+  const [pet] = useState(() => loadPet("vocab"));
   const [queue] = useState(() => shuffle(words));
   const [dirs] = useState<("toEng" | "toKor")[]>(() =>
     queue.map(() => (Math.random() < 0.5 ? "toEng" : "toKor"))
@@ -530,7 +530,7 @@ function FeedGame({ words, onDone, onRetry }: { words: VocabWord[]; onDone: () =
           )}
         </div>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={getPetImagePath(pet)} alt="캐릭터" className="w-24 h-24 object-contain" />
+        <img src={getPetImagePath(pet, "vocab")} alt="캐릭터" className="w-24 h-24 object-contain" />
       </div>
       <p className="text-lg font-bold text-black">
         {direction === "toEng" ? current.korean : current.english}
@@ -686,7 +686,7 @@ function MoleGame({ words, onDone, onRetry }: { words: VocabWord[]; onDone: () =
 
 // ---------- 4) 함께 달리기: 갈림길 선택 ----------
 function RunnerGame({ words, onDone, onRetry }: { words: VocabWord[]; onDone: () => void; onRetry: () => void }) {
-  const [pet] = useState(() => loadPet());
+  const [pet] = useState(() => loadPet("vocab"));
   const [queue] = useState(() => shuffle(words));
   const [dirs] = useState<("toEng" | "toKor")[]>(() =>
     queue.map(() => (Math.random() < 0.5 ? "toEng" : "toKor"))
@@ -755,7 +755,7 @@ function RunnerGame({ words, onDone, onRetry }: { words: VocabWord[]; onDone: ()
         </div>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={getPetImagePath(pet)}
+          src={getPetImagePath(pet, "vocab")}
           alt="캐릭터"
           className={`absolute bottom-3 w-24 h-24 object-contain transition-all duration-100 ${
             choiceId ? (feedback === "correct" ? "char-correct" : "char-wrong") : "run-bob"
