@@ -17,7 +17,7 @@ import {
   deleteVocabSet,
   renameVocabSet,
 } from "@/lib/vocabStorage";
-import { loadPet, type PetState } from "@/lib/pet";
+import { loadPet, resetChapterSpeciesOnce, boostVocabStageOnce, type PetState } from "@/lib/pet";
 import {
   getSyncCode,
   setSyncCode as saveSyncCode,
@@ -71,6 +71,16 @@ export default function Home() {
       window.history.replaceState(null, "", window.location.pathname);
     }
 
+    // 챕터(흑표범 1단계)/단어장(여우 3단계) 캐릭터 조정은 동기화가 끝난 뒤에 실행해야
+    // 서버의 예전 진행상황이 다시 덮어쓰는 걸 막을 수 있음. 조정했으면 바로 서버에도 반영.
+    function applyPetAdjustmentsAfterSync() {
+      const resetChapter = resetChapterSpeciesOnce();
+      const boostedVocab = boostVocabStageOnce();
+      if (resetChapter) setPet(resetChapter);
+      if (boostedVocab) setVocabPet(boostedVocab);
+      if (resetChapter || boostedVocab) autoPush();
+    }
+
     const code = getSyncCode();
     setSyncCodeState(code);
     if (code) {
@@ -85,7 +95,10 @@ export default function Home() {
             ? `동기화됐어요! (챕터 ${result.chapters.length}개, 단어장 ${result.vocabSets.length}개 · 보낸 ${result.sentVocabSets ?? "?"}개, 병합전서버 ${result.existingBefore ?? "?"}개(키없음:${result.existingWasNull ?? "?"}), 최종 ${result.serverVocabSetsAfter ?? "?"}개, 키:${result.usedKey ?? "?"})`
             : `⚠️ 서버 저장 실패: ${result.pushError ?? "알 수 없는 오류"}`
         );
+        applyPetAdjustmentsAfterSync();
       });
+    } else {
+      applyPetAdjustmentsAfterSync();
     }
   }, []);
 
