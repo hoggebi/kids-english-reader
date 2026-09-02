@@ -58,6 +58,7 @@ export default function Home() {
   const [activeVocabSet, setActiveVocabSet] = useState<VocabSet | null>(null);
 
   const [syncCode, setSyncCodeState] = useState<string | null>(null);
+  const [migratedStatus, setMigratedStatus] = useState<boolean | null>(null);
   const [joinInput, setJoinInput] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [showJoinBox, setShowJoinBox] = useState(false);
@@ -101,11 +102,12 @@ export default function Home() {
       syncNow(code).then((result) => {
         setChapters(result.chapters);
         setPet(result.pet);
+        setMigratedStatus(result.chapterSpeciesMigrated);
         setVocabSets(result.vocabSets);
         setSyncing(false);
         setSyncMessage(
           result.pushOk
-            ? `동기화됐어요! (챕터 ${result.chapters.length}개, 단어장 ${result.vocabSets.length}개 · 보낸 ${result.sentVocabSets ?? "?"}개, 병합전서버 ${result.existingBefore ?? "?"}개(키없음:${result.existingWasNull ?? "?"}), 최종 ${result.serverVocabSetsAfter ?? "?"}개, 키:${result.usedKey ?? "?"})`
+            ? `동기화됐어요! (챕터 ${result.chapters.length}개, 단어장 ${result.vocabSets.length}개 · 캐릭터마이그레이션:${result.chapterSpeciesMigrated}, pet:${result.pet.generation}세대 ${result.pet.stage}단계 · 보낸 ${result.sentVocabSets ?? "?"}개, 병합전서버 ${result.existingBefore ?? "?"}개(키없음:${result.existingWasNull ?? "?"}), 최종 ${result.serverVocabSetsAfter ?? "?"}개, 키:${result.usedKey ?? "?"})`
             : `⚠️ 서버 저장 실패: ${result.pushError ?? "알 수 없는 오류"}`
         );
         const boostedVocab = boostVocabStageOnce();
@@ -143,13 +145,14 @@ export default function Home() {
     const result = await syncNow(code);
     setChapters(result.chapters);
     setPet(result.pet);
+    setMigratedStatus(result.chapterSpeciesMigrated);
     setVocabSets(result.vocabSets);
     setSyncing(false);
     setShowJoinBox(false);
     setJoinInput("");
     setSyncMessage(
       result.pushOk
-        ? `동기화됐어요! (챕터 ${result.chapters.length}개, 단어장 ${result.vocabSets.length}개 · 보낸 ${result.sentVocabSets ?? "?"}개, 병합전서버 ${result.existingBefore ?? "?"}개(키없음:${result.existingWasNull ?? "?"}), 최종 ${result.serverVocabSetsAfter ?? "?"}개, 키:${result.usedKey ?? "?"})`
+        ? `동기화됐어요! (챕터 ${result.chapters.length}개, 단어장 ${result.vocabSets.length}개 · 캐릭터마이그레이션:${result.chapterSpeciesMigrated}, pet:${result.pet.generation}세대 ${result.pet.stage}단계 · 보낸 ${result.sentVocabSets ?? "?"}개, 병합전서버 ${result.existingBefore ?? "?"}개(키없음:${result.existingWasNull ?? "?"}), 최종 ${result.serverVocabSetsAfter ?? "?"}개, 키:${result.usedKey ?? "?"})`
         : `⚠️ 서버 저장 실패: ${result.pushError ?? "알 수 없는 오류"}`
     );
   }
@@ -166,11 +169,12 @@ export default function Home() {
     const result = await syncNow(syncCode);
     setChapters(result.chapters);
     setPet(result.pet);
+    setMigratedStatus(result.chapterSpeciesMigrated);
     setVocabSets(result.vocabSets);
     setSyncing(false);
     setSyncMessage(
       result.pushOk
-        ? `동기화됐어요! (챕터 ${result.chapters.length}개, 단어장 ${result.vocabSets.length}개 · 보낸 ${result.sentVocabSets ?? "?"}개, 병합전서버 ${result.existingBefore ?? "?"}개(키없음:${result.existingWasNull ?? "?"}), 최종 ${result.serverVocabSetsAfter ?? "?"}개, 키:${result.usedKey ?? "?"})`
+        ? `동기화됐어요! (챕터 ${result.chapters.length}개, 단어장 ${result.vocabSets.length}개 · 캐릭터마이그레이션:${result.chapterSpeciesMigrated}, pet:${result.pet.generation}세대 ${result.pet.stage}단계 · 보낸 ${result.sentVocabSets ?? "?"}개, 병합전서버 ${result.existingBefore ?? "?"}개(키없음:${result.existingWasNull ?? "?"}), 최종 ${result.serverVocabSetsAfter ?? "?"}개, 키:${result.usedKey ?? "?"})`
         : `⚠️ 서버 저장 실패: ${result.pushError ?? "알 수 없는 오류"}`
     );
   }
@@ -294,26 +298,32 @@ export default function Home() {
       {/* 기기 간 자동 동기화 설정 (챕터/단어장 어느 목록 화면에서든 항상 보임) */}
       <div className="w-full max-w-4xl rounded-2xl bg-gray-50 p-4 flex flex-col gap-3">
         {syncCode ? (
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs text-gray-400">동기화 코드</p>
-              <p className="font-title text-2xl tracking-widest text-sky-700">{syncCode}</p>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs text-gray-400">동기화 코드</p>
+                <p className="font-title text-2xl tracking-widest text-sky-700">{syncCode}</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleManualSync}
+                  disabled={syncing}
+                  className="px-4 py-2 rounded-full bg-sky-600 text-white text-sm font-bold disabled:opacity-50"
+                >
+                  {syncing ? "동기화 중..." : "지금 동기화"}
+                </button>
+                <button
+                  onClick={handleStopSync}
+                  className="px-4 py-2 rounded-full bg-gray-200 text-gray-600 text-sm font-bold"
+                >
+                  끄기
+                </button>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={handleManualSync}
-                disabled={syncing}
-                className="px-4 py-2 rounded-full bg-sky-600 text-white text-sm font-bold disabled:opacity-50"
-              >
-                {syncing ? "동기화 중..." : "지금 동기화"}
-              </button>
-              <button
-                onClick={handleStopSync}
-                className="px-4 py-2 rounded-full bg-gray-200 text-gray-600 text-sm font-bold"
-              >
-                끄기
-              </button>
-            </div>
+            <p className="text-[11px] text-gray-400">
+              [디버그] 마이그레이션: {migratedStatus === null ? "동기화 전" : String(migratedStatus)} · 챕터캐릭터:{" "}
+              {pet ? `${pet.generation}세대 ${pet.stage}단계` : "-"}
+            </p>
           </div>
         ) : (
           <>
