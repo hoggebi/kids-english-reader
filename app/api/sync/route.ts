@@ -40,6 +40,8 @@ type SyncPayload = {
   doneChapterIds?: string[];
   pet?: PetState;
   vocabSets?: StoredItem[];
+  forcePetOverwrite?: boolean;
+  chapterSpeciesMigrated?: boolean;
 };
 
 function mergePayload(existing: SyncPayload | null, incoming: SyncPayload): SyncPayload {
@@ -47,8 +49,11 @@ function mergePayload(existing: SyncPayload | null, incoming: SyncPayload): Sync
   return {
     chapters: mergeById(existing.chapters, incoming.chapters),
     doneChapterIds: mergeStringArray(existing.doneChapterIds, incoming.doneChapterIds),
-    pet: mergePet(existing.pet, incoming.pet),
+    // 캐릭터를 의도적으로 낮추는(리셋) 상황엔 순위 비교 없이 무조건 새 값으로 덮어씀
+    pet: incoming.forcePetOverwrite ? incoming.pet : mergePet(existing.pet, incoming.pet),
     vocabSets: mergeById(existing.vocabSets, incoming.vocabSets),
+    // 한 번이라도 true가 오면 계속 true로 유지 (어떤 기기가 언제 요청하든 절대 false로 되돌아가지 않음)
+    chapterSpeciesMigrated: !!(existing.chapterSpeciesMigrated || incoming.chapterSpeciesMigrated),
   };
 }
 
