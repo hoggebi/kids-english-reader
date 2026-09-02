@@ -76,7 +76,7 @@ export default function VocabList({
                     className="flex-1 min-w-0 rounded-lg border-2 border-sky-300 px-2 py-1 font-bold text-gray-800"
                   />
                 ) : (
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <div className="font-bold truncate text-gray-800">{s.title}</div>
                       <span className={`text-xs font-bold px-2 py-0.5 rounded-full shrink-0 ${badge.style}`}>
@@ -87,6 +87,22 @@ export default function VocabList({
                       {s.words.length}개 단어
                       {isLocked && " · 이전 단어장을 다 끝내면 열려요"}
                     </div>
+                    {!isLocked && s.words.length > 0 && (
+                      <div className="flex items-center gap-2 mt-1.5 max-w-[220px]">
+                        <div className="flex-1 h-1.5 rounded-full bg-gray-200 overflow-hidden">
+                          <div
+                            className="h-full bg-sky-500"
+                            style={{
+                              width: `${(s.words.filter((w) => w.box > 0).length / s.words.length) * 100}%`,
+                            }}
+                          />
+                        </div>
+                        <span className="text-[11px] text-gray-400 shrink-0">
+                          {s.words.filter((w) => w.box > 0).length}개 학습 ·{" "}
+                          {s.words.filter((w) => w.box === 0).length}개 남음
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
 
