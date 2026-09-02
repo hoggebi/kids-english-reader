@@ -72,9 +72,10 @@ export async function pushSync(
         data: {
           ...payload,
           forcePetOverwrite: options?.forcePetOverwrite ?? false,
-          // 이 코드가 실행된다는 것 자체가 "흑표범/늑대로 바뀐 버전"이라는 뜻이라, 항상 표시해둠
-          // (서버는 한 번이라도 true를 받으면 계속 true로 유지함)
-          chapterSpeciesMigrated: true,
+          // 이 표시는 "지금 이 push가 실제로 흑표범 1단계 기준값을 세우는 리셋 동작"일 때만 true로 보냄.
+          // (예전 버그: 관련 없는 평범한 저장 동작에서도 무조건 true를 보내는 바람에, 진짜 리셋이
+          //  일어나기도 전에 표시만 먼저 켜져서 예전 잘못된 값이 그대로 굳어버리는 문제가 있었음)
+          chapterSpeciesMigratedV2: options?.forcePetOverwrite ? true : undefined,
         },
       }),
     });
@@ -109,7 +110,7 @@ export async function pullSync(code: string): Promise<{
   chapters: Chapter[];
   pet: PetState;
   vocabSets: VocabSet[];
-  chapterSpeciesMigrated: boolean;
+  chapterSpeciesMigratedV2: boolean;
 }> {
   let migratedOnServer = false;
   try {
@@ -123,7 +124,7 @@ export async function pullSync(code: string): Promise<{
           doneChapterIds?: string[];
           pet?: PetState;
           vocabSets?: VocabSet[];
-          chapterSpeciesMigrated?: boolean;
+          chapterSpeciesMigratedV2?: boolean;
         }
       | null;
 
@@ -134,7 +135,7 @@ export async function pullSync(code: string): Promise<{
       saveChapters(merged);
       if (data.doneChapterIds) mergeDoneChapterIds(data.doneChapterIds);
 
-      migratedOnServer = !!data.chapterSpeciesMigrated;
+      migratedOnServer = !!data.chapterSpeciesMigratedV2;
 
       // 챕터 캐릭터(흑표범/늑대) 값 결정: "리셋했는지"를 기기별로 각자 판단하지 않고,
       // 서버가 이미 마이그레이션됐다고 하는지를 기준으로 삼는다.
@@ -175,7 +176,7 @@ export async function pullSync(code: string): Promise<{
     chapters: loadChapters(),
     pet: loadPet("chapter"),
     vocabSets: loadVocabSets(),
-    chapterSpeciesMigrated: migratedOnServer,
+    chapterSpeciesMigratedV2: migratedOnServer,
   };
 }
 
@@ -183,7 +184,7 @@ export async function pullSync(code: string): Promise<{
 export async function syncNow(code: string) {
   const pulled = await pullSync(code);
   // 서버가 아직 마이그레이션 전이었으면, 방금 이 기기가 세운 기준값을 순위 비교 없이 강제로 올림
-  const pushResult = await pushSync(code, { forcePetOverwrite: !pulled.chapterSpeciesMigrated });
+  const pushResult = await pushSync(code, { forcePetOverwrite: !pulled.chapterSpeciesMigratedV2 });
   return {
     ...pulled,
     pushOk: pushResult.ok,
