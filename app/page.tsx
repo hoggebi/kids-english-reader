@@ -19,9 +19,6 @@ import {
 } from "@/lib/vocabStorage";
 import {
   loadPet,
-  savePet,
-  hasAdoptedChapterMigration,
-  markChapterMigrationAdopted,
   boostVocabStageOnce,
   type PetState,
 } from "@/lib/pet";
@@ -79,15 +76,7 @@ export default function Home() {
       window.history.replaceState(null, "", window.location.pathname);
     }
 
-    // 동기화를 안 쓰는 기기는 서버 기준을 알 수 없으니, 로컬에서만 한 번 흑표범 1단계로 맞춰줌.
-    // (동기화를 쓰는 기기는 syncNow 내부에서 서버 기준으로 알아서 처리됨 — lib/sync.ts 참고)
     function applyOfflinePetAdjustments() {
-      if (!hasAdoptedChapterMigration()) {
-        const fresh: PetState = { stage: 1, generation: 1 };
-        savePet(fresh, "chapter");
-        setPet(fresh);
-        markChapterMigrationAdopted();
-      }
       const boostedVocab = boostVocabStageOnce();
       if (boostedVocab) {
         setVocabPet(boostedVocab);

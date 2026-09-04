@@ -5,10 +5,7 @@ import {
   getAllDoneChapterIds,
   mergeDoneChapterIds,
   loadPet,
-  savePet,
   mergePetState,
-  hasAdoptedChapterMigration,
-  markChapterMigrationAdopted,
   type PetState,
 } from "./pet";
 import { loadVocabSets, saveVocabSets } from "./vocabStorage";
@@ -137,21 +134,11 @@ export async function pullSync(code: string): Promise<{
 
       migratedOnServer = !!data.chapterSpeciesMigratedV2;
 
-      // 챕터 캐릭터(흑표범/늑대) 값 결정: "리셋했는지"를 기기별로 각자 판단하지 않고,
-      // 서버가 이미 마이그레이션됐다고 하는지를 기준으로 삼는다.
-      if (migratedOnServer) {
-        if (!hasAdoptedChapterMigration()) {
-          // 서버 값을 순위 비교 없이 그대로 한 번 받아들임(내 기기 값이 뭐였든 상관없이)
-          savePet(data.pet ?? { stage: 1, generation: 1 }, "chapter");
-          markChapterMigrationAdopted();
-        } else if (data.pet) {
-          // 이미 한 번 받아들인 뒤로는 평소처럼 "더 많이 자란 쪽" 기준으로 정상 동기화
-          mergePetState(data.pet, "chapter");
-        }
-      } else {
-        // 서버가 아직 마이그레이션 전이면, 지금 이 기기가 기준값(흑표범 1단계)을 세운다
-        savePet({ stage: 1, generation: 1 }, "chapter");
-        markChapterMigrationAdopted();
+      // 챕터 캐릭터: 항상 "더 많이 자란 쪽"을 유지하는 안전한 병합만 사용한다.
+      // (예전엔 흑표범→늑대 종 교체 1회성 마이그레이션 분기가 있었는데, 그게 기기에 따라
+      //  진행상황을 강제로 리셋/덮어써버리는 버그를 계속 일으켜서 제거함)
+      if (data.pet) {
+        mergePetState(data.pet, "chapter");
       }
 
       // 단어장: 새로 생긴 세트는 추가하고, 이미 있는 세트는 제목만 서버 최신값으로 맞춤
@@ -183,8 +170,7 @@ export async function pullSync(code: string): Promise<{
 // 받아오고(pull) 나서 합쳐진 최신 상태를 다시 서버에 올림(push) — 양쪽 기기를 완전히 맞춤
 export async function syncNow(code: string) {
   const pulled = await pullSync(code);
-  // 서버가 아직 마이그레이션 전이었으면, 방금 이 기기가 세운 기준값을 순위 비교 없이 강제로 올림
-  const pushResult = await pushSync(code, { forcePetOverwrite: !pulled.chapterSpeciesMigratedV2 });
+  const pushResult = await pushSync(code);
   return {
     ...pulled,
     pushOk: pushResult.ok,

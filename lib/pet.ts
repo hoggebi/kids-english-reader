@@ -4,7 +4,6 @@ const CHAPTER_PET_KEY = "little-reader-pet";
 const VOCAB_PET_KEY = "little-reader-vocab-pet";
 const DONE_CHAPTERS_KEY = "little-reader-done-chapters";
 const DONE_VOCAB_ROUNDS_KEY = "little-reader-done-vocab-rounds";
-const CHAPTER_SPECIES_RESET_FLAG = "little-reader-chapter-migration-adopted-v2";
 const VOCAB_STAGE_BOOST_FLAG = "little-reader-vocab-stage-boost-v1";
 
 export const MAX_STAGE = 8;
@@ -334,20 +333,6 @@ export function loadPet(track: PetTrack = "chapter"): PetState {
   } catch {
     return { stage: 1, generation: 1 };
   }
-}
-
-// 챕터 캐릭터 목록을 흑표범→늑대로 새로 바꾼 마이그레이션 관련 함수들.
-// "리셋했는지 여부"는 각 기기가 따로 판단하지 않고, 서버에 있는 chapterSpeciesMigrated 표시를
-// 기준으로 삼는다(자세한 흐름은 lib/sync.ts의 pullSync 참고). 이 두 함수는 "내 기기가 이미
-// 그 서버 기준값을 한 번 받아들였는지"만 표시하는 아주 가벼운 로컬 플래그다.
-export function hasAdoptedChapterMigration(): boolean {
-  if (typeof window === "undefined") return true;
-  return localStorage.getItem(CHAPTER_SPECIES_RESET_FLAG) === "1";
-}
-
-export function markChapterMigrationAdopted(): void {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(CHAPTER_SPECIES_RESET_FLAG, "1");
 }
 
 // 단어장 여우는 처음 한 번만 3단계로 맞춰줌 (예전에 같이 쓰던 진행 단계를 단어장 쪽으로 옮김)
