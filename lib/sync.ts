@@ -64,6 +64,9 @@ export async function pushSync(
     const res = await fetch("/api/sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      // 챕터/게임을 끝내자마자 탭을 닫거나 앱을 배경으로 보내도, 이미 시작된 이 요청은
+      // 브라우저가 끝까지 완료시켜준다 (그렇지 않으면 딱 그 순간의 진행상황이 서버에 못 감).
+      keepalive: true,
       body: JSON.stringify({
         code,
         data: {
