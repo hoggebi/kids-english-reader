@@ -29,6 +29,7 @@ import {
   makeRandomCode,
   syncNow,
   autoPush,
+  pullSync,
 } from "@/lib/sync";
 import ChapterList from "@/components/ChapterList";
 import ChapterUpload from "@/components/ChapterUpload";
@@ -115,6 +116,30 @@ export default function Home() {
     const t = setTimeout(() => setSyncMessage(null), 4000);
     return () => clearTimeout(t);
   }, [syncMessage]);
+
+  // 다른 기기가 바꾼 내용을 자동으로 반영: 앱을 켜놓은 동안 주기적으로,
+  // 그리고 화면(탭)에 돌아올 때마다 조용히 서버에서 받아와 합친다 (화면에 메시지는 안 띄움).
+  useEffect(() => {
+    async function silentPull() {
+      const code = getSyncCode();
+      if (!code) return;
+      const pulled = await pullSync(code);
+      setChapters(pulled.chapters);
+      setPet(pulled.pet);
+      setVocabSets(pulled.vocabSets);
+    }
+    const interval = setInterval(silentPull, 10000);
+    function onFocusOrVisible() {
+      if (document.visibilityState === "visible") silentPull();
+    }
+    document.addEventListener("visibilitychange", onFocusOrVisible);
+    window.addEventListener("focus", onFocusOrVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onFocusOrVisible);
+      window.removeEventListener("focus", onFocusOrVisible);
+    };
+  }, []);
 
   async function handleCreateSyncCode() {
     const code = makeRandomCode();
