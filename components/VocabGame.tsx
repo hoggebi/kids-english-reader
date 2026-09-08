@@ -4,11 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import type { VocabWord } from "@/lib/types";
 import { loadPet, getPetImagePath } from "@/lib/pet";
 import { recordVocabGamePlayed } from "@/lib/vocabStorage";
+import BattleGame from "./BattleGame";
 
-type GameKind = "hunt" | "feed" | "mole" | "runner";
+type GameKind = "hunt" | "feed" | "mole" | "runner" | "battle";
 type Feedback = "correct" | "wrong" | null;
 
-function shuffle<T>(arr: T[]): T[] {
+export function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -22,6 +23,7 @@ const GAME_INFO: { kind: GameKind; title: string; desc: string; emoji?: string; 
   { kind: "feed", title: "바구니 담기", desc: "맞는 단어를 끌어서 바구니에 담아요", img: "/basket.png" },
   { kind: "mole", title: "두더지 잡기", desc: "튀어나온 정답을 빠르게 탭해요", img: "/mole.png" },
   { kind: "runner", title: "함께 달리기", desc: "갈림길에서 정답 쪽을 골라요", emoji: "🏃" },
+  { kind: "battle", title: "몬스터 배틀", desc: "문제를 맞혀서 몬스터를 물리쳐요", emoji: "⚔️" },
 ];
 
 const THEME_BG: Record<GameKind, string> = {
@@ -29,6 +31,7 @@ const THEME_BG: Record<GameKind, string> = {
   feed: "bg-gray-100",
   mole: "bg-gray-100",
   runner: "bg-gray-100",
+  battle: "bg-gray-100",
 };
 
 // 공통 애니메이션 정의 (게임 화면에서 한 번만 렌더)
@@ -102,7 +105,7 @@ function getAudioCtx(): AudioContext | null {
   return sharedCtx;
 }
 
-function playTone(kind: "correct" | "wrong") {
+export function playTone(kind: "correct" | "wrong") {
   const ctx = getAudioCtx();
   if (!ctx) return;
   const osc = ctx.createOscillator();
@@ -156,7 +159,7 @@ function Particles({ trigger }: { trigger: number }) {
   );
 }
 
-function ComboBadge({ combo }: { combo: number }) {
+export function ComboBadge({ combo }: { combo: number }) {
   if (combo < 2) return null;
   return (
     <div key={combo} className="combo-badge text-sky-500 font-black text-xl z-20 -translate-x-1/2">
@@ -217,7 +220,7 @@ function ResultScreen({
   );
 }
 
-function buildOptions(words: VocabWord[], target: VocabWord, count = 3) {
+export function buildOptions(words: VocabWord[], target: VocabWord, count = 3) {
   const distractors = shuffle(words.filter((w) => w.id !== target.id)).slice(0, count - 1);
   return shuffle([target, ...distractors]);
 }
@@ -296,6 +299,9 @@ export default function VocabGame({
       {kind === "mole" && <MoleGame key={playKey} words={words} onDone={handleGameDone} onRetry={handleRetry} />}
       {kind === "runner" && (
         <RunnerGame key={playKey} words={words} onDone={handleGameDone} onRetry={handleRetry} />
+      )}
+      {kind === "battle" && (
+        <BattleGame key={playKey} words={words} onDone={handleGameDone} onRetry={handleRetry} />
       )}
     </div>
   );
