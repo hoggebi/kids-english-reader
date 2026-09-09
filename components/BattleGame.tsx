@@ -374,6 +374,9 @@ export default function BattleGame({
     return (
       <div className="relative rounded-3xl overflow-hidden p-6 flex flex-col items-center justify-center gap-4 bg-gray-100 min-h-[22rem]">
         <BattleStyles />
+        <p className="absolute top-3 left-4 text-[11px] text-gray-400 font-bold tracking-widest">
+          STAGE {defeatedCountRef.current + 1}
+        </p>
         <div className="flex items-center justify-center gap-4 anim-vsPop">
           <div className="flex -space-x-3">
             {team.map((m, i) => (
@@ -423,8 +426,9 @@ export default function BattleGame({
         )
       )}
 
-      {/* 상단: 몬스터 이름 + HP, 플레이어 HP */}
+      {/* 상단: 스테이지, 몬스터 이름 + HP, 플레이어 HP */}
       <div className="flex flex-col gap-1">
+        <p className="text-[11px] text-gray-400 font-bold tracking-widest">STAGE {defeatedTotal + 1}</p>
         <div className="flex items-center justify-between">
           <span className={`font-bold ${monster.isBoss ? "text-red-500" : "text-gray-700"}`}>
             {monster.isBoss ? "👑 " : ""}
@@ -496,7 +500,11 @@ export default function BattleGame({
 
       {phase === "ko" && (
         <div className="text-center anim-bannerPop">
-          <p className="text-2xl font-black text-sky-600 tracking-widest">KO!</p>
+          {monster.isBoss ? (
+            <p className="text-4xl font-black text-amber-500 tracking-widest">VICTORY!</p>
+          ) : (
+            <p className="text-2xl font-black text-sky-600 tracking-widest">KO!</p>
+          )}
           <p className="text-xs text-gray-400">
             {monster.name}
             {eulReul(monster.name)} 쓰러뜨렸어요!
