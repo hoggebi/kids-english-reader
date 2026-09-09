@@ -2,23 +2,26 @@ export type Monster = {
   id: string;
   name: string;
   emoji: string;
+  img?: string;
   hp: number;
   isBoss?: boolean;
 };
 
-// 일반 몬스터 4~5종. 이미지가 생기면 emoji 대신 img 필드를 추가해서 교체하면 된다.
+// 일반 몬스터 4~5종. img가 있으면 이미지를, 없으면 emoji를 화면에 쓴다.
+// 캐릭터를 나중에 바꾸고 싶으면: public/monsters/ 에 새 PNG를 넣고 여기 img 경로만 바꾸면 된다.
 export const MONSTERS: Monster[] = [
-  { id: "slime", name: "슬라임", emoji: "🟢", hp: 3 },
-  { id: "mushroom", name: "버섯 몬스터", emoji: "🍄", hp: 3 },
-  { id: "bat", name: "박쥐 몬스터", emoji: "🦇", hp: 3 },
-  { id: "rock", name: "돌 몬스터", emoji: "🪨", hp: 4 },
-  { id: "imp", name: "작은 괴물", emoji: "👾", hp: 3 },
+  { id: "slime", name: "슬라임", emoji: "🟢", img: "/monsters/slime.png", hp: 3 },
+  { id: "mushroom", name: "버섯 몬스터", emoji: "🍄", img: "/monsters/mushroom.png", hp: 3 },
+  { id: "bat", name: "박쥐 몬스터", emoji: "🦇", img: "/monsters/bat.png", hp: 3 },
+  { id: "rock", name: "돌 몬스터", emoji: "🪨", img: "/monsters/rock.png", hp: 4 },
+  { id: "imp", name: "작은 괴물", emoji: "👾", img: "/monsters/imp.png", hp: 3 },
 ];
 
 export const BOSS_MONSTER: Monster = {
   id: "boss",
   name: "대왕 괴물",
   emoji: "👹",
+  img: "/monsters/boss.png",
   hp: 6,
   isBoss: true,
 };

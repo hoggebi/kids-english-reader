@@ -63,6 +63,29 @@ function BattleStyles() {
   );
 }
 
+// 몬스터 얼굴: img가 있으면 이미지, 없으면 이모지로 보여준다 (캐릭터 교체가 쉽도록 분리).
+function MonsterFace({
+  monster,
+  className,
+  animationClass,
+}: {
+  monster: Monster;
+  className: string;
+  animationClass?: string;
+}) {
+  if (monster.img) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={monster.img}
+        alt={monster.name}
+        className={`${className} object-contain ${animationClass ?? ""}`}
+      />
+    );
+  }
+  return <span className={`select-none ${className} ${animationClass ?? ""}`}>{monster.emoji}</span>;
+}
+
 function HpBar({ hp, maxHp }: { hp: number; maxHp: number }) {
   return (
     <div className="flex gap-1">
@@ -188,7 +211,7 @@ export default function BattleGame({
     return (
       <div className="flex flex-col items-center gap-4 py-8">
         <p className="text-3xl font-black text-sky-600 tracking-wide">VICTORY!</p>
-        <span className="text-6xl">{monster.emoji}</span>
+        <MonsterFace monster={monster} className="text-6xl w-20 h-20" />
         <p className="text-gray-600">
           {monster.name}
           {eulReul(monster.name)} 물리쳤어요!
@@ -241,7 +264,7 @@ export default function BattleGame({
 
       {phase === "intro" ? (
         <div className="flex flex-col items-center justify-center gap-2 py-10 boss-pop">
-          <p className="text-4xl">👹</p>
+          <MonsterFace monster={monster} className="text-6xl w-24 h-24" />
           <p className="text-2xl font-black text-red-500 tracking-widest">BOSS BATTLE</p>
         </div>
       ) : (
@@ -270,14 +293,12 @@ export default function BattleGame({
               alt="캐릭터"
               className={`w-16 h-16 object-contain ${feedback === "correct" ? "battle-attack" : ""}`}
             />
-            <span
+            <MonsterFace
               key={monsterHit}
-              className={`select-none ${monster.isBoss ? "text-8xl" : "text-5xl"} ${
-                feedback === "correct" ? "battle-shake" : ""
-              }`}
-            >
-              {monster.emoji}
-            </span>
+              monster={monster}
+              className={monster.isBoss ? "text-8xl w-32 h-32" : "text-5xl w-20 h-20"}
+              animationClass={feedback === "correct" ? "battle-shake" : ""}
+            />
           </div>
 
           {/* 하단: 문제 + 선택지 */}
