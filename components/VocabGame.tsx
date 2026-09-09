@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { VocabWord } from "@/lib/types";
 import { loadPet, getPetImagePath } from "@/lib/pet";
 import { recordVocabGamePlayed } from "@/lib/vocabStorage";
+import { autoPush } from "@/lib/sync";
 import BattleGame from "./BattleGame";
 
 type GameKind = "hunt" | "feed" | "mole" | "runner" | "battle";
@@ -285,6 +286,7 @@ export default function VocabGame({
   // 4종류를 다 마쳤으면 캐릭터가 한 단계 성장한다(챕터 완료와 동일한 로직 재사용).
   function handleGameDone() {
     if (kind) recordVocabGamePlayed(setId, kind);
+    autoPush();
     onDone();
   }
 

@@ -11,52 +11,6 @@ function keyFor(code: string) {
   return `sync:${code}`;
 }
 
-type StoredItem = { id: string };
-
-// id가 같은 항목은 새로 들어온(incoming) 쪽 내용으로 갱신하고,
-// 기존에만 있던 항목은 그대로 유지해서 절대 사라지지 않게 합친다.
-function mergeById<T extends StoredItem>(existing: T[] = [], incoming: T[] = []): T[] {
-  const map = new Map<string, T>();
-  for (const item of existing) map.set(item.id, item);
-  for (const item of incoming) map.set(item.id, item);
-  return Array.from(map.values());
-}
-
-function mergeStringArray(existing: string[] = [], incoming: string[] = []): string[] {
-  return Array.from(new Set([...existing, ...incoming]));
-}
-
-type PetState = { stage: number; generation: number };
-
-function mergePet(existing?: PetState, incoming?: PetState): PetState | undefined {
-  if (!existing) return incoming;
-  if (!incoming) return existing;
-  const rank = (p: PetState) => p.generation * 100 + p.stage;
-  return rank(incoming) >= rank(existing) ? incoming : existing;
-}
-
-type SyncPayload = {
-  chapters?: StoredItem[];
-  doneChapterIds?: string[];
-  pet?: PetState;
-  vocabSets?: StoredItem[];
-  forcePetOverwrite?: boolean;
-  chapterSpeciesMigratedV2?: boolean;
-};
-
-function mergePayload(existing: SyncPayload | null, incoming: SyncPayload): SyncPayload {
-  if (!existing) return incoming;
-  return {
-    chapters: mergeById(existing.chapters, incoming.chapters),
-    doneChapterIds: mergeStringArray(existing.doneChapterIds, incoming.doneChapterIds),
-    // 캐릭터를 의도적으로 낮추는(리셋) 상황엔 순위 비교 없이 무조건 새 값으로 덮어씀
-    pet: incoming.forcePetOverwrite ? incoming.pet : mergePet(existing.pet, incoming.pet),
-    vocabSets: mergeById(existing.vocabSets, incoming.vocabSets),
-    // 한 번이라도 true가 오면 계속 true로 유지 (어떤 기기가 언제 요청하든 절대 false로 되돌아가지 않음)
-    chapterSpeciesMigratedV2: !!(existing.chapterSpeciesMigratedV2 || incoming.chapterSpeciesMigratedV2),
-  };
-}
-
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -84,26 +38,16 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// 서버가 유일한 정답: 들어온 값을 그대로 저장한다 (병합하지 않음, 마지막에 저장한 기기 값이 곧 정답).
 export async function POST(req: NextRequest) {
   try {
-    const { code, data } = (await req.json()) as { code: string; data: SyncPayload };
+    const { code, data } = (await req.json()) as { code: string; data: unknown };
     if (!code || typeof code !== "string") {
       return NextResponse.json({ error: "code가 필요합니다." }, { status: 400 });
     }
 
-    const key = keyFor(code);
-    const existing = (await redis.get(key)) as SyncPayload | null;
-    const merged = mergePayload(existing, data);
-
-    await redis.set(key, merged);
-    return NextResponse.json({
-      ok: true,
-      usedKey: key,
-      existingWasNull: existing === null,
-      receivedVocabSets: data.vocabSets?.length ?? 0,
-      existingVocabSetsBeforeMerge: existing?.vocabSets?.length ?? 0,
-      finalVocabSetsAfterMerge: merged.vocabSets?.length ?? 0,
-    });
+    await redis.set(keyFor(code), data);
+    return NextResponse.json({ ok: true });
   } catch (err) {
     console.error(err);
     const message = err instanceof Error ? err.message : "알 수 없는 오류";

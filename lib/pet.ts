@@ -431,6 +431,12 @@ export function getAllDoneChapterIds(): string[] {
   }
 }
 
+// 서버 값을 그대로 받아들여 완전히 덮어씀 (동기화 코드 기반 지속 동기화용 — 병합 아님)
+export function setDoneChapterIds(ids: string[]) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(DONE_CHAPTERS_KEY, JSON.stringify(ids));
+}
+
 // 다른 기기에서 받은 완료 목록을 기존 목록과 합침 (겹치는 건 한 번만)
 export function mergeDoneChapterIds(ids: string[]) {
   if (typeof window === "undefined") return;

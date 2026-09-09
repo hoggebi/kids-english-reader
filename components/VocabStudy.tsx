@@ -11,6 +11,7 @@ import {
   extendDailySession,
   getMoreStudyCandidates,
 } from "@/lib/vocabStorage";
+import { autoPush } from "@/lib/sync";
 import VocabGame from "./VocabGame";
 
 type Mode = "hub" | "study" | "game";
@@ -198,7 +199,10 @@ export default function VocabStudy({ set, onBack }: { set: VocabSet; onBack: () 
     };
     saveTodaySession(updated);
     setSession(updated);
-    if (finished) setMode("hub");
+    if (finished) {
+      setMode("hub");
+      autoPush();
+    }
   }
 
   if (!word) {
