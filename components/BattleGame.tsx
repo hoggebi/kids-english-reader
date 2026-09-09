@@ -64,7 +64,7 @@ function BattleStyles() {
     <style>{`
       @keyframes vsPop { 0% { transform: scale(0.5); opacity: 0; } 60% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
       @keyframes panelPop { 0% { transform: translateY(8px) scale(0.7); opacity: 0; } 40% { transform: translateY(0) scale(1.08); opacity: 1; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
-      @keyframes slideInLeft { 0% { transform: translateX(-30px); opacity: 0; } 100% { transform: translateX(0); opacity: 1; } }
+      @keyframes teamJoinPop { 0% { transform: scale(0.7); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
       @keyframes introDarken { 0% { opacity: 0.65; } 100% { opacity: 0; } }
       @keyframes screenShake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 50% { transform: translateX(6px); } 75% { transform: translateX(-4px); } }
       @keyframes cardLunge { 0% { transform: translateY(0) scale(1); } 40% { transform: translateY(-6px) scale(1.04); } 100% { transform: translateY(-6px) scale(1.04); } }
@@ -81,7 +81,7 @@ function BattleStyles() {
       @keyframes auraPulse { 0%, 100% { opacity: 0.55; transform: scale(1); } 50% { opacity: 0.8; transform: scale(1.08); } }
       .anim-vsPop { animation: vsPop 0.4s ease-out; }
       .anim-panelPop { animation: panelPop 0.4s ease-out; }
-      .anim-slideIn { animation: slideInLeft 0.35s ease-out; }
+      .anim-teamJoin { animation: teamJoinPop 0.4s ease-out; }
       .anim-introDarken { animation: introDarken 1.1s ease-out forwards; }
       .anim-screenShake { animation: screenShake 0.3s ease-out; }
       .anim-cardLunge { animation: cardLunge 0.3s ease-out forwards; }
@@ -97,7 +97,7 @@ function BattleStyles() {
       .anim-monsterLunge { animation: monsterLunge 0.4s ease-in-out; }
       .anim-auraPulse { animation: auraPulse 1.8s ease-in-out infinite; }
       @media (prefers-reduced-motion: reduce) {
-        .anim-vsPop, .anim-panelPop, .anim-slideIn, .anim-introDarken, .anim-screenShake, .anim-cardLunge, .anim-popupFade,
+        .anim-vsPop, .anim-panelPop, .anim-teamJoin, .anim-introDarken, .anim-screenShake, .anim-cardLunge, .anim-popupFade,
         .anim-atk-dash, .anim-atk-lowdash, .anim-atk-swoop, .anim-fxPop,
         .anim-monsterHitSm, .anim-monsterHitBig, .anim-monsterKO, .anim-playerRecoil, .anim-monsterLunge, .anim-auraPulse { animation: none; }
       }
@@ -419,7 +419,7 @@ export default function BattleGame({
       </div>
 
       {/* 중앙: 전투 무대 (화면의 대부분을 차지) */}
-      <div className="relative z-10 flex items-end justify-between px-4 py-2 flex-1" style={{ minHeight: 190 }}>
+      <div className="relative z-10 flex items-end justify-between px-4 py-2 flex-1" style={{ minHeight: 210 }}>
         {feedback === "wrong" && (
           <p key={wrongLabelKey} className="anim-popupFade absolute left-6 top-2 text-lg font-black text-red-300 drop-shadow z-20">
             OOPS!
@@ -433,41 +433,55 @@ export default function BattleGame({
           </div>
         )}
 
-        {/* 플레이어 팀 */}
-        <div className="flex items-end">
-          {teamAttackActive ? (
-            <div className="flex items-end gap-1">
-              {team.map((id) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  key={id}
-                  src={TEAM_INFO[id].attack}
-                  alt=""
-                  className={`w-20 h-20 object-contain drop-shadow anim-atk-${TEAM_INFO[id].style}`}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
+        {/* 플레이어 팀: 메인 캐릭터를 중심으로 나머지가 뒤에 겹쳐서 "하나의 팀"처럼 보이게 배치 */}
+        {teamAttackActive ? (
+          <div className="flex items-end gap-1">
+            {team.map((id) => (
+              // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={mainAttacking ? TEAM_INFO[team[0]].attack : TEAM_INFO[team[0]].idle}
+                key={id}
+                src={TEAM_INFO[id].attack}
                 alt=""
-                className={`w-28 h-28 object-contain drop-shadow ${
-                  mainAttacking ? `anim-atk-${TEAM_INFO[team[0]].style}` : ""
-                } ${feedback === "wrong" ? "anim-playerRecoil" : ""}`}
+                className={`w-24 h-24 object-contain drop-shadow anim-atk-${TEAM_INFO[id].style}`}
               />
-              {team.length > 1 && (
-                <div className="flex gap-1 -mt-2">
-                  {team.slice(1).map((id) => (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img key={id} src={TEAM_INFO[id].idle} alt="" className="anim-slideIn w-9 h-9 object-contain opacity-90" />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="relative" style={{ width: 132, height: 130 }}>
+            {/* 세 번째 합류(흑표범): 메인과 같은 바닥선, 뒤쪽 오른편에 겹치게 */}
+            {team[2] && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={team[2]}
+                src={TEAM_INFO[team[2]].idle}
+                alt=""
+                className="anim-teamJoin absolute w-16 h-16 object-contain opacity-95"
+                style={{ right: 0, bottom: 0, zIndex: 5 }}
+              />
+            )}
+            {/* 두 번째 합류(독수리): 비행 캐릭터라 바닥선보다 살짝 위, 뒤쪽 왼편에 겹치게 */}
+            {team[1] && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={team[1]}
+                src={TEAM_INFO[team[1]].idle}
+                alt=""
+                className="anim-teamJoin absolute w-16 h-16 object-contain opacity-95"
+                style={{ left: 0, bottom: 40, zIndex: 5 }}
+              />
+            )}
+            {/* 메인 캐릭터: 가장 크게, 맨 앞 */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={mainAttacking ? TEAM_INFO[team[0]].attack : TEAM_INFO[team[0]].idle}
+              alt=""
+              className={`absolute w-24 h-24 object-contain drop-shadow ${
+                mainAttacking ? `anim-atk-${TEAM_INFO[team[0]].style}` : ""
+              } ${feedback === "wrong" ? "anim-playerRecoil" : ""}`}
+              style={{ left: 18, bottom: 0, zIndex: 10 }}
+            />
+          </div>
+        )}
 
         {/* 몬스터 */}
         <div className="relative flex items-end">
@@ -476,7 +490,7 @@ export default function BattleGame({
             <img
               src={`${A}/effects/dark_aura.png`}
               alt=""
-              className="absolute inset-0 m-auto w-40 h-40 object-contain anim-auraPulse pointer-events-none"
+              className="absolute inset-0 m-auto w-32 h-32 object-contain anim-auraPulse pointer-events-none"
             />
           )}
           {phase === "ko" ? (
@@ -484,7 +498,7 @@ export default function BattleGame({
             <img
               src={monster.img}
               alt={monster.name}
-              className={`relative object-contain anim-monsterKO ${monster.isBoss ? "w-52 h-52" : "w-40 h-40"}`}
+              className={`relative object-contain anim-monsterKO ${monster.isBoss ? "w-40 h-40" : "w-32 h-32"}`}
             />
           ) : (
             <>
@@ -502,7 +516,7 @@ export default function BattleGame({
                 key={`monster-${monsterHitKey}`}
                 src={monster.img}
                 alt={monster.name}
-                className={`relative object-contain ${monster.isBoss ? "w-52 h-52" : "w-40 h-40"} ${
+                className={`relative object-contain ${monster.isBoss ? "w-40 h-40" : "w-32 h-32"} ${
                   isFlying ? "-translate-y-6" : ""
                 } ${
                   feedback === "wrong"
