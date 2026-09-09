@@ -7,21 +7,22 @@ export type Monster = {
   isBoss?: boolean;
 };
 
-// 일반 몬스터 4~5종. img가 있으면 이미지를, 없으면 emoji를 화면에 쓴다.
-// 캐릭터를 나중에 바꾸고 싶으면: public/monsters/ 에 새 PNG를 넣고 여기 img 경로만 바꾸면 된다.
+const BASE = "/assets/monster-battle/monsters";
+
+// 일반 몬스터 4종 + 보스. 캐릭터를 나중에 바꾸고 싶으면
+// public/assets/monster-battle/monsters/ 에 새 PNG를 넣고 img 경로만 바꾸면 된다.
 export const MONSTERS: Monster[] = [
-  { id: "slime", name: "슬라임", emoji: "🟢", img: "/monsters/slime.png", hp: 3 },
-  { id: "mushroom", name: "버섯 몬스터", emoji: "🍄", img: "/monsters/mushroom.png", hp: 3 },
-  { id: "bat", name: "박쥐 몬스터", emoji: "🦇", img: "/monsters/bat.png", hp: 3 },
-  { id: "rock", name: "돌 몬스터", emoji: "🪨", img: "/monsters/rock.png", hp: 4 },
-  { id: "imp", name: "작은 괴물", emoji: "👾", img: "/monsters/imp.png", hp: 3 },
+  { id: "slime", name: "슬라임", emoji: "🟢", img: `${BASE}/slime.png`, hp: 3 },
+  { id: "goblin", name: "고블린", emoji: "👺", img: `${BASE}/goblin.png`, hp: 3 },
+  { id: "rock_golem", name: "돌 골렘", emoji: "🪨", img: `${BASE}/rock_golem.png`, hp: 4 },
+  { id: "bat", name: "박쥐", emoji: "🦇", img: `${BASE}/bat.png`, hp: 3 },
 ];
 
 export const BOSS_MONSTER: Monster = {
-  id: "boss",
-  name: "대왕 괴물",
-  emoji: "👹",
-  img: "/monsters/boss.png",
+  id: "dragon_boss",
+  name: "드래곤 보스",
+  emoji: "🐉",
+  img: `${BASE}/dragon_boss.png`,
   hp: 6,
   isBoss: true,
 };
