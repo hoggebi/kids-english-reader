@@ -130,7 +130,9 @@ export default function Home() {
     }
     const interval = setInterval(silentPull, 10000);
     function onFocusOrVisible() {
-      if (document.visibilityState === "visible") silentPull();
+      // iOS Safari는 화면이 다시 보이자마자 요청을 보내면 "Load failed"로 실패하는
+      // 알려진 버그가 있어서, 살짝 늦춰서 보낸다.
+      if (document.visibilityState === "visible") setTimeout(silentPull, 300);
     }
     document.addEventListener("visibilitychange", onFocusOrVisible);
     window.addEventListener("focus", onFocusOrVisible);

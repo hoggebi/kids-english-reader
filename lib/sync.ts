@@ -52,12 +52,12 @@ function currentPayload(): SyncPayload {
 // 지금 내 기기 상태를 서버에 그대로 덮어씀 (서버가 유일한 정답 — 병합하지 않음)
 export async function pushSync(code: string): Promise<{ ok: boolean; error?: string }> {
   try {
+    // 주의: keepalive 옵션은 일부러 안 씀 — Safari(특히 아이패드) WebKit의 fetch keepalive
+    // 구현에 알려진 버그가 많아서(화면 복귀 직후 요청 실패, 이동 시 CORS로 조용히 실패 등),
+    // "탭을 바로 닫아도 요청을 끝까지 보낸다"는 이점보다 애초에 요청 자체가 깨질 위험이 더 크다.
     const res = await fetch("/api/sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      // 챕터/게임을 끝내자마자 탭을 닫거나 앱을 배경으로 보내도, 이미 시작된 이 요청은
-      // 브라우저가 끝까지 완료시켜준다 (그렇지 않으면 딱 그 순간의 진행상황이 서버에 못 감).
-      keepalive: true,
       body: JSON.stringify({ code, data: currentPayload() }),
     });
     if (!res.ok) {
