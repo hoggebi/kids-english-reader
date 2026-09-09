@@ -27,7 +27,7 @@ export const BOSS_MONSTER: Monster = {
 };
 
 // 일반 몬스터를 몇 마리 잡을 때마다 보스가 등장할지 (설정값으로 관리, 나중에 쉽게 조정 가능)
-export const BOSS_EVERY = 3;
+export const BOSS_EVERY = 4;
 
 export function pickRandomMonster(): Monster {
   return MONSTERS[Math.floor(Math.random() * MONSTERS.length)];

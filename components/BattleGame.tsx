@@ -8,6 +8,8 @@ import { shuffle, buildOptions, playTone, ComboBadge } from "./VocabGame";
 
 type Feedback = "correct" | "wrong" | null;
 type Direction = "toEng" | "toKor";
+type AttackTier = "normal" | "dash" | "strong" | "special";
+type BattleEvent = "crit" | "dodge" | "stun" | null;
 
 // 이름 마지막 글자 받침 유무에 따라 "을/를" 조사를 골라준다.
 function eulReul(name: string): "을" | "를" {
@@ -32,32 +34,121 @@ function makeQuestion(words: VocabWord[], avoidId: string | null): Question {
   };
 }
 
+// 콤보 수에 따른 공격 세기 단계. 캐릭터는 하나뿐이고, 콤보가 오를수록 이 단계만 강해진다.
+function attackTierFor(combo: number): AttackTier {
+  if (combo >= 5) return "special";
+  if (combo === 4) return "strong";
+  if (combo === 3) return "dash";
+  return "normal";
+}
+
+const TIER_DAMAGE: Record<AttackTier, number> = { normal: 1, dash: 2, strong: 3, special: 4 };
+const TIER_LABEL: Record<AttackTier, string | null> = {
+  normal: null,
+  dash: null,
+  strong: "강공격!",
+  special: "필살기!",
+};
+
+// 낮은 확률의 랜덤 전투 이벤트 (너무 자주 나오지 않게 확률을 낮게 유지)
+function rollBattleEvent(): BattleEvent {
+  const r = Math.random();
+  if (r < 0.05) return "dodge"; // 5%
+  if (r < 0.05 + 0.1) return "crit"; // 10%
+  if (r < 0.05 + 0.1 + 0.06) return "stun"; // 6%
+  return null;
+}
+
+// 보스는 같은 세기의 공격을 받아도 한 단계 더 무겁게 흔들리게 한다.
+function bumpForBoss(tier: AttackTier, isBoss: boolean): AttackTier {
+  if (!isBoss) return tier;
+  if (tier === "normal") return "dash";
+  if (tier === "dash") return "strong";
+  return "special";
+}
+
 // 전투 전용 애니메이션 (정답 맞히기 게임들과 동일한 방식으로 한 번만 렌더)
 function BattleStyles() {
   return (
     <style>{`
-      @keyframes battleAttack {
-        0%, 100% { transform: translateX(0); }
-        40% { transform: translateX(28px); }
-        60% { transform: translateX(28px); }
+      @keyframes battleAttackNormal {
+        0%, 100% { transform: translateX(0) scale(1); }
+        40%, 60% { transform: translateX(26px) scale(1); }
       }
-      @keyframes battleShake {
+      @keyframes battleAttackDash {
+        0%, 100% { transform: translateX(0) scale(1); }
+        35%, 55% { transform: translateX(42px) scale(1.05); }
+      }
+      @keyframes battleAttackStrong {
+        0%, 100% { transform: translateX(0) scale(1); }
+        30%, 55% { transform: translateX(50px) scale(1.15); }
+      }
+      @keyframes battleAttackSpecial {
+        0% { transform: translateX(0) scale(1) rotate(0deg); }
+        30% { transform: translateX(56px) scale(1.25) rotate(-6deg); }
+        55% { transform: translateX(56px) scale(1.3) rotate(6deg); }
+        100% { transform: translateX(0) scale(1) rotate(0deg); }
+      }
+      @keyframes monsterHitSm {
+        0%, 100% { transform: translateX(0) rotate(0deg); }
+        20% { transform: translateX(-14px) rotate(-4deg); }
+        45% { transform: translateX(6px) rotate(3deg); }
+        70% { transform: translateX(-3px) rotate(-1deg); }
+      }
+      @keyframes monsterHitMd {
+        0%, 100% { transform: translateX(0) rotate(0deg); }
+        18% { transform: translateX(-22px) rotate(-7deg); }
+        40% { transform: translateX(10px) rotate(5deg); }
+        65% { transform: translateX(-6px) rotate(-3deg); }
+        85% { transform: translateX(3px) rotate(1deg); }
+      }
+      @keyframes monsterHitLg {
+        0%, 100% { transform: translateX(0) rotate(0deg) scale(1); }
+        15% { transform: translateX(-30px) rotate(-9deg) scale(0.93); }
+        38% { transform: translateX(14px) rotate(7deg) scale(1.05); }
+        60% { transform: translateX(-8px) rotate(-4deg) scale(0.98); }
+        82% { transform: translateX(4px) rotate(2deg) scale(1.01); }
+      }
+      @keyframes screenShake {
         0%, 100% { transform: translateX(0); }
-        20% { transform: translateX(-8px) rotate(-4deg); }
-        40% { transform: translateX(8px) rotate(4deg); }
-        60% { transform: translateX(-6px) rotate(-2deg); }
-        80% { transform: translateX(6px) rotate(2deg); }
+        25% { transform: translateX(-5px); }
+        50% { transform: translateX(5px); }
+        75% { transform: translateX(-3px); }
       }
       @keyframes bossPop {
         0% { transform: scale(0.4); opacity: 0; }
         60% { transform: scale(1.1); opacity: 1; }
         100% { transform: scale(1); opacity: 1; }
       }
-      .battle-attack { animation: battleAttack 0.45s ease-out; }
-      .battle-shake { animation: battleShake 0.45s ease-out; }
+      @keyframes monsterDie {
+        0% { transform: translateY(0) scale(1) rotate(0deg); opacity: 1; }
+        100% { transform: translateY(-50px) scale(0.3) rotate(25deg); opacity: 0; }
+      }
+      @keyframes floatLabelPop {
+        0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+        30% { transform: translate(-50%, -60%) scale(1.15); opacity: 1; }
+        100% { transform: translate(-50%, -85%) scale(1); opacity: 0; }
+      }
+      @keyframes hitFlash {
+        0% { opacity: 0.55; }
+        100% { opacity: 0; }
+      }
+      .battle-attack-normal { animation: battleAttackNormal 0.4s ease-out; }
+      .battle-attack-dash { animation: battleAttackDash 0.42s ease-out; }
+      .battle-attack-strong { animation: battleAttackStrong 0.46s ease-out; }
+      .battle-attack-special { animation: battleAttackSpecial 0.55s ease-out; }
+      .monster-hit-sm { animation: monsterHitSm 0.4s ease-out; }
+      .monster-hit-md { animation: monsterHitMd 0.45s ease-out; }
+      .monster-hit-lg { animation: monsterHitLg 0.5s ease-out; }
+      .monster-die { animation: monsterDie 0.5s ease-in forwards; }
+      .screen-shake { animation: screenShake 0.3s ease-out; }
       .boss-pop { animation: bossPop 0.5s ease-out; }
+      .float-label { animation: floatLabelPop 0.8s ease-out forwards; }
+      .hit-flash { animation: hitFlash 0.35s ease-out forwards; }
       @media (prefers-reduced-motion: reduce) {
-        .battle-attack, .battle-shake, .boss-pop { animation: none; }
+        .battle-attack-normal, .battle-attack-dash, .battle-attack-strong, .battle-attack-special,
+        .monster-hit-sm, .monster-hit-md, .monster-hit-lg, .monster-die, .screen-shake, .boss-pop,
+        .float-label, .hit-flash { animation: none; }
       }
     `}</style>
   );
@@ -68,22 +159,29 @@ function MonsterFace({
   monster,
   className,
   animationClass,
+  tintClass,
 }: {
   monster: Monster;
   className: string;
   animationClass?: string;
+  tintClass?: string;
 }) {
+  const combined = `${className} ${animationClass ?? ""} ${tintClass ?? ""}`;
   if (monster.img) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={monster.img}
-        alt={monster.name}
-        className={`${className} object-contain ${animationClass ?? ""}`}
-      />
+      <img src={monster.img} alt={monster.name} className={`${combined} object-contain`} />
     );
   }
-  return <span className={`select-none ${className} ${animationClass ?? ""}`}>{monster.emoji}</span>;
+  return <span className={`select-none ${combined}`}>{monster.emoji}</span>;
+}
+
+// HP 비율에 따른 상태감 표현 (새 이미지 없이 CSS 필터/확대만으로)
+function enrageTint(hp: number, maxHp: number): string {
+  const ratio = hp / maxHp;
+  if (ratio <= 0.3) return "saturate-150 brightness-90 scale-110";
+  if (ratio <= 0.6) return "saturate-125 scale-105";
+  return "";
 }
 
 function HpBar({ hp, maxHp }: { hp: number; maxHp: number }) {
@@ -97,6 +195,18 @@ function HpBar({ hp, maxHp }: { hp: number; maxHp: number }) {
           }`}
         />
       ))}
+    </div>
+  );
+}
+
+function FloatingLabel({ label }: { label: string }) {
+  const color =
+    label === "CRITICAL!" ? "text-orange-500" : label === "MISS!" ? "text-gray-400" : "text-sky-500";
+  return (
+    <div
+      className={`float-label absolute left-1/2 top-1/3 z-20 font-black text-2xl tracking-wide ${color}`}
+    >
+      {label}
     </div>
   );
 }
@@ -125,7 +235,11 @@ export default function BattleGame({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [charHit, setCharHit] = useState(0);
   const [monsterHit, setMonsterHit] = useState(0);
-  const [phase, setPhase] = useState<"intro" | "battle" | "victory">(
+  const [tier, setTier] = useState<AttackTier>("normal");
+  const [eventLabel, setEventLabel] = useState<string | null>(null);
+  const [labelKey, setLabelKey] = useState(0);
+  const [screenShakeKey, setScreenShakeKey] = useState(0);
+  const [phase, setPhase] = useState<"intro" | "battle" | "dying" | "victory">(
     monster.isBoss ? "intro" : "battle"
   );
 
@@ -158,12 +272,19 @@ export default function BattleGame({
     setTotalCount(0);
     setFeedback(null);
     setSelectedId(null);
+    setEventLabel(null);
     setPhase(m.isBoss ? "intro" : "battle");
   }
 
   function handleRetryBattle() {
     defeatedCountRef.current = 0;
     onRetry();
+  }
+
+  function showEvent(label: string) {
+    setEventLabel(label);
+    setLabelKey((k) => k + 1);
+    setTimeout(() => setEventLabel(null), 750);
   }
 
   function answer(word: VocabWord) {
@@ -175,21 +296,40 @@ export default function BattleGame({
 
     if (ok) {
       const nextCombo = combo + 1;
-      const damage = nextCombo > 0 && nextCombo % 3 === 0 ? 2 : 1;
+      const nextTier = attackTierFor(nextCombo);
+      const event = rollBattleEvent();
+
+      let damage = TIER_DAMAGE[nextTier];
+      if (event === "crit") damage += 1;
+      if (event === "dodge") damage = 0;
+
       setCombo(nextCombo);
       setBestCombo((b) => Math.max(b, nextCombo));
       setCorrectCount((c) => c + 1);
       setFeedback("correct");
+      setTier(nextTier);
       setCharHit((k) => k + 1);
       setMonsterHit((k) => k + 1);
+
+      if (event === "crit") showEvent("CRITICAL!");
+      else if (event === "dodge") showEvent("MISS!");
+      else if (event === "stun") showEvent("STUN!");
+      else if (TIER_LABEL[nextTier]) showEvent(TIER_LABEL[nextTier]!);
+
+      if (nextTier === "strong" || nextTier === "special") {
+        setScreenShakeKey((k) => k + 1);
+      }
 
       const newHp = Math.max(0, hp - damage);
       setHp(newHp);
 
       setTimeout(() => {
         if (newHp <= 0) {
-          defeatedCountRef.current += 1;
-          setPhase("victory");
+          setPhase("dying");
+          setTimeout(() => {
+            defeatedCountRef.current += 1;
+            setPhase("victory");
+          }, 500);
         } else {
           setQuestion(makeQuestion(words, question.word.id));
           setFeedback(null);
@@ -198,6 +338,7 @@ export default function BattleGame({
       }, 550);
     } else {
       setCombo(0);
+      setTier("normal");
       setFeedback("wrong");
       setTimeout(() => {
         setQuestion(makeQuestion(words, question.word.id));
@@ -257,9 +398,24 @@ export default function BattleGame({
   if (!question) return null;
 
   const promptText = question.direction === "toEng" ? question.word.korean : question.word.english;
+  const effectiveTier = bumpForBoss(tier, monster.isBoss ?? false);
+  const monsterHitClass =
+    feedback === "correct"
+      ? effectiveTier === "special" || effectiveTier === "strong"
+        ? "monster-hit-lg"
+        : effectiveTier === "dash"
+        ? "monster-hit-md"
+        : "monster-hit-sm"
+      : "";
+  const charAttackClass = feedback === "correct" ? `battle-attack-${tier}` : "";
 
   return (
-    <div className="relative rounded-3xl overflow-hidden p-4 flex flex-col gap-4 bg-gray-100">
+    <div
+      key={screenShakeKey}
+      className={`relative rounded-3xl overflow-hidden p-4 flex flex-col gap-4 bg-gray-100 ${
+        screenShakeKey > 0 ? "screen-shake" : ""
+      }`}
+    >
       <BattleStyles />
 
       {phase === "intro" ? (
@@ -283,22 +439,37 @@ export default function BattleGame({
             <HpBar hp={hp} maxHp={monster.hp} />
           </div>
 
-          {/* 중앙: 캐릭터 VS 몬스터 */}
+          {/* 중앙: 캐릭터 VS 몬스터 (캐릭터는 항상 1명, 콤보에 따라 공격 세기만 달라짐) */}
           <div className="relative flex items-center justify-center gap-8 py-6">
             <ComboBadge combo={combo} />
+            {eventLabel && <FloatingLabel key={`label-${labelKey}`} label={eventLabel} />}
+            {feedback === "correct" && (tier === "strong" || tier === "special") && (
+              <div
+                key={`flash-${labelKey}`}
+                className="hit-flash absolute inset-0 bg-yellow-200 pointer-events-none"
+              />
+            )}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              key={charHit}
+              key={`char-${charHit}`}
               src={getPetImagePath(pet, "vocab")}
               alt="캐릭터"
-              className={`w-16 h-16 object-contain ${feedback === "correct" ? "battle-attack" : ""}`}
+              className={`w-16 h-16 object-contain ${charAttackClass}`}
             />
-            <MonsterFace
-              key={monsterHit}
-              monster={monster}
-              className={monster.isBoss ? "text-8xl w-32 h-32" : "text-5xl w-20 h-20"}
-              animationClass={feedback === "correct" ? "battle-shake" : ""}
-            />
+            {phase === "dying" ? (
+              <MonsterFace
+                monster={monster}
+                className={`${monster.isBoss ? "text-8xl w-32 h-32" : "text-5xl w-20 h-20"} monster-die`}
+              />
+            ) : (
+              <MonsterFace
+                key={`monster-${monsterHit}`}
+                monster={monster}
+                className={monster.isBoss ? "text-8xl w-32 h-32" : "text-5xl w-20 h-20"}
+                animationClass={monsterHitClass}
+                tintClass={feedback === "correct" ? "" : enrageTint(hp, monster.hp)}
+              />
+            )}
           </div>
 
           {/* 하단: 문제 + 선택지 */}
