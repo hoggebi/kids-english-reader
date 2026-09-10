@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { VocabWord } from "@/lib/types";
 import { nextMonster, type Monster } from "@/lib/monsters";
-import { shuffle, buildOptions, playTone } from "./VocabGame";
+import { shuffle, playTone } from "./VocabGame";
 import {
   sfxSlash,
   sfxHitBig,
@@ -20,7 +20,6 @@ import {
 } from "@/lib/battleAudio";
 
 type Feedback = "correct" | "wrong" | null;
-type Direction = "toEng" | "toKor";
 type AttackStyle = "dash" | "swoop" | "lowdash";
 type EntranceKind = "normal" | "warning" | "boss";
 type Phase = "vs" | "battle" | "ko" | "gameover";
@@ -70,18 +69,27 @@ const SIZE = {
 
 type Question = {
   word: VocabWord;
-  options: VocabWord[];
-  direction: Direction;
 };
+
+type LetterTile = { ch: string; id: number };
 
 function makeQuestion(words: VocabWord[], avoidId: string | null): Question {
   const pool = words.length > 1 && avoidId ? words.filter((w) => w.id !== avoidId) : words;
   const word = shuffle(pool)[0] ?? words[0];
-  return {
-    word,
-    options: buildOptions(words, word, 3),
-    direction: Math.random() < 0.5 ? "toEng" : "toKor",
-  };
+  return { word };
+}
+
+function shuffledLetters(english: string): LetterTile[] {
+  return shuffle(english.split("").map((ch, i) => ({ ch, id: i })));
+}
+
+// 스테이지가 올라갈수록 스펠링을 완성할 시간이 줄어든다 (최소 시간은 보장).
+const TIME_BASE_SEC = 18;
+const TIME_MIN_SEC = 7;
+const TIME_STEP_SEC = 1;
+
+function timeLimitForStage(stage: number): number {
+  return Math.max(TIME_MIN_SEC, TIME_BASE_SEC - stage * TIME_STEP_SEC);
 }
 
 function rollEntrance(isBoss: boolean): EntranceKind {
@@ -177,9 +185,14 @@ export default function BattleGame({
   const [question, setQuestion] = useState<Question | null>(() =>
     words.length >= 3 ? makeQuestion(words, null) : null
   );
+  const [letterPool, setLetterPool] = useState<LetterTile[]>(() =>
+    question ? shuffledLetters(question.word.english) : []
+  );
+  const [placedLetters, setPlacedLetters] = useState<LetterTile[]>([]);
+  const [timeLeftMs, setTimeLeftMs] = useState(() => timeLimitForStage(0) * 1000);
+  const [timeLimitMs, setTimeLimitMs] = useState(() => timeLimitForStage(0) * 1000);
   const [combo, setCombo] = useState(0);
   const [feedback, setFeedback] = useState<Feedback>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mainAttacking, setMainAttacking] = useState(false);
   const [monsterHitKey, setMonsterHitKey] = useState(0);
   const [playerHitKey, setPlayerHitKey] = useState(0);
@@ -193,11 +206,10 @@ export default function BattleGame({
   const [entranceKind, setEntranceKind] = useState<EntranceKind>("normal");
   const [screenShakeKey, setScreenShakeKey] = useState(0);
   const [phase, setPhase] = useState<Phase>("vs");
-  const [bgmOn, setBgmOn] = useState(true);
+  const [bgmOn, setBgmOn] = useState(getBgmPref);
 
   // 첫 몬스터도 HP 랜덤 타수/등장 연출이 제대로 적용되도록 마운트 시 한 번 다시 굴린다.
   useEffect(() => {
-    setBgmOn(getBgmPref());
     beginEncounter(0);
     return () => {
       stopBgm();
@@ -218,6 +230,23 @@ export default function BattleGame({
     else stopBgm();
   }, [phase, bgmOn]);
 
+  // 스펠링 제한시간 카운트다운: 전투 중, 정답/오답 판정이 나지 않은 동안에만 흐른다.
+  useEffect(() => {
+    if (phase !== "battle" || feedback) return;
+    const interval = setInterval(() => {
+      setTimeLeftMs((ms) => {
+        if (ms <= 100) {
+          clearInterval(interval);
+          handleTimeout();
+          return 0;
+        }
+        return ms - 100;
+      });
+    }, 100);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, feedback, question?.word.id]);
+
   function toggleBgm() {
     const next = !bgmOn;
     setBgmOn(next);
@@ -235,6 +264,15 @@ export default function BattleGame({
     );
   }
 
+  function setUpQuestion(q: Question, stage: number) {
+    setQuestion(q);
+    setLetterPool(shuffledLetters(q.word.english));
+    setPlacedLetters([]);
+    const limitSec = timeLimitForStage(stage);
+    setTimeLimitMs(limitSec * 1000);
+    setTimeLeftMs(limitSec * 1000);
+  }
+
   function beginEncounter(count: number) {
     const m = nextMonster(count);
     const hits = rollHitsNeeded(m);
@@ -242,9 +280,8 @@ export default function BattleGame({
     setMonsterMaxHp(hits);
     setMonsterHp(hits);
     setEntranceKind(rollEntrance(!!m.isBoss));
-    setQuestion(makeQuestion(words, question?.word.id ?? null));
+    setUpQuestion(makeQuestion(words, question?.word.id ?? null), count);
     setFeedback(null);
-    setSelectedId(null);
     setPhase("vs");
   }
 
@@ -257,10 +294,31 @@ export default function BattleGame({
     beginEncounter(0);
   }
 
-  function answer(word: VocabWord) {
+  // 글자 타일을 눌러 스펠링을 완성하면(다 채워지면) 자동으로 정답 여부를 판정한다.
+  function tapPoolLetter(item: LetterTile) {
     if (!question || feedback) return;
-    const ok = word.id === question.word.id;
-    setSelectedId(word.id);
+    const nextPlaced = [...placedLetters, item];
+    setLetterPool((p) => p.filter((x) => x.id !== item.id));
+    setPlacedLetters(nextPlaced);
+    if (nextPlaced.length === question.word.english.length) {
+      const built = nextPlaced.map((x) => x.ch).join("");
+      resolveAnswer(built.toLowerCase() === question.word.english.toLowerCase());
+    }
+  }
+
+  function tapPlacedLetter(item: LetterTile) {
+    if (!question || feedback) return;
+    setPlacedLetters((p) => p.filter((x) => x.id !== item.id));
+    setLetterPool((p) => [...p, item]);
+  }
+
+  function handleTimeout() {
+    if (!question || feedback) return;
+    resolveAnswer(false);
+  }
+
+  function resolveAnswer(ok: boolean) {
+    if (!question || feedback) return;
     playTone(ok ? "correct" : "wrong");
 
     if (ok) {
@@ -326,9 +384,8 @@ export default function BattleGame({
               beginEncounter(nextCount);
             }, 900);
           } else {
-            setQuestion(makeQuestion(words, question.word.id));
+            setUpQuestion(makeQuestion(words, question.word.id), defeatedCount);
             setFeedback(null);
-            setSelectedId(null);
           }
         },
         teamAttack ? 700 : 550
@@ -347,11 +404,10 @@ export default function BattleGame({
         if (newPlayerHp <= 0) {
           setPhase("gameover");
         } else {
-          setQuestion(makeQuestion(words, question.word.id));
+          setUpQuestion(makeQuestion(words, question.word.id), defeatedCount);
           setFeedback(null);
-          setSelectedId(null);
         }
-      }, 650);
+      }, 900);
     }
   }
 
@@ -443,8 +499,10 @@ export default function BattleGame({
 
   if (!question) return null;
 
-  const promptText = question.direction === "toEng" ? question.word.korean : question.word.english;
+  const promptText = question.word.korean;
   const isFlying = monster.id === "bat" && !monster.isBoss;
+  const timePct = Math.max(0, Math.min(100, (timeLeftMs / timeLimitMs) * 100));
+  const timeBarColor = timePct > 50 ? "bg-emerald-400" : timePct > 20 ? "bg-yellow-400" : "bg-red-500";
 
   return (
     <div
@@ -639,37 +697,50 @@ export default function BattleGame({
         </div>
       )}
 
-      {/* 하단: 질문(작게) + 단어 선택 버튼 3개 */}
+      {/* 하단: 남은 시간 바 + 질문(한국어 뜻) + 알파벳 타일을 눌러 스펠링 조합 */}
       {phase !== "ko" && (
         <div className="relative z-10 flex flex-col gap-2 px-3 pb-3">
+          <div className="h-1.5 rounded-full bg-white/25 overflow-hidden mx-2">
+            <div
+              className={`h-full ${timeBarColor} transition-[width] duration-100 ease-linear`}
+              style={{ width: `${timePct}%` }}
+            />
+          </div>
           <p className="text-center text-sm font-bold text-white bg-black/35 rounded-full py-1 mx-8">
             &quot;{promptText}&quot;
           </p>
-          <div className="grid grid-cols-3 gap-2">
-            {question.options.map((opt) => {
-              const isCorrectOpt = opt.id === question.word.id;
-              const isSelected = selectedId === opt.id;
-              const showCorrect = feedback && isCorrectOpt;
-              const showWrong = feedback === "wrong" && isSelected && !isCorrectOpt;
-              return (
-                <button
-                  key={opt.id}
-                  disabled={!!feedback}
-                  onClick={() => answer(opt)}
-                  className={`h-16 rounded-xl border-2 font-bold text-base transition bg-white ${
-                    isSelected ? "anim-cardLunge" : ""
-                  } ${
-                    showCorrect
-                      ? "bg-green-100 border-green-400 text-black"
-                      : showWrong
-                      ? "bg-red-100 border-red-400 text-black"
-                      : "border-white/70 text-gray-800 active:scale-95"
-                  }`}
-                >
-                  {question.direction === "toEng" ? opt.english : opt.korean}
-                </button>
-              );
-            })}
+
+          {/* 완성 중인 스펠링 (탭하면 다시 뺄 수 있음) */}
+          <div className="flex flex-wrap justify-center gap-1.5 min-h-[2.6rem] mx-4 border-b-2 border-dashed border-white/40 pb-1.5">
+            {placedLetters.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => tapPlacedLetter(item)}
+                disabled={!!feedback}
+                className="w-9 h-9 rounded-lg bg-white/90 border-2 border-sky-300 font-black text-base text-sky-700 uppercase"
+              >
+                {item.ch}
+              </button>
+            ))}
+            {feedback === "wrong" && (
+              <span className="w-full text-center text-xs font-bold text-red-200">
+                정답: {question.word.english.toUpperCase()}
+              </span>
+            )}
+          </div>
+
+          {/* 고를 수 있는 알파벳 타일 */}
+          <div className="flex flex-wrap justify-center gap-1.5 mx-2">
+            {letterPool.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => tapPoolLetter(item)}
+                disabled={!!feedback}
+                className="w-9 h-9 rounded-lg bg-white border-2 border-white/70 font-black text-base text-gray-700 uppercase active:scale-95 transition"
+              >
+                {item.ch}
+              </button>
+            ))}
           </div>
         </div>
       )}
