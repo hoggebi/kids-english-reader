@@ -58,7 +58,8 @@ const SIZE = {
   clusterH: "clamp(150px, 30vmin, 280px)",
   teamOffsetBottom: "clamp(32px, 8vmin, 70px)",
   attackImg: "clamp(70px, 14vmin, 140px)",
-  vsPanel: "clamp(80px, 16vmin, 150px)",
+  // 캐릭터가 주인공이고 VS는 보조 연출이라 캐릭터보다 확실히 작게 (이전 대비 약 30% 축소).
+  vsPanel: "clamp(56px, 11vmin, 105px)",
   introBanner: "clamp(84px, 17vmin, 160px)",
   panelBanner: "clamp(64px, 13vmin, 120px)",
   panelBig: "clamp(88px, 18vmin, 160px)",
@@ -249,6 +250,11 @@ export default function BattleGame({
   const [koStage, setKoStage] = useState<KoStage>(null);
   const [bgmOn, setBgmOn] = useState(getBgmPref);
 
+  const [fxPos, setFxPos] = useState<{ x: number; y: number } | null>(null);
+  const battleAreaRef = useRef<HTMLDivElement>(null);
+  const playerImgRef = useRef<HTMLImageElement>(null);
+  const monsterImgRef = useRef<HTMLImageElement>(null);
+
   const seqRef = useRef(0);
   function startSeq() {
     seqRef.current += 1;
@@ -256,6 +262,20 @@ export default function BattleGame({
   }
   function isCurrentSeq(id: number) {
     return seqRef.current === id;
+  }
+
+  // 공격 이펙트가 실제로 "맞는 캐릭터" 몸 위에 뜨도록, 고정 좌표가 아니라 battle-area
+  // 기준 상대 좌표를 매 타격마다 직접 계산한다. attackerIsPlayer가 true면 몬스터가 맞는
+  // 쪽(타겟)이라 임팩트를 타겟 중심보다 살짝 왼쪽(공격자가 오는 쪽)에, 반대면 오른쪽에 둔다.
+  function computeImpactPos(target: HTMLElement, attackerIsPlayer: boolean): { x: number; y: number } | null {
+    const battle = battleAreaRef.current;
+    if (!battle) return null;
+    const battleRect = battle.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const centerX = targetRect.left - battleRect.left + targetRect.width / 2;
+    const centerY = targetRect.top - battleRect.top + targetRect.height / 2;
+    const offsetX = targetRect.width * 0.1 * (attackerIsPlayer ? -1 : 1);
+    return { x: centerX + offsetX, y: centerY };
   }
 
   function setUpQuestion(q: Question, stage: number) {
@@ -381,6 +401,7 @@ export default function BattleGame({
     at(doneAt, () => {
       setAttackStage(null);
       setFxKind(null);
+      setFxPos(null);
       opts.onComplete();
     });
   }
@@ -454,6 +475,7 @@ export default function BattleGame({
         onDash: () => {
           setFxKind(teamAttack || monster.isBoss ? "critical" : "slash");
           setFxKey((k) => k + 1);
+          if (monsterImgRef.current) setFxPos(computeImpactPos(monsterImgRef.current, true));
           if (!teamAttack) {
             setAttackPopup(rollAttackKind());
             setPopupKey((k) => k + 1);
@@ -489,6 +511,7 @@ export default function BattleGame({
         onDash: () => {
           setFxKind("slash");
           setFxKey((k) => k + 1);
+          if (playerImgRef.current) setFxPos(computeImpactPos(playerImgRef.current, false));
           sfxWrong();
         },
         onImpact: () => {
@@ -686,19 +709,43 @@ export default function BattleGame({
           만나도록 justify-center + 반응형 간격을 쓰고, 크기도 vmin 기준이라 화면이 회전해도
           비율이 유지된다. intro 단계의 VS/WARNING도 이 영역 안에 절대 위치로 겹쳐서 보여준다. */}
       <div
-        className="relative z-10 flex items-end justify-center gap-[5vmin] px-4 py-4 flex-1"
+        ref={battleAreaRef}
+        className="relative z-10 flex items-end justify-center gap-[4vmin] px-4 py-4 flex-1"
         style={{ minHeight: "clamp(220px, 44vmin, 400px)" }}
       >
-        {/* intro: VS */}
+        {/* 공격 이펙트 레이어: battle-area 기준 절대 좌표로, 실제 맞는 캐릭터 위치에 정확히 겹치게 */}
+        <div className="absolute inset-0 pointer-events-none z-20">
+          {fxKind && fxPos && attackStage && attackStage !== "windup" && (
+            <div
+              className="absolute"
+              style={{ left: fxPos.x, top: fxPos.y, width: SIZE.fx, height: SIZE.fx, transform: "translate(-50%, -50%)" }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                key={fxKey}
+                src={`${A}/effects/${fxKind}.png`}
+                alt=""
+                className="anim-fxPopIn object-contain w-full h-full"
+                style={{
+                  opacity: attackStage === "fadeout" || attackStage === "recover" ? 0 : 1,
+                  transition: `opacity ${ATK_FADEOUT_MS}ms ease-in`,
+                }}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* intro: VS. 캐릭터보다 확실히 작게(보조 연출), 둘 사이 간격 한가운데에 배치 */}
         {showIntroVs && (
           <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none px-6">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`${A}/ui/panels/vs_panel.png`}
               alt="VS"
-              className="anim-vsPop object-contain max-w-[60%]"
+              className="anim-vsPop object-contain max-w-[40%]"
               style={{
-                height: SIZE.vsPanel,
+                width: SIZE.vsPanel,
+                height: "auto",
                 opacity: introStage === "vs" ? 1 : 0,
                 transition: `opacity ${INTRO_VS_OUT_MS}ms ease-in`,
               }}
@@ -784,25 +831,10 @@ export default function BattleGame({
                 style={{ width: SIZE.team, height: SIZE.team, left: 0, bottom: SIZE.teamOffsetBottom, zIndex: 5 }}
               />
             )}
-            {/* 공격 이펙트: 몬스터가 플레이어를 공격했을 때(오답), 플레이어 위치에 표시 */}
-            {feedback === "wrong" && fxKind && attackStage && attackStage !== "windup" && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                key={fxKey}
-                src={`${A}/effects/${fxKind}.png`}
-                alt=""
-                className="anim-fxPopIn absolute -top-4 left-2 object-contain pointer-events-none z-20"
-                style={{
-                  width: SIZE.fx,
-                  height: SIZE.fx,
-                  opacity: attackStage === "fadeout" || attackStage === "recover" ? 0 : 1,
-                  transition: `opacity ${ATK_FADEOUT_MS}ms ease-in`,
-                }}
-              />
-            )}
-            {/* 메인 캐릭터: 가장 크게, 맨 앞 */}
+            {/* 메인 캐릭터: 가장 크게, 맨 앞. 이미 오른쪽(몬스터 방향)을 보고 있는 원본 그대로 사용 */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
+              ref={playerImgRef}
               key={`player-${playerHitKey}`}
               src={playerSpriteAttacking ? TEAM_INFO[team[0]].attack : TEAM_INFO[team[0]].idle}
               alt=""
@@ -828,25 +860,10 @@ export default function BattleGame({
               style={{ width: SIZE.aura, height: SIZE.aura }}
             />
           )}
-          {/* 공격 이펙트: 플레이어가 몬스터를 공격했을 때(정답), 몬스터 위치에 표시 */}
-          {feedback === "correct" && fxKind && attackStage && attackStage !== "windup" && koStage === null && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              key={fxKey}
-              src={`${A}/effects/${fxKind}.png`}
-              alt=""
-              className="anim-fxPopIn absolute -top-4 right-2 object-contain pointer-events-none z-20"
-              style={{
-                width: SIZE.fx,
-                height: SIZE.fx,
-                opacity: attackStage === "fadeout" || attackStage === "recover" ? 0 : 1,
-                transition: `opacity ${ATK_FADEOUT_MS}ms ease-in`,
-              }}
-            />
-          )}
           {koStage === "panel" ? null : (
             // eslint-disable-next-line @next/next/no-img-element
             <img
+              ref={monsterImgRef}
               key={`monster-${monsterHitKey}`}
               src={monster.img}
               alt={monster.name}
@@ -862,7 +879,8 @@ export default function BattleGame({
               style={{
                 width: monster.isBoss ? SIZE.boss : SIZE.monster,
                 height: monster.isBoss ? SIZE.boss : SIZE.monster,
-                transform: isFlying ? "translateY(-1.5rem)" : undefined,
+                // 원본이 정면/오른쪽을 보고 있어 scaleX(-1)로 뒤집어 플레이어(왼쪽)를 바라보게 한다.
+                transform: `scaleX(-1)${isFlying ? " translateY(-1.5rem)" : ""}`,
               }}
             />
           )}
