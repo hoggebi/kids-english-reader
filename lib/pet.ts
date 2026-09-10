@@ -508,6 +508,58 @@ function markVocabRoundDone(roundId: string) {
   }
 }
 
+// ---------- 게임 3종(다트/두더지/몬스터) 완료 사이클 ----------
+// 날짜나 단어장에 상관없이, 서로 다른 3개 게임을 각각 1번 이상 완료하면 캐릭터가 성장한다.
+// 게임 하나를 반복해서 성장시킬 수 없도록, 세 값이 모두 true가 됐을 때만 성장시키고 다시 초기화한다.
+const GAME_CYCLE_KEY = "little-reader-game-cycle";
+
+export type GameCycleKind = "dart" | "mole" | "monster";
+export type GameCycleState = { dart: boolean; mole: boolean; monster: boolean };
+
+const EMPTY_CYCLE: GameCycleState = { dart: false, mole: false, monster: false };
+
+export function loadGameCycle(): GameCycleState {
+  if (typeof window === "undefined") return { ...EMPTY_CYCLE };
+  try {
+    const raw = localStorage.getItem(GAME_CYCLE_KEY);
+    if (!raw) return { ...EMPTY_CYCLE };
+    const parsed = JSON.parse(raw) as Partial<GameCycleState>;
+    return { dart: !!parsed.dart, mole: !!parsed.mole, monster: !!parsed.monster };
+  } catch {
+    return { ...EMPTY_CYCLE };
+  }
+}
+
+function saveGameCycle(state: GameCycleState) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(GAME_CYCLE_KEY, JSON.stringify(state));
+}
+
+export type GameCycleResult = {
+  cycle: GameCycleState;
+  completedCount: number; // 0~3
+  leveledUp: boolean;
+  grow: GrowResult | null;
+};
+
+// 다트/두더지/몬스터 게임 중 하나를 완료했을 때 호출. 셋 다 완료되면 캐릭터를 한 단계 성장시키고
+// 다시 0/3(전부 false)으로 되돌린다. 캐릭터의 현재 레벨(stage/generation)은 건드리지 않는다.
+export function recordGameCycleProgress(kind: GameCycleKind): GameCycleResult {
+  const current = loadGameCycle();
+  const next: GameCycleState = { ...current, [kind]: true };
+
+  if (next.dart && next.mole && next.monster) {
+    const grow = completeVocabRound(`game-cycle-${Date.now()}`);
+    const reset = { ...EMPTY_CYCLE };
+    saveGameCycle(reset);
+    return { cycle: reset, completedCount: 0, leveledUp: grow.grew, grow };
+  }
+
+  saveGameCycle(next);
+  const completedCount = [next.dart, next.mole, next.monster].filter(Boolean).length;
+  return { cycle: next, completedCount, leveledUp: false, grow: null };
+}
+
 // 단어장에서 "학습 + 게임 4종류"를 한 사이클 마칠 때마다 호출 — 매번 새로운 roundId를 넘기면 매번 성장함
 export function completeVocabRound(roundId: string): GrowResult {
   const current = loadPet("vocab");

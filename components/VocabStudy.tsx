@@ -159,9 +159,24 @@ export default function VocabStudy({ set, onBack }: { set: VocabSet; onBack: () 
     );
   }
 
+  // 몬스터 배틀에서 "새로운 단어 공부하기"를 누르면, 이미 있는 학습 흐름(다음 단어 이어서 학습)으로
+  // 바로 들어간다. 학습을 마치고 다시 게임하기를 누르면 새로운 단어 묶음이 배틀에 전달된다.
+  function handleStudyMoreFromBattle() {
+    const extended = extendDailySession(set, session!);
+    setSession(extended);
+    setMode("study");
+  }
+
   // ---------- 게임하기 ----------
   if (mode === "game") {
-    return <VocabGame words={gameWords} setId={set.id} onDone={() => setMode("hub")} />;
+    return (
+      <VocabGame
+        words={gameWords}
+        setId={set.id}
+        onDone={() => setMode("hub")}
+        onStudyMore={handleStudyMoreFromBattle}
+      />
+    );
   }
 
   // ---------- 학습하기 (카드 흐름) ----------

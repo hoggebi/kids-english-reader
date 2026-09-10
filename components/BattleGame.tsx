@@ -18,11 +18,12 @@ import {
   getBgmPref,
   setBgmPref,
 } from "@/lib/battleAudio";
+import { loadBattleProgress, saveBattleProgress, BATTLE_STAGE_CAP } from "@/lib/battleProgress";
 
 type Feedback = "correct" | "wrong" | null;
 type AttackStyle = "dash" | "swoop" | "lowdash";
 type EntranceKind = "normal" | "warning" | "boss";
-type Phase = "intro" | "battle" | "gameover";
+type Phase = "intro" | "battle" | "gameover" | "setCleared";
 type IntroStage = "enter" | "hold" | "vs" | "vsOut" | "warning" | "warningOut";
 type AttackStage = "windup" | "dash" | "impact" | "fadeout" | "recover" | null;
 type KoStage = "hold" | "defeat" | "panel" | null;
@@ -247,14 +248,25 @@ function HeartRow({ hp }: { hp: number }) {
 export default function BattleGame({
   words,
   onDone,
+  setId,
+  onStudyMore,
 }: {
   words: VocabWord[];
   onDone: () => void;
   onRetry: () => void;
+  setId: string;
+  onStudyMore?: () => void;
 }) {
+  // 이 단어 묶음 기준 20스테이지 진행 상태. 학습한 단어가 바뀌면(=wordIds가 달라지면) 자동으로
+  // 새 스테이지 1부터 다시 시작한다. 컴포넌트가 재마운트되기 전까진 값이 바뀌지 않으므로
+  // 일반 state로 한 번만 계산해서(lazy initializer) 아래 다른 초기값 계산에도 그대로 쓴다.
+  const [wordIds] = useState(() => words.map((w) => w.id).sort());
+  const [initialProgress] = useState(() => loadBattleProgress(setId, wordIds));
+  const initialDefeatedCount = initialProgress.defeatedCount;
+
   const [team, setTeam] = useState<TeamId[]>(["tiger"]);
-  const [defeatedTotal, setDefeatedTotal] = useState(0);
-  const [defeatedCount, setDefeatedCount] = useState(0);
+  const [defeatedTotal, setDefeatedTotal] = useState(initialDefeatedCount);
+  const [defeatedCount, setDefeatedCount] = useState(initialDefeatedCount);
   const [monster, setMonster] = useState<Monster>(() => nextMonster(0));
   const [monsterMaxHp, setMonsterMaxHp] = useState(3);
   const [monsterHp, setMonsterHp] = useState(3);
@@ -281,7 +293,7 @@ export default function BattleGame({
   const [fxKey, setFxKey] = useState(0);
   const [entranceKind, setEntranceKind] = useState<EntranceKind>("normal");
   const [screenShakeKey, setScreenShakeKey] = useState(0);
-  const [phase, setPhase] = useState<Phase>("intro");
+  const [phase, setPhase] = useState<Phase>(initialDefeatedCount >= BATTLE_STAGE_CAP ? "setCleared" : "intro");
   const [introStage, setIntroStage] = useState<IntroStage>("enter");
   const [slidIn, setSlidIn] = useState(false);
   const [introKey, setIntroKey] = useState(0);
@@ -373,13 +385,12 @@ export default function BattleGame({
     runIntro(kind);
   }
 
+  // 패배 후 "다시 시작"은 이미 깬 스테이지는 그대로 두고, 죽었던 그 스테이지부터 다시 시작한다.
   function handleRetryRun() {
-    setDefeatedCount(0);
     setTeam(["tiger"]);
     setPlayerHp(PLAYER_MAX_HP);
     setCombo(0);
-    setDefeatedTotal(0);
-    beginEncounter(0);
+    beginEncounter(defeatedCount);
   }
 
   // 글자 타일을 눌러 스펠링을 완성하면(다 채워지면) 자동으로 정답 여부를 판정한다.
@@ -467,7 +478,13 @@ export default function BattleGame({
       const nextCount = stage + 1;
       setDefeatedCount(nextCount);
       setDefeatedTotal(nextCount);
-      beginEncounter(nextCount);
+      saveBattleProgress(setId, { defeatedCount: nextCount, wordIds });
+      if (nextCount >= BATTLE_STAGE_CAP) {
+        // 20스테이지 클리어: 바로 다음 스테이지로 넘기지 않고 안내 화면을 보여준다.
+        setPhase("setCleared");
+      } else {
+        beginEncounter(nextCount);
+      }
     });
   }
 
@@ -578,9 +595,12 @@ export default function BattleGame({
   }
 
   // 첫 몬스터도 HP 랜덤 타수/등장 연출이 제대로 적용되도록 마운트 시 한 번 다시 굴린다.
+  // 이미 20스테이지를 다 깬 단어 묶음이면(phase가 이미 setCleared로 시작) 전투를 시작하지 않는다.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- 최초 스테이지 진입 자체가 이 컴포넌트의 목적이라 마운트 시 곧바로 시작한다.
-    beginEncounter(0);
+    if (initialDefeatedCount < BATTLE_STAGE_CAP) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 최초 스테이지 진입 자체가 이 컴포넌트의 목적이라 마운트 시 곧바로 시작한다.
+      beginEncounter(initialDefeatedCount);
+    }
     return () => {
       stopBgm();
       seqRef.current += 1; // 남아있는 예약된 타이머를 전부 무효화
@@ -669,6 +689,37 @@ export default function BattleGame({
     );
   }
 
+  if (phase === "setCleared") {
+    return (
+      <div className="relative rounded-3xl bg-white flex flex-col items-center gap-4 px-6 py-10">
+        <BattleStyles />
+        <span className="text-4xl">🎉</span>
+        <p className="text-xl font-bold text-sky-600 text-center leading-relaxed">
+          {BATTLE_STAGE_CAP} STAGE 클리어!
+        </p>
+        <p className="text-gray-600 text-sm text-center leading-relaxed">
+          새로운 단어를 공부하고
+          <br />
+          새로운 스테이지에 도전해 보세요!
+        </p>
+        <div className="flex flex-col gap-2 w-full max-w-xs">
+          <button
+            onClick={onStudyMore ?? onDone}
+            className="w-full py-3 rounded-full bg-sky-600 text-white font-bold active:scale-95 transition"
+          >
+            새로운 단어 공부하기
+          </button>
+          <p className="text-xs text-gray-400 text-center leading-relaxed">
+            새로운 단어를 배우면 새로운 몬스터를 만날 수 있어요.
+          </p>
+          <button onClick={onDone} className="text-sm text-gray-400 underline self-center mt-1">
+            나중에 할게요
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!question) return null;
 
   const promptText = question.word.korean;
@@ -724,7 +775,7 @@ export default function BattleGame({
       <div className="relative z-10 flex flex-col gap-1 px-3 pt-2">
         <div className="flex items-center justify-between">
           <span className="text-[10px] text-white/80 font-bold tracking-widest drop-shadow leading-normal">
-            STAGE {defeatedCount + 1}
+            STAGE {defeatedCount + 1} / {BATTLE_STAGE_CAP}
           </span>
           <div className="flex items-center gap-2">
             <button
