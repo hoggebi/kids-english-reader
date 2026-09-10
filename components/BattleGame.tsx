@@ -45,6 +45,24 @@ const ATTACK_KINDS: { kind: AttackKind; label: string; img: string }[] = [
   { kind: "dash", label: "DASH!", img: `${A}/ui/cards/card_dash.png` },
 ];
 
+// 공격별로 실제 피격 이펙트 이미지 자체가 달라야 한다 (이름표만 다르고 이펙트가 같으면 안 됨).
+// dash 단계(발동 순간)와 impact 단계(맞는 순간)에 서로 다른 이미지를 써서 "때리는 느낌 -> 맞는 느낌"이
+// 이어지게 한다.
+type ResolvedFxKind = AttackKind | "critical";
+const FX_STAGE_IMG: Record<ResolvedFxKind, { dash: string; impact: string }> = {
+  slash: { dash: "slash_effect", impact: "hit_spark" },
+  fire: { dash: "fire_hit", impact: "fire_burn" },
+  dash: { dash: "speed_lines", impact: "dash_impact" },
+  critical: { dash: "critical_burst", impact: "hit_spark" },
+};
+// 몬스터 피격 리액션도 공격별로 다르게: dash는 가장 크게 밀려나고, fire는 살짝 더 오래, slash는 짧고 빠르게.
+const FX_MONSTER_ANIM: Record<ResolvedFxKind, string> = {
+  slash: "anim-monsterHitSm",
+  fire: "anim-monsterHitFire",
+  dash: "anim-monsterHitDash",
+  critical: "anim-monsterHitBig",
+};
+
 // 캐릭터/몬스터/연출 이미지 크기: 가로형이든 세로형이든 화면에서 짧은 쪽(vmin) 기준으로
 // 정해서, 화면 비율이 바뀌어도 항상 비슷한 비중으로 보이고 중앙에서 자연스럽게 만나게 한다.
 const SIZE = {
@@ -87,9 +105,23 @@ function shuffledLetters(english: string): LetterTile[] {
 const TIME_BASE_SEC = 18;
 const TIME_MIN_SEC = 7;
 const TIME_STEP_SEC = 1;
+// 철자 맞추기는 객관식보다 시간이 더 필요해서 주는 고정 버퍼.
+const SPELL_BUFFER_SEC = 1.5;
 
 function timeLimitForStage(stage: number): number {
   return Math.max(TIME_MIN_SEC, TIME_BASE_SEC - stage * TIME_STEP_SEC);
+}
+
+// 단어 길이에 따라 추가 시간을 준다 (짧은 단어와 긴 단어가 비슷한 속도로 줄면 안 됨).
+function lengthBonusSec(wordLength: number): number {
+  if (wordLength <= 4) return 0;
+  if (wordLength <= 6) return 2;
+  if (wordLength <= 8) return 4;
+  return 6;
+}
+
+function timeLimitForWord(stage: number, wordLength: number): number {
+  return timeLimitForStage(stage) + lengthBonusSec(wordLength) + SPELL_BUFFER_SEC;
 }
 
 function rollEntrance(isBoss: boolean): EntranceKind {
@@ -164,9 +196,12 @@ function BattleStyles() {
       @keyframes cardLunge { 0% { transform: translateY(0) scale(1); } 40% { transform: translateY(-6px) scale(1.04); } 100% { transform: translateY(-6px) scale(1.04); } }
       @keyframes popupFade { 0% { transform: translateY(6px) scale(0.7); opacity: 0; } 20% { transform: translateY(0) scale(1.1); opacity: 1; } 80% { transform: translateY(0) scale(1); opacity: 1; } 100% { transform: translateY(-4px) scale(1); opacity: 0; } }
       @keyframes fxPopIn { 0% { transform: scale(0.4); opacity: 0; } 100% { transform: scale(1.15); opacity: 1; } }
-      @keyframes monsterHitSm { 0%, 100% { transform: translateX(0) rotate(0deg); } 20% { transform: translateX(-14px) rotate(-4deg); } 45% { transform: translateX(6px) rotate(3deg); } 70% { transform: translateX(-3px) rotate(-1deg); } }
-      @keyframes monsterHitBig { 0%, 100% { transform: translateX(0) rotate(0deg) scale(1); } 15% { transform: translateX(-26px) rotate(-8deg) scale(0.94); } 40% { transform: translateX(14px) rotate(7deg) scale(1.05); } 65% { transform: translateX(-8px) rotate(-4deg) scale(0.98); } 85% { transform: translateX(4px) rotate(2deg) scale(1.01); } }
-      @keyframes monsterKO { 0% { transform: translateY(0) scale(1) rotate(0deg); opacity: 1; } 100% { transform: translateY(60px) scale(0.35) rotate(30deg); opacity: 0; } }
+      @keyframes monsterHitSm { 0%, 100% { transform: scaleX(-1) translateX(0) rotate(0deg); } 20% { transform: scaleX(-1) translateX(-14px) rotate(-4deg); } 45% { transform: scaleX(-1) translateX(6px) rotate(3deg); } 70% { transform: scaleX(-1) translateX(-3px) rotate(-1deg); } }
+      @keyframes monsterHitBig { 0%, 100% { transform: scaleX(-1) translateX(0) rotate(0deg) scale(1); } 15% { transform: scaleX(-1) translateX(-26px) rotate(-8deg) scale(0.94); } 40% { transform: scaleX(-1) translateX(14px) rotate(7deg) scale(1.05); } 65% { transform: scaleX(-1) translateX(-8px) rotate(-4deg) scale(0.98); } 85% { transform: scaleX(-1) translateX(4px) rotate(2deg) scale(1.01); } }
+      @keyframes monsterHitFire { 0%, 100% { transform: scaleX(-1) translateX(0) rotate(0deg); } 20% { transform: scaleX(-1) translateX(-16px) rotate(-5deg); } 50% { transform: scaleX(-1) translateX(8px) rotate(4deg); } 80% { transform: scaleX(-1) translateX(-4px) rotate(-2deg); } }
+      @keyframes monsterHitDash { 0%, 100% { transform: scaleX(-1) translateX(0) rotate(0deg); } 20% { transform: scaleX(-1) translateX(-34px) rotate(-9deg); } 50% { transform: scaleX(-1) translateX(10px) rotate(6deg); } 80% { transform: scaleX(-1) translateX(-4px) rotate(-2deg); } }
+      @keyframes monsterKO { 0% { transform: scaleX(-1) translateY(0) scale(1) rotate(0deg); opacity: 1; } 100% { transform: scaleX(-1) translateY(60px) scale(0.35) rotate(30deg); opacity: 0; } }
+      @keyframes fireFlash { 0% { opacity: 0; } 30% { opacity: 1; } 100% { opacity: 0; } }
       @keyframes playerRecoil { 0%, 100% { transform: translateX(0) rotate(0deg); } 30% { transform: translateX(-14px) rotate(-6deg); } 60% { transform: translateX(4px) rotate(2deg); } }
       @keyframes auraPulse { 0%, 100% { opacity: 0.55; transform: scale(1); } 50% { opacity: 0.8; transform: scale(1.08); } }
       .anim-vsPop { animation: vsPop 0.4s ease-out; }
@@ -179,12 +214,16 @@ function BattleStyles() {
       .anim-fxPopIn { animation: fxPopIn 0.22s ease-out forwards; }
       .anim-monsterHitSm { animation: monsterHitSm 0.4s ease-out; }
       .anim-monsterHitBig { animation: monsterHitBig 0.5s ease-out; }
+      .anim-monsterHitFire { animation: monsterHitFire 0.55s ease-out; }
+      .anim-monsterHitDash { animation: monsterHitDash 0.5s ease-out; }
       .anim-monsterKO { animation: monsterKO 0.7s ease-in forwards; }
       .anim-playerRecoil { animation: playerRecoil 0.4s ease-out; }
       .anim-auraPulse { animation: auraPulse 1.8s ease-in-out infinite; }
+      .anim-fireFlash { animation: fireFlash 0.4s ease-out forwards; }
       @media (prefers-reduced-motion: reduce) {
         .anim-vsPop, .anim-panelPop, .anim-teamJoin, .anim-warningShake, .anim-screenShake, .anim-cardLunge, .anim-popupFade,
-        .anim-fxPopIn, .anim-monsterHitSm, .anim-monsterHitBig, .anim-monsterKO, .anim-playerRecoil, .anim-auraPulse { animation: none; }
+        .anim-fxPopIn, .anim-monsterHitSm, .anim-monsterHitBig, .anim-monsterHitFire, .anim-monsterHitDash,
+        .anim-monsterKO, .anim-playerRecoil, .anim-auraPulse, .anim-fireFlash { animation: none; }
       }
     `}</style>
   );
@@ -238,7 +277,7 @@ export default function BattleGame({
   const [wrongLabelKey, setWrongLabelKey] = useState(0);
   const [attackPopup, setAttackPopup] = useState<(typeof ATTACK_KINDS)[number] | null>(null);
   const [popupKey, setPopupKey] = useState(0);
-  const [fxKind, setFxKind] = useState<"slash" | "critical" | null>(null);
+  const [fxKind, setFxKind] = useState<ResolvedFxKind | null>(null);
   const [fxKey, setFxKey] = useState(0);
   const [entranceKind, setEntranceKind] = useState<EntranceKind>("normal");
   const [screenShakeKey, setScreenShakeKey] = useState(0);
@@ -282,7 +321,7 @@ export default function BattleGame({
     setQuestion(q);
     setLetterPool(shuffledLetters(q.word.english));
     setPlacedLetters([]);
-    const limitSec = timeLimitForStage(stage);
+    const limitSec = timeLimitForWord(stage, q.word.english.length);
     setTimeLimitMs(limitSec * 1000);
     setTimeLeftMs(limitSec * 1000);
   }
@@ -471,22 +510,29 @@ export default function BattleGame({
       }
       if (teamAttack) setTeamAttackActive(true);
 
+      // 공격 종류를 한 번만 굴려서 이름표(팝업)와 실제 피격 이펙트가 항상 일치하게 한다.
+      // 팀 공격/보스는 항상 CRITICAL 취급(가장 큰 이펙트+화면 흔들림).
+      const isCriticalHit = teamAttack || monster.isBoss;
+      const rolled = isCriticalHit ? null : rollAttackKind();
+      const resolvedKind: ResolvedFxKind = isCriticalHit ? "critical" : rolled!.kind;
+
       runAttackSequence({
         onDash: () => {
-          setFxKind(teamAttack || monster.isBoss ? "critical" : "slash");
+          setFxKind(resolvedKind);
           setFxKey((k) => k + 1);
           if (monsterImgRef.current) setFxPos(computeImpactPos(monsterImgRef.current, true));
-          if (!teamAttack) {
-            setAttackPopup(rollAttackKind());
+          if (rolled) {
+            setAttackPopup(rolled);
             setPopupKey((k) => k + 1);
           }
           if (teamAttack) sfxTeamAttack();
           else if (monster.isBoss) sfxHitBig();
+          else if (resolvedKind === "fire") sfxHitBig();
           else sfxSlash();
         },
         onImpact: () => {
           setMonsterHitKey((k) => k + 1);
-          setScreenShakeKey((k) => k + 1);
+          if (resolvedKind === "critical") setScreenShakeKey((k) => k + 1);
         },
         onFadeout: () => {
           setAttackPopup(null);
@@ -722,8 +768,10 @@ export default function BattleGame({
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                key={fxKey}
-                src={`${A}/effects/${fxKind}.png`}
+                key={`${fxKey}-${attackStage === "dash" ? "dash" : "impact"}`}
+                src={`${A}/effects/${
+                  attackStage === "dash" ? FX_STAGE_IMG[fxKind].dash : FX_STAGE_IMG[fxKind].impact
+                }.png`}
                 alt=""
                 className="anim-fxPopIn object-contain w-full h-full"
                 style={{
@@ -831,6 +879,16 @@ export default function BattleGame({
                 style={{ width: SIZE.team, height: SIZE.team, left: 0, bottom: SIZE.teamOffsetBottom, zIndex: 5 }}
               />
             )}
+            {/* DASH 공격: 돌진하는 동안 플레이어 뒤쪽에 속도선 표시 */}
+            {feedback === "correct" && fxKind === "dash" && attackStage === "dash" && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={`${A}/effects/speed_lines.png`}
+                alt=""
+                className="anim-fxPopIn absolute object-contain pointer-events-none"
+                style={{ width: SIZE.fx, height: SIZE.fx, left: "-4%", bottom: "8%", zIndex: 9 }}
+              />
+            )}
             {/* 메인 캐릭터: 가장 크게, 맨 앞. 이미 오른쪽(몬스터 방향)을 보고 있는 원본 그대로 사용 */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -860,6 +918,28 @@ export default function BattleGame({
               style={{ width: SIZE.aura, height: SIZE.aura }}
             />
           )}
+          {/* FIRE 피격 시 몸에 붉은/주황 플래시를 짧게 */}
+          {feedback === "correct" && fxKind === "fire" && (attackStage === "impact" || attackStage === "fadeout") && (
+            <div
+              className="absolute inset-0 m-auto object-contain pointer-events-none anim-fireFlash"
+              style={{
+                width: monster.isBoss ? SIZE.boss : SIZE.monster,
+                height: monster.isBoss ? SIZE.boss : SIZE.monster,
+                borderRadius: "9999px",
+                background: "radial-gradient(circle, rgba(255,120,0,0.55) 0%, rgba(255,60,0,0) 70%)",
+              }}
+            />
+          )}
+          {/* 처치(마무리) 연기 */}
+          {koStage === "defeat" && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={`${A}/effects/smoke_hit.png`}
+              alt=""
+              className="absolute inset-0 m-auto object-contain pointer-events-none anim-fxPopIn"
+              style={{ width: monster.isBoss ? SIZE.boss : SIZE.monster, height: monster.isBoss ? SIZE.boss : SIZE.monster }}
+            />
+          )}
           {koStage === "panel" ? null : (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -870,10 +950,8 @@ export default function BattleGame({
               className={`relative object-contain ${
                 koStage === "defeat"
                   ? "anim-monsterKO"
-                  : feedback === "correct" && (attackStage === "impact" || attackStage === "fadeout")
-                  ? teamAttackActive || monster.isBoss
-                    ? "anim-monsterHitBig"
-                    : "anim-monsterHitSm"
+                  : feedback === "correct" && fxKind && (attackStage === "impact" || attackStage === "fadeout")
+                  ? FX_MONSTER_ANIM[fxKind]
                   : ""
               }`}
               style={{
