@@ -4,6 +4,20 @@ import { useEffect, useState } from "react";
 import type { VocabWord } from "@/lib/types";
 import { nextMonster, type Monster } from "@/lib/monsters";
 import { shuffle, buildOptions, playTone } from "./VocabGame";
+import {
+  sfxSlash,
+  sfxHitBig,
+  sfxWrong,
+  sfxJoin,
+  sfxTeamAttack,
+  sfxWarning,
+  sfxKO,
+  sfxVictory,
+  startBgm,
+  stopBgm,
+  getBgmPref,
+  setBgmPref,
+} from "@/lib/battleAudio";
 
 type Feedback = "correct" | "wrong" | null;
 type Direction = "toEng" | "toKor";
@@ -28,6 +42,31 @@ const ATTACK_KINDS: { kind: AttackKind; label: string; img: string }[] = [
   { kind: "fire", label: "FIRE!", img: `${A}/ui/cards/card_fire.png` },
   { kind: "dash", label: "DASH!", img: `${A}/ui/cards/card_dash.png` },
 ];
+
+// 캐릭터/몬스터/연출 이미지 크기: 가로형이든 세로형이든 화면에서 짧은 쪽(vmin) 기준으로
+// 정해서, 화면 비율이 바뀌어도 항상 비슷한 비중으로 보이고 중앙에서 자연스럽게 만나게 한다.
+// (예전 대비 대략 2배 크기.)
+const SIZE = {
+  main: "clamp(120px, 24vmin, 220px)",
+  team: "clamp(80px, 16vmin, 150px)",
+  monster: "clamp(140px, 28vmin, 280px)",
+  boss: "clamp(170px, 34vmin, 340px)",
+  aura: "clamp(150px, 30vmin, 300px)",
+  fx: "clamp(64px, 13vmin, 130px)",
+  clusterW: "clamp(160px, 32vmin, 300px)",
+  clusterH: "clamp(150px, 30vmin, 280px)",
+  teamOffsetBottom: "clamp(32px, 8vmin, 70px)",
+  attackImg: "clamp(70px, 14vmin, 140px)",
+  vsPanel: "clamp(64px, 13vmin, 120px)",
+  vsChar: "clamp(96px, 18vmin, 170px)",
+  vsCharMini: "clamp(44px, 9vmin, 80px)",
+  vsMonster: "clamp(96px, 18vmin, 170px)",
+  vsMonsterBoss: "clamp(130px, 24vmin, 220px)",
+  panelBanner: "clamp(64px, 13vmin, 120px)",
+  panelBig: "clamp(88px, 18vmin, 160px)",
+  attackCard: "clamp(56px, 11vmin, 100px)",
+  dust: "clamp(64px, 13vmin, 120px)",
+};
 
 type Question = {
   word: VocabWord;
@@ -154,18 +193,36 @@ export default function BattleGame({
   const [entranceKind, setEntranceKind] = useState<EntranceKind>("normal");
   const [screenShakeKey, setScreenShakeKey] = useState(0);
   const [phase, setPhase] = useState<Phase>("vs");
+  const [bgmOn, setBgmOn] = useState(true);
 
   // 첫 몬스터도 HP 랜덤 타수/등장 연출이 제대로 적용되도록 마운트 시 한 번 다시 굴린다.
   useEffect(() => {
+    setBgmOn(getBgmPref());
     beginEncounter(0);
+    return () => {
+      stopBgm();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (phase !== "vs") return;
+    if (entranceKind !== "normal") sfxWarning();
     const t = setTimeout(() => setPhase("battle"), entranceKind === "normal" ? 800 : 1300);
     return () => clearTimeout(t);
   }, [phase, entranceKind]);
+
+  // 전투 화면에 들어와 있는 동안에는 배경음을 재생 (사용자가 끄면 끄고, 다시 켜면 재생).
+  useEffect(() => {
+    if (phase === "battle" && bgmOn) startBgm();
+    else stopBgm();
+  }, [phase, bgmOn]);
+
+  function toggleBgm() {
+    const next = !bgmOn;
+    setBgmOn(next);
+    setBgmPref(next);
+  }
 
   if (words.length < 3) {
     return (
@@ -232,6 +289,7 @@ export default function BattleGame({
       if (joinedId) {
         setJoinLabel(`NEW FRIEND! ${TEAM_INFO[joinedId].name}`);
         setTimeout(() => setJoinLabel(null), 900);
+        sfxJoin();
       }
 
       setFxKind(teamAttack || monster.isBoss ? "critical" : "slash");
@@ -243,6 +301,7 @@ export default function BattleGame({
         setScreenShakeKey((k) => k + 1);
         setCombo(0);
         setTimeout(() => setTeamAttackActive(false), 650);
+        sfxTeamAttack();
       } else {
         setMainAttacking(true);
         setAttackPopup(rollAttackKind());
@@ -250,12 +309,16 @@ export default function BattleGame({
         setCombo(nextCombo);
         setTimeout(() => setMainAttacking(false), 420);
         setTimeout(() => setAttackPopup(null), 500);
+        if (monster.isBoss) sfxHitBig();
+        else sfxSlash();
       }
 
       setTimeout(
         () => {
           if (newHp <= 0) {
             setPhase("ko");
+            sfxKO();
+            setTimeout(() => sfxVictory(), 350);
             setTimeout(() => {
               const nextCount = defeatedCount + 1;
               setDefeatedCount(nextCount);
@@ -276,6 +339,7 @@ export default function BattleGame({
       setScreenShakeKey((k) => k + 1);
       setPlayerHitKey((k) => k + 1);
       setWrongLabelKey((k) => k + 1);
+      sfxWrong();
       const newPlayerHp = Math.max(0, playerHp - 1);
       setPlayerHp(newPlayerHp);
 
@@ -296,7 +360,7 @@ export default function BattleGame({
       <div className="flex flex-col items-center gap-4 py-8">
         <BattleStyles />
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={`${A}/ui/panels/game_over.png`} alt="TRY AGAIN" className="h-16 anim-panelPop" />
+        <img src={`${A}/ui/panels/game_over.png`} alt="TRY AGAIN" className="anim-panelPop" style={{ height: SIZE.panelBig }} />
         <p className="text-gray-600 text-sm">이번 판에서 몬스터 {defeatedTotal}마리를 물리쳤어요!</p>
         <div className="flex gap-2 w-full max-w-xs mt-2">
           <button
@@ -330,35 +394,47 @@ export default function BattleGame({
         <p className="absolute top-3 left-4 text-[11px] text-white font-bold tracking-widest drop-shadow z-10">
           STAGE {defeatedCount + 1}
         </p>
-        <div className="relative flex items-center justify-center gap-3 anim-vsPop">
+        <div className="relative flex items-center justify-center gap-[4vmin] anim-vsPop">
           <div className="flex flex-col items-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={TEAM_INFO[team[0]].idle} alt="" className="w-16 h-16 object-contain drop-shadow" />
+            <img
+              src={TEAM_INFO[team[0]].idle}
+              alt=""
+              className="object-contain drop-shadow"
+              style={{ width: SIZE.vsChar, height: SIZE.vsChar }}
+            />
             {team.length > 1 && (
               <div className="flex gap-1 -mt-1">
                 {team.slice(1).map((id) => (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img key={id} src={TEAM_INFO[id].idle} alt="" className="w-7 h-7 object-contain opacity-90" />
+                  <img
+                    key={id}
+                    src={TEAM_INFO[id].idle}
+                    alt=""
+                    className="object-contain opacity-90"
+                    style={{ width: SIZE.vsCharMini, height: SIZE.vsCharMini }}
+                  />
                 ))}
               </div>
             )}
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={`${A}/ui/panels/vs_panel.png`} alt="VS" className="h-10" />
+          <img src={`${A}/ui/panels/vs_panel.png`} alt="VS" style={{ height: SIZE.vsPanel }} />
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={monster.img}
             alt={monster.name}
-            className={`object-contain drop-shadow ${monster.isBoss ? "w-24 h-24" : "w-16 h-16"}`}
+            className="object-contain drop-shadow"
+            style={{ width: monster.isBoss ? SIZE.vsMonsterBoss : SIZE.vsMonster, height: monster.isBoss ? SIZE.vsMonsterBoss : SIZE.vsMonster }}
           />
         </div>
         {entranceKind === "warning" && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={`${A}/ui/panels/warning_panel.png`} alt="WARNING" className="relative h-10 anim-panelPop" />
+          <img src={`${A}/ui/panels/warning_panel.png`} alt="WARNING" className="relative anim-panelPop" style={{ height: SIZE.panelBanner }} />
         )}
         {entranceKind === "boss" && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={`${A}/ui/panels/boss_panel.png`} alt="BOSS BATTLE" className="relative h-12 anim-panelPop" />
+          <img src={`${A}/ui/panels/boss_panel.png`} alt="BOSS BATTLE" className="relative anim-panelPop" style={{ height: SIZE.panelBig }} />
         )}
         <p className="relative text-sm text-white font-bold drop-shadow">{monster.name}</p>
       </div>
@@ -384,7 +460,7 @@ export default function BattleGame({
       {teamAttackActive ? (
         <div className="absolute inset-x-0 top-1 z-30 flex justify-center pointer-events-none">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={`${A}/ui/panels/team_attack.png`} alt="TEAM ATTACK" className="h-11 anim-panelPop" />
+          <img src={`${A}/ui/panels/team_attack.png`} alt="TEAM ATTACK" className="anim-panelPop" style={{ height: SIZE.panelBanner }} />
         </div>
       ) : (
         joinLabel && (
@@ -402,7 +478,16 @@ export default function BattleGame({
           <span className="text-[10px] text-white/80 font-bold tracking-widest drop-shadow">
             STAGE {defeatedCount + 1}
           </span>
-          <HeartRow key={playerHitKey} hp={playerHp} />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleBgm}
+              aria-label={bgmOn ? "배경음 끄기" : "배경음 켜기"}
+              className="text-[13px] leading-none drop-shadow"
+            >
+              {bgmOn ? "🔊" : "🔇"}
+            </button>
+            <HeartRow key={playerHitKey} hp={playerHp} />
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <span className={`text-xs font-bold drop-shadow ${monster.isBoss ? "text-red-300" : "text-white"}`}>
@@ -418,18 +503,23 @@ export default function BattleGame({
         </div>
       </div>
 
-      {/* 중앙: 전투 무대 (화면의 대부분을 차지) */}
-      <div className="relative z-10 flex items-end justify-between px-4 py-2 flex-1" style={{ minHeight: 210 }}>
+      {/* 중앙: 전투 무대 (화면의 대부분을 차지). 캐릭터와 몬스터가 화면 비율(가로/세로)에
+          관계없이 항상 중앙 부근에서 만나도록 justify-between 대신 justify-center + 반응형
+          간격을 쓴다. 크기도 vmin 기준이라 화면이 회전해도 비율이 유지된다. */}
+      <div
+        className="relative z-10 flex items-end justify-center gap-[5vmin] px-4 py-2 flex-1"
+        style={{ minHeight: "clamp(210px, 42vmin, 380px)" }}
+      >
         {feedback === "wrong" && (
           <p key={wrongLabelKey} className="anim-popupFade absolute left-6 top-2 text-lg font-black text-red-300 drop-shadow z-20">
             OOPS!
           </p>
         )}
         {attackPopup && !teamAttackActive && (
-          <div key={popupKey} className="anim-popupFade absolute left-1/3 top-0 z-20 flex flex-col items-center pointer-events-none">
+          <div key={popupKey} className="anim-popupFade absolute left-[15%] top-0 z-20 flex flex-col items-center pointer-events-none">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={attackPopup.img} alt="" className="w-9 h-9 object-contain" />
-            <span className="text-xs font-black text-white drop-shadow">{attackPopup.label}</span>
+            <img src={attackPopup.img} alt="" className="object-contain" style={{ width: SIZE.attackCard, height: SIZE.attackCard }} />
+            <span className="text-sm font-black text-white drop-shadow">{attackPopup.label}</span>
           </div>
         )}
 
@@ -442,12 +532,13 @@ export default function BattleGame({
                 key={id}
                 src={TEAM_INFO[id].attack}
                 alt=""
-                className={`w-24 h-24 object-contain drop-shadow anim-atk-${TEAM_INFO[id].style}`}
+                className={`object-contain drop-shadow anim-atk-${TEAM_INFO[id].style}`}
+                style={{ width: SIZE.attackImg, height: SIZE.attackImg }}
               />
             ))}
           </div>
         ) : (
-          <div className="relative" style={{ width: 132, height: 130 }}>
+          <div className="relative" style={{ width: SIZE.clusterW, height: SIZE.clusterH }}>
             {/* 세 번째 합류(흑표범): 메인과 같은 바닥선, 뒤쪽 오른편에 겹치게 */}
             {team[2] && (
               // eslint-disable-next-line @next/next/no-img-element
@@ -455,8 +546,8 @@ export default function BattleGame({
                 key={team[2]}
                 src={TEAM_INFO[team[2]].idle}
                 alt=""
-                className="anim-teamJoin absolute w-16 h-16 object-contain opacity-95"
-                style={{ right: 0, bottom: 0, zIndex: 5 }}
+                className="anim-teamJoin absolute object-contain opacity-95"
+                style={{ width: SIZE.team, height: SIZE.team, right: 0, bottom: 0, zIndex: 5 }}
               />
             )}
             {/* 두 번째 합류(독수리): 비행 캐릭터라 바닥선보다 살짝 위, 뒤쪽 왼편에 겹치게 */}
@@ -466,8 +557,8 @@ export default function BattleGame({
                 key={team[1]}
                 src={TEAM_INFO[team[1]].idle}
                 alt=""
-                className="anim-teamJoin absolute w-16 h-16 object-contain opacity-95"
-                style={{ left: 0, bottom: 40, zIndex: 5 }}
+                className="anim-teamJoin absolute object-contain opacity-95"
+                style={{ width: SIZE.team, height: SIZE.team, left: 0, bottom: SIZE.teamOffsetBottom, zIndex: 5 }}
               />
             )}
             {/* 메인 캐릭터: 가장 크게, 맨 앞 */}
@@ -475,10 +566,10 @@ export default function BattleGame({
             <img
               src={mainAttacking ? TEAM_INFO[team[0]].attack : TEAM_INFO[team[0]].idle}
               alt=""
-              className={`absolute w-24 h-24 object-contain drop-shadow ${
+              className={`absolute object-contain drop-shadow ${
                 mainAttacking ? `anim-atk-${TEAM_INFO[team[0]].style}` : ""
               } ${feedback === "wrong" ? "anim-playerRecoil" : ""}`}
-              style={{ left: 18, bottom: 0, zIndex: 10 }}
+              style={{ width: SIZE.main, height: SIZE.main, left: "12%", bottom: 0, zIndex: 10 }}
             />
           </div>
         )}
@@ -490,7 +581,8 @@ export default function BattleGame({
             <img
               src={`${A}/effects/dark_aura.png`}
               alt=""
-              className="absolute inset-0 m-auto w-32 h-32 object-contain anim-auraPulse pointer-events-none"
+              className="absolute inset-0 m-auto object-contain anim-auraPulse pointer-events-none"
+              style={{ width: SIZE.aura, height: SIZE.aura }}
             />
           )}
           {phase === "ko" ? (
@@ -498,7 +590,8 @@ export default function BattleGame({
             <img
               src={monster.img}
               alt={monster.name}
-              className={`relative object-contain anim-monsterKO ${monster.isBoss ? "w-40 h-40" : "w-32 h-32"}`}
+              className="relative object-contain anim-monsterKO"
+              style={{ width: monster.isBoss ? SIZE.boss : SIZE.monster, height: monster.isBoss ? SIZE.boss : SIZE.monster }}
             />
           ) : (
             <>
@@ -508,7 +601,8 @@ export default function BattleGame({
                   key={fxKey}
                   src={`${A}/effects/${fxKind}.png`}
                   alt=""
-                  className="absolute -top-4 right-4 w-16 h-16 object-contain anim-fxPop pointer-events-none z-10"
+                  className="absolute -top-4 right-4 object-contain anim-fxPop pointer-events-none z-10"
+                  style={{ width: SIZE.fx, height: SIZE.fx }}
                 />
               )}
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -516,9 +610,7 @@ export default function BattleGame({
                 key={`monster-${monsterHitKey}`}
                 src={monster.img}
                 alt={monster.name}
-                className={`relative object-contain ${monster.isBoss ? "w-40 h-40" : "w-32 h-32"} ${
-                  isFlying ? "-translate-y-6" : ""
-                } ${
+                className={`relative object-contain ${isFlying ? "-translate-y-6" : ""} ${
                   feedback === "wrong"
                     ? "anim-monsterLunge"
                     : feedback === "correct"
@@ -527,6 +619,7 @@ export default function BattleGame({
                       : "anim-monsterHitSm"
                     : ""
                 }`}
+                style={{ width: monster.isBoss ? SIZE.boss : SIZE.monster, height: monster.isBoss ? SIZE.boss : SIZE.monster }}
               />
             </>
           )}
@@ -539,10 +632,10 @@ export default function BattleGame({
           <img
             src={`${A}/ui/panels/${monster.isBoss ? "victory" : "ko"}.png`}
             alt={monster.isBoss ? "VICTORY" : "KO"}
-            className={monster.isBoss ? "h-16" : "h-11"}
+            style={{ height: monster.isBoss ? SIZE.panelBig : SIZE.panelBanner }}
           />
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={`${A}/effects/dust.png`} alt="" className="w-16 h-10 object-contain -mt-2 opacity-80" />
+          <img src={`${A}/effects/dust.png`} alt="" className="object-contain -mt-2 opacity-80" style={{ width: SIZE.dust, height: `calc(${SIZE.dust} * 0.6)` }} />
         </div>
       )}
 
