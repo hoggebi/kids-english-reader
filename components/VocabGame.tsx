@@ -14,6 +14,7 @@ import {
 import { recordVocabGamePlayed } from "@/lib/vocabStorage";
 import { autoPush } from "@/lib/sync";
 import BattleGame from "./BattleGame";
+import DartGame from "./DartGame";
 import PetDisplay from "./PetDisplay";
 
 type GameKind = "hunt" | "feed" | "mole" | "runner" | "battle";
@@ -38,7 +39,7 @@ export function shuffle<T>(arr: T[]): T[] {
 
 // 게임 메뉴에는 이 3개만 노출한다 (바구니 담기/함께 달리기는 화면에서 제거 — 코드는 그대로 둔다).
 const GAME_INFO: { kind: GameKind; title: string; desc: string; emoji?: string; img?: string }[] = [
-  { kind: "hunt", title: "단어 사냥", desc: "떨어지는 단어를 탭해서 잡아요", emoji: "🎯" },
+  { kind: "hunt", title: "다트 게임", desc: "정답을 고르고 다트를 던져요", emoji: "🎯" },
   { kind: "mole", title: "두더지 잡기", desc: "튀어나온 정답을 빠르게 탭해요", img: "/mole.png" },
   { kind: "battle", title: "몬스터 배틀", desc: "문제를 맞혀서 몬스터를 물리쳐요", emoji: "⚔️" },
 ];
@@ -377,7 +378,7 @@ export default function VocabGame({
       <button onClick={() => setKind(null)} className="self-start text-sm text-gray-400 underline">
         게임 다시 고르기
       </button>
-      {kind === "hunt" && <HuntGame key={playKey} words={words} onDone={handleGameDone} onRetry={handleRetry} />}
+      {kind === "hunt" && <DartGame key={playKey} words={words} onDone={handleGameDone} onRetry={handleRetry} />}
       {kind === "feed" && <FeedGame key={playKey} words={words} onDone={handleGameDone} onRetry={handleRetry} />}
       {kind === "mole" && <MoleGame key={playKey} words={words} onDone={handleGameDone} onRetry={handleRetry} />}
       {kind === "runner" && (
@@ -393,130 +394,6 @@ export default function VocabGame({
           onStudyMore={onStudyMore}
         />
       )}
-    </div>
-  );
-}
-
-// ---------- 1) 단어 사냥: 낙하산 타고 떨어지는 정답 탭 ----------
-function HuntGame({ words, onDone, onRetry }: { words: VocabWord[]; onDone: () => void; onRetry: () => void }) {
-  const [pet] = useState(() => loadPet("vocab"));
-  const [queue] = useState(() => shuffle(words));
-  const [dirs] = useState<("toEng" | "toKor")[]>(() =>
-    queue.map(() => (Math.random() < 0.5 ? "toEng" : "toKor"))
-  );
-  const [index, setIndex] = useState(0);
-  const [options, setOptions] = useState(() => buildOptions(words, queue[0], 3));
-  const [positions, setPositions] = useState<number[]>([10, 45, 80]);
-  const [fallY, setFallY] = useState(0);
-  const [feedback, setFeedback] = useState<Feedback>(null);
-  const [combo, setCombo] = useState(0);
-  const [particleTrigger, setParticleTrigger] = useState(0);
-  const [correctCount, setCorrectCount] = useState(0);
-  const [hitId, setHitId] = useState<string | null>(null);
-
-  const current = queue[index];
-  const direction = dirs[index];
-  const done = index >= queue.length;
-
-  useEffect(() => {
-    if (done || feedback) return;
-    const t = setInterval(() => setFallY((y) => Math.min(100, y + 2)), 80);
-    return () => clearInterval(t);
-  }, [done, feedback]);
-
-  useEffect(() => {
-    if (fallY >= 100 && !feedback) goNext();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fallY]);
-
-  function goNext() {
-    const next = index + 1;
-    setIndex(next);
-    setFallY(0);
-    setFeedback(null);
-    setHitId(null);
-    if (queue[next]) {
-      setOptions(buildOptions(words, queue[next], 3));
-      setPositions(shuffle([10, 45, 80]));
-    }
-  }
-
-  function tap(w: VocabWord) {
-    if (feedback) return;
-    setHitId(w.id);
-    const ok = w.id === current.id;
-    playTone(ok ? "correct" : "wrong");
-    setFeedback(ok ? "correct" : "wrong");
-    if (ok) {
-      setCombo((c) => c + 1);
-      setCorrectCount((c) => c + 1);
-      setParticleTrigger((t) => t + 1);
-    } else {
-      setCombo(0);
-    }
-    setTimeout(goNext, 500);
-  }
-
-  if (done) return <ResultScreen correct={correctCount} total={queue.length} onDone={onDone} onRetry={onRetry} />;
-
-  const promptText = direction === "toEng" ? current.korean : current.english;
-
-  return (
-    <div className={`relative rounded-3xl overflow-hidden p-3 flex flex-col items-center gap-3 ${THEME_BG.hunt}`}>
-      <p className="text-sm text-gray-500">
-        {index + 1} / {queue.length}
-      </p>
-      <p className="text-lg font-bold text-black">🎯 &quot;{promptText}&quot;에 맞는 답을 찾아 탭!</p>
-      <div className="relative w-full max-w-sm h-72 rounded-2xl bg-white/60 border-2 border-gray-200 overflow-hidden">
-        <Particles trigger={particleTrigger} />
-        <ComboBadge combo={combo} />
-        {options.map((w, i) => {
-          const isCaught = feedback === "correct" && w.id === current.id;
-          return (
-            <button
-              key={w.id}
-              onClick={() => tap(w)}
-              style={
-                isCaught
-                  ? { left: "50%", bottom: "8%", top: "auto" }
-                  : { left: `${positions[i]}%`, top: `${fallY}%` }
-              }
-              className={`absolute -translate-x-1/2 flex flex-col items-center transition-all duration-500 ${
-                isCaught ? "scale-75 opacity-0" : ""
-              }`}
-            >
-              <span className="text-lg -mb-1">🪂</span>
-              <span
-                className={`relative px-4 py-3 rounded-xl font-extrabold text-lg border-2 ${
-                  feedback && w.id === current.id
-                    ? "bg-sky-100 border-sky-500 text-black"
-                    : feedback === "wrong" && w.id !== current.id
-                    ? "bg-gray-50 border-gray-200 text-gray-300"
-                    : "bg-white border-sky-200 text-black shadow"
-                }`}
-              >
-                {direction === "toEng" ? w.english : w.korean}
-                {hitId === w.id && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src="/arrow.png"
-                    alt="화살"
-                    className="absolute -right-4 -top-5 w-10 h-10 object-contain dart-hit"
-                  />
-                )}
-              </span>
-            </button>
-          );
-        })}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={getPetImagePath(pet, "vocab")}
-          alt="캐릭터"
-          className={`absolute bottom-1 left-1/2 -translate-x-1/2 w-12 h-12 object-contain ${
-            feedback === "correct" ? "char-correct" : feedback === "wrong" ? "char-wrong" : ""
-          }`}
-        />
-      </div>
     </div>
   );
 }
