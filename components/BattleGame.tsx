@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { VocabWord } from "@/lib/types";
 import { nextMonster, type Monster } from "@/lib/monsters";
 import { shuffle, playTone } from "./VocabGame";
@@ -22,7 +22,10 @@ import {
 type Feedback = "correct" | "wrong" | null;
 type AttackStyle = "dash" | "swoop" | "lowdash";
 type EntranceKind = "normal" | "warning" | "boss";
-type Phase = "vs" | "battle" | "ko" | "gameover";
+type Phase = "intro" | "battle" | "gameover";
+type IntroStage = "enter" | "hold" | "vs" | "vsOut" | "warning" | "warningOut";
+type AttackStage = "windup" | "dash" | "impact" | "fadeout" | "recover" | null;
+type KoStage = "hold" | "defeat" | "panel" | null;
 type TeamId = "tiger" | "eagle" | "panther";
 type AttackKind = "slash" | "fire" | "dash";
 
@@ -44,7 +47,6 @@ const ATTACK_KINDS: { kind: AttackKind; label: string; img: string }[] = [
 
 // 캐릭터/몬스터/연출 이미지 크기: 가로형이든 세로형이든 화면에서 짧은 쪽(vmin) 기준으로
 // 정해서, 화면 비율이 바뀌어도 항상 비슷한 비중으로 보이고 중앙에서 자연스럽게 만나게 한다.
-// (예전 대비 대략 2배 크기.)
 const SIZE = {
   main: "clamp(120px, 24vmin, 220px)",
   team: "clamp(80px, 16vmin, 150px)",
@@ -56,11 +58,8 @@ const SIZE = {
   clusterH: "clamp(150px, 30vmin, 280px)",
   teamOffsetBottom: "clamp(32px, 8vmin, 70px)",
   attackImg: "clamp(70px, 14vmin, 140px)",
-  vsPanel: "clamp(64px, 13vmin, 120px)",
-  vsChar: "clamp(96px, 18vmin, 170px)",
-  vsCharMini: "clamp(44px, 9vmin, 80px)",
-  vsMonster: "clamp(96px, 18vmin, 170px)",
-  vsMonsterBoss: "clamp(130px, 24vmin, 220px)",
+  vsPanel: "clamp(80px, 16vmin, 150px)",
+  introBanner: "clamp(84px, 17vmin, 160px)",
   panelBanner: "clamp(64px, 13vmin, 120px)",
   panelBig: "clamp(88px, 18vmin, 160px)",
   attackCard: "clamp(56px, 11vmin, 100px)",
@@ -106,47 +105,85 @@ function rollHitsNeeded(monster: Monster): number {
   return monster.isBoss ? monster.hp : 3 + Math.floor(Math.random() * 2);
 }
 
+// ---------- 전투 연출 타이밍(state 기반 시퀀스). 각 구간이 끝나야 다음 구간으로 넘어간다. ----------
+const INTRO_ENTER_MS = 600;
+const INTRO_HOLD_MS = 600;
+const INTRO_VS_MS = 1300;
+const INTRO_VS_OUT_MS = 200;
+const INTRO_WARNING_MS = 1100;
+const INTRO_WARNING_OUT_MS = 200;
+const INTRO_GAP_MS = 150;
+
+const ATK_WINDUP_MS = 300;
+const ATK_DASH_MS = 500;
+const ATK_IMPACT_MS = 700;
+const ATK_FADEOUT_MS = 500;
+const ATK_RECOVER_MS = 500;
+
+const KO_HOLD_MS = 500;
+const KO_DEFEAT_MS = 700;
+const KO_PANEL_MS = 900;
+const KO_GAP_MS = 500;
+
+// 공격자(플레이어/몬스터) 쪽 캐릭터가 단계별로 상대 쪽으로 얼마나 이동하는지.
+// direction: 1 = 오른쪽(플레이어→몬스터), -1 = 왼쪽(몬스터→플레이어)
+function attackerTransform(stage: AttackStage, direction: 1 | -1): string {
+  switch (stage) {
+    case "windup":
+      return `translateX(${-7 * direction}vmin) scale(0.96)`;
+    case "dash":
+    case "impact":
+      return `translateX(${16 * direction}vmin) scale(1.04)`;
+    default:
+      return "translateX(0) scale(1)";
+  }
+}
+
+function attackerTransitionMs(stage: AttackStage): number {
+  switch (stage) {
+    case "windup":
+      return ATK_WINDUP_MS;
+    case "dash":
+      return ATK_DASH_MS;
+    case "fadeout":
+      return ATK_FADEOUT_MS;
+    default:
+      return 200;
+  }
+}
+
 function BattleStyles() {
   return (
     <style>{`
-      @keyframes vsPop { 0% { transform: scale(0.5); opacity: 0; } 60% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+      @keyframes vsPop { 0% { transform: scale(0.7); opacity: 0; } 60% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
       @keyframes panelPop { 0% { transform: translateY(8px) scale(0.7); opacity: 0; } 40% { transform: translateY(0) scale(1.08); opacity: 1; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
       @keyframes teamJoinPop { 0% { transform: scale(0.7); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-      @keyframes introDarken { 0% { opacity: 0.65; } 100% { opacity: 0; } }
+      @keyframes warningShake { 0%, 100% { transform: translateX(0) scale(1); } 25% { transform: translateX(-3px) scale(1.02); } 50% { transform: translateX(3px) scale(1.04); } 75% { transform: translateX(-2px) scale(1.02); } }
       @keyframes screenShake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 50% { transform: translateX(6px); } 75% { transform: translateX(-4px); } }
       @keyframes cardLunge { 0% { transform: translateY(0) scale(1); } 40% { transform: translateY(-6px) scale(1.04); } 100% { transform: translateY(-6px) scale(1.04); } }
-      @keyframes popupFade { 0% { transform: translateY(6px) scale(0.7); opacity: 0; } 30% { transform: translateY(0) scale(1.1); opacity: 1; } 100% { transform: translateY(-4px) scale(1); opacity: 0; } }
-      @keyframes atkDash { 0%, 100% { transform: translateX(0); } 40%, 60% { transform: translateX(30px); } }
-      @keyframes atkLowDash { 0%, 100% { transform: translateX(0) translateY(4px); } 35%, 60% { transform: translateX(34px) translateY(4px); } }
-      @keyframes atkSwoop { 0% { transform: translate(0, 0); } 30% { transform: translate(-4px, -20px); } 65% { transform: translate(28px, 10px); } 100% { transform: translate(0, 0); } }
-      @keyframes fxPop { 0% { transform: scale(0.4); opacity: 0; } 40% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1.3); opacity: 0; } }
+      @keyframes popupFade { 0% { transform: translateY(6px) scale(0.7); opacity: 0; } 20% { transform: translateY(0) scale(1.1); opacity: 1; } 80% { transform: translateY(0) scale(1); opacity: 1; } 100% { transform: translateY(-4px) scale(1); opacity: 0; } }
+      @keyframes fxPopIn { 0% { transform: scale(0.4); opacity: 0; } 100% { transform: scale(1.15); opacity: 1; } }
       @keyframes monsterHitSm { 0%, 100% { transform: translateX(0) rotate(0deg); } 20% { transform: translateX(-14px) rotate(-4deg); } 45% { transform: translateX(6px) rotate(3deg); } 70% { transform: translateX(-3px) rotate(-1deg); } }
       @keyframes monsterHitBig { 0%, 100% { transform: translateX(0) rotate(0deg) scale(1); } 15% { transform: translateX(-26px) rotate(-8deg) scale(0.94); } 40% { transform: translateX(14px) rotate(7deg) scale(1.05); } 65% { transform: translateX(-8px) rotate(-4deg) scale(0.98); } 85% { transform: translateX(4px) rotate(2deg) scale(1.01); } }
       @keyframes monsterKO { 0% { transform: translateY(0) scale(1) rotate(0deg); opacity: 1; } 100% { transform: translateY(60px) scale(0.35) rotate(30deg); opacity: 0; } }
-      @keyframes playerRecoil { 0%, 100% { transform: translateX(0); } 30% { transform: translateX(-14px) rotate(-6deg); } 60% { transform: translateX(4px) rotate(2deg); } }
-      @keyframes monsterLunge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-40px); } }
+      @keyframes playerRecoil { 0%, 100% { transform: translateX(0) rotate(0deg); } 30% { transform: translateX(-14px) rotate(-6deg); } 60% { transform: translateX(4px) rotate(2deg); } }
       @keyframes auraPulse { 0%, 100% { opacity: 0.55; transform: scale(1); } 50% { opacity: 0.8; transform: scale(1.08); } }
       .anim-vsPop { animation: vsPop 0.4s ease-out; }
       .anim-panelPop { animation: panelPop 0.4s ease-out; }
       .anim-teamJoin { animation: teamJoinPop 0.4s ease-out; }
-      .anim-introDarken { animation: introDarken 1.1s ease-out forwards; }
+      .anim-warningShake { animation: warningShake 0.5s ease-in-out infinite; }
       .anim-screenShake { animation: screenShake 0.3s ease-out; }
       .anim-cardLunge { animation: cardLunge 0.3s ease-out forwards; }
-      .anim-popupFade { animation: popupFade 0.65s ease-out forwards; }
-      .anim-atk-dash { animation: atkDash 0.4s ease-out; }
-      .anim-atk-lowdash { animation: atkLowDash 0.3s ease-out; }
-      .anim-atk-swoop { animation: atkSwoop 0.5s ease-out; }
-      .anim-fxPop { animation: fxPop 0.45s ease-out forwards; }
+      .anim-popupFade { animation: popupFade 1.1s ease-out forwards; }
+      .anim-fxPopIn { animation: fxPopIn 0.22s ease-out forwards; }
       .anim-monsterHitSm { animation: monsterHitSm 0.4s ease-out; }
       .anim-monsterHitBig { animation: monsterHitBig 0.5s ease-out; }
       .anim-monsterKO { animation: monsterKO 0.7s ease-in forwards; }
       .anim-playerRecoil { animation: playerRecoil 0.4s ease-out; }
-      .anim-monsterLunge { animation: monsterLunge 0.4s ease-in-out; }
       .anim-auraPulse { animation: auraPulse 1.8s ease-in-out infinite; }
       @media (prefers-reduced-motion: reduce) {
-        .anim-vsPop, .anim-panelPop, .anim-teamJoin, .anim-introDarken, .anim-screenShake, .anim-cardLunge, .anim-popupFade,
-        .anim-atk-dash, .anim-atk-lowdash, .anim-atk-swoop, .anim-fxPop,
-        .anim-monsterHitSm, .anim-monsterHitBig, .anim-monsterKO, .anim-playerRecoil, .anim-monsterLunge, .anim-auraPulse { animation: none; }
+        .anim-vsPop, .anim-panelPop, .anim-teamJoin, .anim-warningShake, .anim-screenShake, .anim-cardLunge, .anim-popupFade,
+        .anim-fxPopIn, .anim-monsterHitSm, .anim-monsterHitBig, .anim-monsterKO, .anim-playerRecoil, .anim-auraPulse { animation: none; }
       }
     `}</style>
   );
@@ -193,7 +230,6 @@ export default function BattleGame({
   const [timeLimitMs, setTimeLimitMs] = useState(() => timeLimitForStage(0) * 1000);
   const [combo, setCombo] = useState(0);
   const [feedback, setFeedback] = useState<Feedback>(null);
-  const [mainAttacking, setMainAttacking] = useState(false);
   const [monsterHitKey, setMonsterHitKey] = useState(0);
   const [playerHitKey, setPlayerHitKey] = useState(0);
   const [teamAttackActive, setTeamAttackActive] = useState(false);
@@ -205,24 +241,292 @@ export default function BattleGame({
   const [fxKey, setFxKey] = useState(0);
   const [entranceKind, setEntranceKind] = useState<EntranceKind>("normal");
   const [screenShakeKey, setScreenShakeKey] = useState(0);
-  const [phase, setPhase] = useState<Phase>("vs");
+  const [phase, setPhase] = useState<Phase>("intro");
+  const [introStage, setIntroStage] = useState<IntroStage>("enter");
+  const [slidIn, setSlidIn] = useState(false);
+  const [introKey, setIntroKey] = useState(0);
+  const [attackStage, setAttackStage] = useState<AttackStage>(null);
+  const [koStage, setKoStage] = useState<KoStage>(null);
   const [bgmOn, setBgmOn] = useState(getBgmPref);
+
+  const seqRef = useRef(0);
+  function startSeq() {
+    seqRef.current += 1;
+    return seqRef.current;
+  }
+  function isCurrentSeq(id: number) {
+    return seqRef.current === id;
+  }
+
+  function setUpQuestion(q: Question, stage: number) {
+    setQuestion(q);
+    setLetterPool(shuffledLetters(q.word.english));
+    setPlacedLetters([]);
+    const limitSec = timeLimitForStage(stage);
+    setTimeLimitMs(limitSec * 1000);
+    setTimeLeftMs(limitSec * 1000);
+  }
+
+  // [intro] 배경/캐릭터 등장 → 대치 → VS → (WARNING/BOSS BATTLE) → 전투 시작.
+  // 각 구간이 끝나야 다음 구간으로 넘어가도록 하나의 시퀀스로 예약한다.
+  function runIntro(kind: EntranceKind) {
+    const id = startSeq();
+    const at = (ms: number, fn: () => void) =>
+      setTimeout(() => {
+        if (isCurrentSeq(id)) fn();
+      }, ms);
+
+    at(INTRO_ENTER_MS, () => setIntroStage("hold"));
+    at(INTRO_ENTER_MS + INTRO_HOLD_MS, () => setIntroStage("vs"));
+    const vsEnd = INTRO_ENTER_MS + INTRO_HOLD_MS + INTRO_VS_MS;
+    at(vsEnd, () => setIntroStage("vsOut"));
+    let afterVsOut = vsEnd + INTRO_VS_OUT_MS;
+    if (kind !== "normal") {
+      at(afterVsOut, () => {
+        setIntroStage("warning");
+        sfxWarning();
+      });
+      const warnEnd = afterVsOut + INTRO_WARNING_MS;
+      at(warnEnd, () => setIntroStage("warningOut"));
+      afterVsOut = warnEnd + INTRO_WARNING_OUT_MS;
+    }
+    at(afterVsOut + INTRO_GAP_MS, () => setPhase("battle"));
+  }
+
+  function beginEncounter(count: number) {
+    const m = nextMonster(count);
+    const hits = rollHitsNeeded(m);
+    const kind = rollEntrance(!!m.isBoss);
+    setMonster(m);
+    setMonsterMaxHp(hits);
+    setMonsterHp(hits);
+    setEntranceKind(kind);
+    setUpQuestion(makeQuestion(words, question?.word.id ?? null), count);
+    setFeedback(null);
+    setAttackStage(null);
+    setKoStage(null);
+    setTeamAttackActive(false);
+    setFxKind(null);
+    setSlidIn(false);
+    setIntroKey((k) => k + 1);
+    setIntroStage("enter");
+    setPhase("intro");
+    runIntro(kind);
+  }
+
+  function handleRetryRun() {
+    setDefeatedCount(0);
+    setTeam(["tiger"]);
+    setPlayerHp(PLAYER_MAX_HP);
+    setCombo(0);
+    setDefeatedTotal(0);
+    beginEncounter(0);
+  }
+
+  // 글자 타일을 눌러 스펠링을 완성하면(다 채워지면) 자동으로 정답 여부를 판정한다.
+  function tapPoolLetter(item: LetterTile) {
+    if (!question || feedback) return;
+    const nextPlaced = [...placedLetters, item];
+    setLetterPool((p) => p.filter((x) => x.id !== item.id));
+    setPlacedLetters(nextPlaced);
+    if (nextPlaced.length === question.word.english.length) {
+      const built = nextPlaced.map((x) => x.ch).join("");
+      resolveAnswer(built.toLowerCase() === question.word.english.toLowerCase());
+    }
+  }
+
+  function tapPlacedLetter(item: LetterTile) {
+    if (!question || feedback) return;
+    setPlacedLetters((p) => p.filter((x) => x.id !== item.id));
+    setLetterPool((p) => [...p, item]);
+  }
+
+  function handleTimeout() {
+    if (!question || feedback) return;
+    resolveAnswer(false);
+  }
+
+  // [정답 → 플레이어 공격] / [오답 → 몬스터 공격] 연출 시퀀스.
+  // windup → dash(+이펙트 등장) → impact(+피격) → fadeout(+원위치 복귀) → recover(정지) → 완료
+  function runAttackSequence(opts: {
+    onDash: () => void;
+    onImpact: () => void;
+    onFadeout?: () => void;
+    onComplete: () => void;
+  }) {
+    const id = startSeq();
+    const at = (ms: number, fn: () => void) =>
+      setTimeout(() => {
+        if (isCurrentSeq(id)) fn();
+      }, ms);
+
+    setAttackStage("windup");
+    at(ATK_WINDUP_MS, () => {
+      setAttackStage("dash");
+      opts.onDash();
+    });
+    const impactAt = ATK_WINDUP_MS + ATK_DASH_MS;
+    at(impactAt, () => {
+      setAttackStage("impact");
+      opts.onImpact();
+    });
+    const fadeAt = impactAt + ATK_IMPACT_MS;
+    at(fadeAt, () => {
+      setAttackStage("fadeout");
+      opts.onFadeout?.();
+    });
+    const recoverAt = fadeAt + ATK_FADEOUT_MS;
+    at(recoverAt, () => setAttackStage("recover"));
+    const doneAt = recoverAt + ATK_RECOVER_MS;
+    at(doneAt, () => {
+      setAttackStage(null);
+      setFxKind(null);
+      opts.onComplete();
+    });
+  }
+
+  // [몬스터 처치] 공격 연출이 끝난 뒤: 잠깐 정지 → 쓰러짐 애니메이션 → 페이드아웃 → 다음 스테이지.
+  function runKoSequence(stage: number) {
+    const id = startSeq();
+    const at = (ms: number, fn: () => void) =>
+      setTimeout(() => {
+        if (isCurrentSeq(id)) fn();
+      }, ms);
+
+    setKoStage("hold");
+    at(KO_HOLD_MS, () => {
+      setKoStage("defeat");
+      sfxKO();
+    });
+    at(KO_HOLD_MS + KO_DEFEAT_MS, () => {
+      setKoStage("panel");
+      sfxVictory();
+    });
+    at(KO_HOLD_MS + KO_DEFEAT_MS + KO_PANEL_MS + KO_GAP_MS, () => {
+      setKoStage(null);
+      const nextCount = stage + 1;
+      setDefeatedCount(nextCount);
+      setDefeatedTotal(nextCount);
+      beginEncounter(nextCount);
+    });
+  }
+
+  function resolveAnswer(ok: boolean) {
+    if (!question || feedback) return;
+    const capturedWordId = question.word.id;
+    const capturedStage = defeatedCount;
+    setFeedback(ok ? "correct" : "wrong");
+    playTone(ok ? "correct" : "wrong");
+
+    if (ok) {
+      const nextCombo = combo + 1;
+
+      // setState 업데이터가 이 자리에서 곧바로 실행되지 않으므로, team/combo는
+      // 현재 state 값을 직접 읽어 다음 값을 계산한다 (다른 값들과 동일한 방식).
+      let joinedId: TeamId | null = null;
+      let nextTeam = team;
+      if (nextCombo === 2 && team.length < 2) {
+        joinedId = TEAM_ORDER[1];
+        nextTeam = [...team, joinedId];
+      }
+      const teamAttack = nextCombo === 3;
+      if (teamAttack && team.length < 3) {
+        joinedId = TEAM_ORDER[2];
+        nextTeam = [...team, joinedId];
+      }
+      if (nextTeam !== team) setTeam(nextTeam);
+      setCombo(teamAttack ? 0 : nextCombo);
+
+      const damage = teamAttack ? 2 : 1;
+      const newMonsterHp = Math.max(0, monsterHp - damage);
+      setMonsterHp(newMonsterHp);
+      const lethal = newMonsterHp <= 0;
+
+      if (joinedId) {
+        const label = `NEW FRIEND! ${TEAM_INFO[joinedId].name}`;
+        setJoinLabel(label);
+        setTimeout(() => setJoinLabel((cur) => (cur === label ? null : cur)), 1400);
+        sfxJoin();
+      }
+      if (teamAttack) setTeamAttackActive(true);
+
+      runAttackSequence({
+        onDash: () => {
+          setFxKind(teamAttack || monster.isBoss ? "critical" : "slash");
+          setFxKey((k) => k + 1);
+          if (!teamAttack) {
+            setAttackPopup(rollAttackKind());
+            setPopupKey((k) => k + 1);
+          }
+          if (teamAttack) sfxTeamAttack();
+          else if (monster.isBoss) sfxHitBig();
+          else sfxSlash();
+        },
+        onImpact: () => {
+          setMonsterHitKey((k) => k + 1);
+          setScreenShakeKey((k) => k + 1);
+        },
+        onFadeout: () => {
+          setAttackPopup(null);
+        },
+        onComplete: () => {
+          setTeamAttackActive(false);
+          if (lethal) {
+            runKoSequence(capturedStage);
+          } else {
+            setUpQuestion(makeQuestion(words, capturedWordId), capturedStage);
+            setFeedback(null);
+          }
+        },
+      });
+    } else {
+      setCombo(0);
+      const newPlayerHp = Math.max(0, playerHp - 1);
+      setPlayerHp(newPlayerHp);
+      const gameOver = newPlayerHp <= 0;
+
+      runAttackSequence({
+        onDash: () => {
+          setFxKind("slash");
+          setFxKey((k) => k + 1);
+          sfxWrong();
+        },
+        onImpact: () => {
+          setPlayerHitKey((k) => k + 1);
+          setScreenShakeKey((k) => k + 1);
+          setWrongLabelKey((k) => k + 1);
+        },
+        onComplete: () => {
+          if (gameOver) {
+            setPhase("gameover");
+          } else {
+            setUpQuestion(makeQuestion(words, capturedWordId), capturedStage);
+            setFeedback(null);
+          }
+        },
+      });
+    }
+  }
 
   // 첫 몬스터도 HP 랜덤 타수/등장 연출이 제대로 적용되도록 마운트 시 한 번 다시 굴린다.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 최초 스테이지 진입 자체가 이 컴포넌트의 목적이라 마운트 시 곧바로 시작한다.
     beginEncounter(0);
     return () => {
       stopBgm();
+      seqRef.current += 1; // 남아있는 예약된 타이머를 전부 무효화
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 캐릭터 슬라이드 인: off-screen 상태(slidIn=false)가 화면에 한 번 그려진 뒤에
+  // (useEffect는 브라우저가 페인트한 다음에 실행된다) on-screen으로 바꿔야
+  // CSS transition이 "이동하는 모습"으로 보인다. 곧바로 바꾸면 두 상태가 한 프레임에
+  // 합쳐져서 트랜지션 없이 순간이동해 버린다.
   useEffect(() => {
-    if (phase !== "vs") return;
-    if (entranceKind !== "normal") sfxWarning();
-    const t = setTimeout(() => setPhase("battle"), entranceKind === "normal" ? 800 : 1300);
-    return () => clearTimeout(t);
-  }, [phase, entranceKind]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 위 설명대로, 페인트 이후 슬라이드 인을 트리거하는 것이 목적.
+    setSlidIn(true);
+  }, [introKey]);
 
   // 전투 화면에 들어와 있는 동안에는 배경음을 재생 (사용자가 끄면 끄고, 다시 켜면 재생).
   useEffect(() => {
@@ -264,161 +568,21 @@ export default function BattleGame({
     );
   }
 
-  function setUpQuestion(q: Question, stage: number) {
-    setQuestion(q);
-    setLetterPool(shuffledLetters(q.word.english));
-    setPlacedLetters([]);
-    const limitSec = timeLimitForStage(stage);
-    setTimeLimitMs(limitSec * 1000);
-    setTimeLeftMs(limitSec * 1000);
-  }
-
-  function beginEncounter(count: number) {
-    const m = nextMonster(count);
-    const hits = rollHitsNeeded(m);
-    setMonster(m);
-    setMonsterMaxHp(hits);
-    setMonsterHp(hits);
-    setEntranceKind(rollEntrance(!!m.isBoss));
-    setUpQuestion(makeQuestion(words, question?.word.id ?? null), count);
-    setFeedback(null);
-    setPhase("vs");
-  }
-
-  function handleRetryRun() {
-    setDefeatedCount(0);
-    setTeam(["tiger"]);
-    setPlayerHp(PLAYER_MAX_HP);
-    setCombo(0);
-    setDefeatedTotal(0);
-    beginEncounter(0);
-  }
-
-  // 글자 타일을 눌러 스펠링을 완성하면(다 채워지면) 자동으로 정답 여부를 판정한다.
-  function tapPoolLetter(item: LetterTile) {
-    if (!question || feedback) return;
-    const nextPlaced = [...placedLetters, item];
-    setLetterPool((p) => p.filter((x) => x.id !== item.id));
-    setPlacedLetters(nextPlaced);
-    if (nextPlaced.length === question.word.english.length) {
-      const built = nextPlaced.map((x) => x.ch).join("");
-      resolveAnswer(built.toLowerCase() === question.word.english.toLowerCase());
-    }
-  }
-
-  function tapPlacedLetter(item: LetterTile) {
-    if (!question || feedback) return;
-    setPlacedLetters((p) => p.filter((x) => x.id !== item.id));
-    setLetterPool((p) => [...p, item]);
-  }
-
-  function handleTimeout() {
-    if (!question || feedback) return;
-    resolveAnswer(false);
-  }
-
-  function resolveAnswer(ok: boolean) {
-    if (!question || feedback) return;
-    playTone(ok ? "correct" : "wrong");
-
-    if (ok) {
-      setFeedback("correct");
-      const nextCombo = combo + 1;
-
-      // setState 업데이터가 이 자리에서 곧바로 실행되지 않으므로, team/combo는
-      // 현재 state 값을 직접 읽어 다음 값을 계산한다 (다른 값들과 동일한 방식).
-      let joinedId: TeamId | null = null;
-      let nextTeam = team;
-      if (nextCombo === 2 && team.length < 2) {
-        joinedId = TEAM_ORDER[1];
-        nextTeam = [...team, joinedId];
-      }
-      const teamAttack = nextCombo === 3;
-      if (teamAttack && team.length < 3) {
-        joinedId = TEAM_ORDER[2];
-        nextTeam = [...team, joinedId];
-      }
-      if (nextTeam !== team) setTeam(nextTeam);
-
-      const damage = teamAttack ? 2 : 1;
-      const newHp = Math.max(0, monsterHp - damage);
-      setMonsterHp(newHp);
-
-      if (joinedId) {
-        setJoinLabel(`NEW FRIEND! ${TEAM_INFO[joinedId].name}`);
-        setTimeout(() => setJoinLabel(null), 900);
-        sfxJoin();
-      }
-
-      setFxKind(teamAttack || monster.isBoss ? "critical" : "slash");
-      setFxKey((k) => k + 1);
-      setMonsterHitKey((k) => k + 1);
-
-      if (teamAttack) {
-        setTeamAttackActive(true);
-        setScreenShakeKey((k) => k + 1);
-        setCombo(0);
-        setTimeout(() => setTeamAttackActive(false), 650);
-        sfxTeamAttack();
-      } else {
-        setMainAttacking(true);
-        setAttackPopup(rollAttackKind());
-        setPopupKey((k) => k + 1);
-        setCombo(nextCombo);
-        setTimeout(() => setMainAttacking(false), 420);
-        setTimeout(() => setAttackPopup(null), 500);
-        if (monster.isBoss) sfxHitBig();
-        else sfxSlash();
-      }
-
-      setTimeout(
-        () => {
-          if (newHp <= 0) {
-            setPhase("ko");
-            sfxKO();
-            setTimeout(() => sfxVictory(), 350);
-            setTimeout(() => {
-              const nextCount = defeatedCount + 1;
-              setDefeatedCount(nextCount);
-              setDefeatedTotal(nextCount);
-              beginEncounter(nextCount);
-            }, 900);
-          } else {
-            setUpQuestion(makeQuestion(words, question.word.id), defeatedCount);
-            setFeedback(null);
-          }
-        },
-        teamAttack ? 700 : 550
-      );
-    } else {
-      setCombo(0);
-      setFeedback("wrong");
-      setScreenShakeKey((k) => k + 1);
-      setPlayerHitKey((k) => k + 1);
-      setWrongLabelKey((k) => k + 1);
-      sfxWrong();
-      const newPlayerHp = Math.max(0, playerHp - 1);
-      setPlayerHp(newPlayerHp);
-
-      setTimeout(() => {
-        if (newPlayerHp <= 0) {
-          setPhase("gameover");
-        } else {
-          setUpQuestion(makeQuestion(words, question.word.id), defeatedCount);
-          setFeedback(null);
-        }
-      }, 900);
-    }
-  }
-
   if (phase === "gameover") {
     return (
-      <div className="flex flex-col items-center gap-4 py-8">
+      <div className="relative rounded-3xl bg-white flex flex-col items-center gap-5 px-6 py-10">
         <BattleStyles />
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={`${A}/ui/panels/game_over.png`} alt="TRY AGAIN" className="anim-panelPop" style={{ height: SIZE.panelBig }} />
-        <p className="text-gray-600 text-sm">이번 판에서 몬스터 {defeatedTotal}마리를 물리쳤어요!</p>
-        <div className="flex gap-2 w-full max-w-xs mt-2">
+        <img
+          src={`${A}/ui/panels/game_over.png`}
+          alt="TRY AGAIN"
+          className="anim-panelPop object-contain"
+          style={{ height: SIZE.panelBig }}
+        />
+        <p className="text-gray-600 text-sm text-center leading-relaxed">
+          이번 판에서 몬스터 {defeatedTotal}마리를 물리쳤어요!
+        </p>
+        <div className="flex gap-2 w-full max-w-xs">
           <button
             onClick={handleRetryRun}
             className="flex-1 py-3 rounded-full bg-sky-600 text-white font-bold active:scale-95 transition"
@@ -436,73 +600,30 @@ export default function BattleGame({
     );
   }
 
-  if (phase === "vs") {
-    return (
-      <div
-        className="relative rounded-3xl overflow-hidden p-6 flex flex-col items-center justify-center gap-3 min-h-[22rem] bg-cover bg-center"
-        style={{ backgroundImage: `url(${bgFor(!!monster.isBoss)})` }}
-      >
-        <BattleStyles />
-        <div className="absolute inset-0 bg-black/15 pointer-events-none" />
-        {entranceKind === "boss" && (
-          <div className="absolute inset-0 bg-black anim-introDarken pointer-events-none" />
-        )}
-        <p className="absolute top-3 left-4 text-[11px] text-white font-bold tracking-widest drop-shadow z-10">
-          STAGE {defeatedCount + 1}
-        </p>
-        <div className="relative flex items-center justify-center gap-[4vmin] anim-vsPop">
-          <div className="flex flex-col items-center">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={TEAM_INFO[team[0]].idle}
-              alt=""
-              className="object-contain drop-shadow"
-              style={{ width: SIZE.vsChar, height: SIZE.vsChar }}
-            />
-            {team.length > 1 && (
-              <div className="flex gap-1 -mt-1">
-                {team.slice(1).map((id) => (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    key={id}
-                    src={TEAM_INFO[id].idle}
-                    alt=""
-                    className="object-contain opacity-90"
-                    style={{ width: SIZE.vsCharMini, height: SIZE.vsCharMini }}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={`${A}/ui/panels/vs_panel.png`} alt="VS" style={{ height: SIZE.vsPanel }} />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={monster.img}
-            alt={monster.name}
-            className="object-contain drop-shadow"
-            style={{ width: monster.isBoss ? SIZE.vsMonsterBoss : SIZE.vsMonster, height: monster.isBoss ? SIZE.vsMonsterBoss : SIZE.vsMonster }}
-          />
-        </div>
-        {entranceKind === "warning" && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={`${A}/ui/panels/warning_panel.png`} alt="WARNING" className="relative anim-panelPop" style={{ height: SIZE.panelBanner }} />
-        )}
-        {entranceKind === "boss" && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={`${A}/ui/panels/boss_panel.png`} alt="BOSS BATTLE" className="relative anim-panelPop" style={{ height: SIZE.panelBig }} />
-        )}
-        <p className="relative text-sm text-white font-bold drop-shadow">{monster.name}</p>
-      </div>
-    );
-  }
-
   if (!question) return null;
 
   const promptText = question.word.korean;
   const isFlying = monster.id === "bat" && !monster.isBoss;
   const timePct = Math.max(0, Math.min(100, (timeLeftMs / timeLimitMs) * 100));
   const timeBarColor = timePct > 50 ? "bg-emerald-400" : timePct > 20 ? "bg-yellow-400" : "bg-red-500";
+
+  const playerAttacking = feedback === "correct" && attackStage !== null;
+  const monsterAttacking = feedback === "wrong" && attackStage !== null;
+  const playerSpriteAttacking =
+    feedback === "correct" && (attackStage === "windup" || attackStage === "dash" || attackStage === "impact");
+
+  const playerWrapTransform = phase === "intro" ? (slidIn ? "translateX(0)" : "translateX(-32vmin)") : playerAttacking ? attackerTransform(attackStage, 1) : "translateX(0)";
+  const playerWrapDuration = phase === "intro" ? INTRO_ENTER_MS : attackerTransitionMs(attackStage);
+  const monsterWrapTransform = phase === "intro" ? (slidIn ? "translateX(0)" : "translateX(32vmin)") : monsterAttacking ? attackerTransform(attackStage, -1) : "translateX(0)";
+  const monsterWrapDuration = phase === "intro" ? INTRO_ENTER_MS : attackerTransitionMs(attackStage);
+
+  const showIntroVs = phase === "intro" && (introStage === "vs" || introStage === "vsOut");
+  const showIntroWarning = phase === "intro" && (introStage === "warning" || introStage === "warningOut");
+  const introBannerImg = entranceKind === "boss" ? `${A}/ui/panels/boss_panel.png` : `${A}/ui/panels/warning_panel.png`;
+  const introBannerAlt = entranceKind === "boss" ? "BOSS BATTLE" : "WARNING";
+
+  const showBottomUI = phase === "battle" && koStage === null;
+  const showQuestionInputs = showBottomUI;
 
   return (
     <div
@@ -516,14 +637,14 @@ export default function BattleGame({
       <div className="absolute inset-0 bg-black/15 pointer-events-none" />
 
       {teamAttackActive ? (
-        <div className="absolute inset-x-0 top-1 z-30 flex justify-center pointer-events-none">
+        <div className="absolute inset-x-0 top-1 z-30 flex justify-center pointer-events-none px-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={`${A}/ui/panels/team_attack.png`} alt="TEAM ATTACK" className="anim-panelPop" style={{ height: SIZE.panelBanner }} />
+          <img src={`${A}/ui/panels/team_attack.png`} alt="TEAM ATTACK" className="anim-panelPop object-contain max-w-[85%]" style={{ height: SIZE.panelBanner }} />
         </div>
       ) : (
         joinLabel && (
-          <div className="absolute inset-x-0 top-1 z-30 flex justify-center pointer-events-none">
-            <p className="anim-panelPop bg-white/90 rounded-full px-3 py-1 text-xs font-black text-sky-600 tracking-wide shadow">
+          <div className="absolute inset-x-0 top-1 z-30 flex justify-center pointer-events-none px-4">
+            <p className="anim-panelPop bg-white/90 rounded-full px-3 py-1.5 text-xs font-black text-sky-600 tracking-wide shadow leading-normal text-center">
               {joinLabel}
             </p>
           </div>
@@ -533,7 +654,7 @@ export default function BattleGame({
       {/* 상단: 아주 작은 스테이지 표시 + 몬스터 이름/HP바 한 줄, 플레이어 하트 */}
       <div className="relative z-10 flex flex-col gap-1 px-3 pt-2">
         <div className="flex items-center justify-between">
-          <span className="text-[10px] text-white/80 font-bold tracking-widest drop-shadow">
+          <span className="text-[10px] text-white/80 font-bold tracking-widest drop-shadow leading-normal">
             STAGE {defeatedCount + 1}
           </span>
           <div className="flex items-center gap-2">
@@ -548,7 +669,7 @@ export default function BattleGame({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className={`text-xs font-bold drop-shadow ${monster.isBoss ? "text-red-300" : "text-white"}`}>
+          <span className={`text-xs font-bold drop-shadow leading-normal ${monster.isBoss ? "text-red-300" : "text-white"}`}>
             {monster.isBoss ? "👑 " : ""}
             {monster.name}
           </span>
@@ -561,42 +682,86 @@ export default function BattleGame({
         </div>
       </div>
 
-      {/* 중앙: 전투 무대 (화면의 대부분을 차지). 캐릭터와 몬스터가 화면 비율(가로/세로)에
-          관계없이 항상 중앙 부근에서 만나도록 justify-between 대신 justify-center + 반응형
-          간격을 쓴다. 크기도 vmin 기준이라 화면이 회전해도 비율이 유지된다. */}
+      {/* 중앙: 전투 무대. 캐릭터와 몬스터가 화면 비율(가로/세로)에 관계없이 항상 중앙 부근에서
+          만나도록 justify-center + 반응형 간격을 쓰고, 크기도 vmin 기준이라 화면이 회전해도
+          비율이 유지된다. intro 단계의 VS/WARNING도 이 영역 안에 절대 위치로 겹쳐서 보여준다. */}
       <div
-        className="relative z-10 flex items-end justify-center gap-[5vmin] px-4 py-2 flex-1"
-        style={{ minHeight: "clamp(210px, 42vmin, 380px)" }}
+        className="relative z-10 flex items-end justify-center gap-[5vmin] px-4 py-4 flex-1"
+        style={{ minHeight: "clamp(220px, 44vmin, 400px)" }}
       >
-        {feedback === "wrong" && (
-          <p key={wrongLabelKey} className="anim-popupFade absolute left-6 top-2 text-lg font-black text-red-300 drop-shadow z-20">
+        {/* intro: VS */}
+        {showIntroVs && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none px-6">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`${A}/ui/panels/vs_panel.png`}
+              alt="VS"
+              className="anim-vsPop object-contain max-w-[60%]"
+              style={{
+                height: SIZE.vsPanel,
+                opacity: introStage === "vs" ? 1 : 0,
+                transition: `opacity ${INTRO_VS_OUT_MS}ms ease-in`,
+              }}
+            />
+          </div>
+        )}
+        {/* intro: WARNING / BOSS BATTLE */}
+        {showIntroWarning && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none px-6">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={introBannerImg}
+              alt={introBannerAlt}
+              className="anim-warningShake object-contain max-w-[75%]"
+              style={{
+                height: SIZE.introBanner,
+                opacity: introStage === "warning" ? 1 : 0,
+                transition: `opacity ${INTRO_WARNING_OUT_MS}ms ease-in`,
+              }}
+            />
+          </div>
+        )}
+
+        {showBottomUI && feedback === "wrong" && (
+          <p key={wrongLabelKey} className="anim-popupFade absolute left-6 top-2 text-lg font-black text-red-300 drop-shadow z-20 leading-normal">
             OOPS!
           </p>
         )}
-        {attackPopup && !teamAttackActive && (
+        {showBottomUI && attackPopup && !teamAttackActive && (
           <div key={popupKey} className="anim-popupFade absolute left-[15%] top-0 z-20 flex flex-col items-center pointer-events-none">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={attackPopup.img} alt="" className="object-contain" style={{ width: SIZE.attackCard, height: SIZE.attackCard }} />
-            <span className="text-sm font-black text-white drop-shadow">{attackPopup.label}</span>
+            <span className="text-sm font-black text-white drop-shadow leading-normal">{attackPopup.label}</span>
           </div>
         )}
 
         {/* 플레이어 팀: 메인 캐릭터를 중심으로 나머지가 뒤에 겹쳐서 "하나의 팀"처럼 보이게 배치 */}
         {teamAttackActive ? (
-          <div className="flex items-end gap-1">
+          <div
+            className="flex items-end gap-1"
+            style={{ transform: playerWrapTransform, transition: `transform ${playerWrapDuration}ms ease-out` }}
+          >
             {team.map((id) => (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 key={id}
                 src={TEAM_INFO[id].attack}
                 alt=""
-                className={`object-contain drop-shadow anim-atk-${TEAM_INFO[id].style}`}
+                className="object-contain drop-shadow"
                 style={{ width: SIZE.attackImg, height: SIZE.attackImg }}
               />
             ))}
           </div>
         ) : (
-          <div className="relative" style={{ width: SIZE.clusterW, height: SIZE.clusterH }}>
+          <div
+            className="relative"
+            style={{
+              width: SIZE.clusterW,
+              height: SIZE.clusterH,
+              transform: playerWrapTransform,
+              transition: `transform ${playerWrapDuration}ms ease-out`,
+            }}
+          >
             {/* 세 번째 합류(흑표범): 메인과 같은 바닥선, 뒤쪽 오른편에 겹치게 */}
             {team[2] && (
               // eslint-disable-next-line @next/next/no-img-element
@@ -619,22 +784,42 @@ export default function BattleGame({
                 style={{ width: SIZE.team, height: SIZE.team, left: 0, bottom: SIZE.teamOffsetBottom, zIndex: 5 }}
               />
             )}
+            {/* 공격 이펙트: 몬스터가 플레이어를 공격했을 때(오답), 플레이어 위치에 표시 */}
+            {feedback === "wrong" && fxKind && attackStage && attackStage !== "windup" && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={fxKey}
+                src={`${A}/effects/${fxKind}.png`}
+                alt=""
+                className="anim-fxPopIn absolute -top-4 left-2 object-contain pointer-events-none z-20"
+                style={{
+                  width: SIZE.fx,
+                  height: SIZE.fx,
+                  opacity: attackStage === "fadeout" || attackStage === "recover" ? 0 : 1,
+                  transition: `opacity ${ATK_FADEOUT_MS}ms ease-in`,
+                }}
+              />
+            )}
             {/* 메인 캐릭터: 가장 크게, 맨 앞 */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={mainAttacking ? TEAM_INFO[team[0]].attack : TEAM_INFO[team[0]].idle}
+              key={`player-${playerHitKey}`}
+              src={playerSpriteAttacking ? TEAM_INFO[team[0]].attack : TEAM_INFO[team[0]].idle}
               alt=""
               className={`absolute object-contain drop-shadow ${
-                mainAttacking ? `anim-atk-${TEAM_INFO[team[0]].style}` : ""
-              } ${feedback === "wrong" ? "anim-playerRecoil" : ""}`}
+                feedback === "wrong" && (attackStage === "impact" || attackStage === "fadeout") ? "anim-playerRecoil" : ""
+              }`}
               style={{ width: SIZE.main, height: SIZE.main, left: "12%", bottom: 0, zIndex: 10 }}
             />
           </div>
         )}
 
         {/* 몬스터 */}
-        <div className="relative flex items-end">
-          {monster.isBoss && phase !== "ko" && (
+        <div
+          className="relative flex items-end"
+          style={{ transform: monsterWrapTransform, transition: `transform ${monsterWrapDuration}ms ease-out` }}
+        >
+          {monster.isBoss && koStage !== "panel" && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={`${A}/effects/dark_aura.png`}
@@ -643,53 +828,54 @@ export default function BattleGame({
               style={{ width: SIZE.aura, height: SIZE.aura }}
             />
           )}
-          {phase === "ko" ? (
+          {/* 공격 이펙트: 플레이어가 몬스터를 공격했을 때(정답), 몬스터 위치에 표시 */}
+          {feedback === "correct" && fxKind && attackStage && attackStage !== "windup" && koStage === null && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
+              key={fxKey}
+              src={`${A}/effects/${fxKind}.png`}
+              alt=""
+              className="anim-fxPopIn absolute -top-4 right-2 object-contain pointer-events-none z-20"
+              style={{
+                width: SIZE.fx,
+                height: SIZE.fx,
+                opacity: attackStage === "fadeout" || attackStage === "recover" ? 0 : 1,
+                transition: `opacity ${ATK_FADEOUT_MS}ms ease-in`,
+              }}
+            />
+          )}
+          {koStage === "panel" ? null : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={`monster-${monsterHitKey}`}
               src={monster.img}
               alt={monster.name}
-              className="relative object-contain anim-monsterKO"
-              style={{ width: monster.isBoss ? SIZE.boss : SIZE.monster, height: monster.isBoss ? SIZE.boss : SIZE.monster }}
+              className={`relative object-contain ${
+                koStage === "defeat"
+                  ? "anim-monsterKO"
+                  : feedback === "correct" && (attackStage === "impact" || attackStage === "fadeout")
+                  ? teamAttackActive || monster.isBoss
+                    ? "anim-monsterHitBig"
+                    : "anim-monsterHitSm"
+                  : ""
+              }`}
+              style={{
+                width: monster.isBoss ? SIZE.boss : SIZE.monster,
+                height: monster.isBoss ? SIZE.boss : SIZE.monster,
+                transform: isFlying ? "translateY(-1.5rem)" : undefined,
+              }}
             />
-          ) : (
-            <>
-              {fxKind && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  key={fxKey}
-                  src={`${A}/effects/${fxKind}.png`}
-                  alt=""
-                  className="absolute -top-4 right-4 object-contain anim-fxPop pointer-events-none z-10"
-                  style={{ width: SIZE.fx, height: SIZE.fx }}
-                />
-              )}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                key={`monster-${monsterHitKey}`}
-                src={monster.img}
-                alt={monster.name}
-                className={`relative object-contain ${isFlying ? "-translate-y-6" : ""} ${
-                  feedback === "wrong"
-                    ? "anim-monsterLunge"
-                    : feedback === "correct"
-                    ? teamAttackActive || monster.isBoss
-                      ? "anim-monsterHitBig"
-                      : "anim-monsterHitSm"
-                    : ""
-                }`}
-                style={{ width: monster.isBoss ? SIZE.boss : SIZE.monster, height: monster.isBoss ? SIZE.boss : SIZE.monster }}
-              />
-            </>
           )}
         </div>
       </div>
 
-      {phase === "ko" && (
+      {koStage === "panel" && (
         <div className="relative z-10 flex flex-col items-center gap-1 pb-3 anim-panelPop">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={`${A}/ui/panels/${monster.isBoss ? "victory" : "ko"}.png`}
             alt={monster.isBoss ? "VICTORY" : "KO"}
+            className="object-contain"
             style={{ height: monster.isBoss ? SIZE.panelBig : SIZE.panelBanner }}
           />
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -698,7 +884,7 @@ export default function BattleGame({
       )}
 
       {/* 하단: 남은 시간 바 + 질문(한국어 뜻) + 알파벳 타일을 눌러 스펠링 조합 */}
-      {phase !== "ko" && (
+      {showBottomUI && (
         <div className="relative z-10 flex flex-col gap-2 px-3 pb-3">
           <div className="h-1.5 rounded-full bg-white/25 overflow-hidden mx-2">
             <div
@@ -706,7 +892,7 @@ export default function BattleGame({
               style={{ width: `${timePct}%` }}
             />
           </div>
-          <p className="text-center text-sm font-bold text-white bg-black/35 rounded-full py-1 mx-8">
+          <p className="text-center text-sm font-bold text-white bg-black/35 rounded-full py-1 mx-8 leading-normal">
             &quot;{promptText}&quot;
           </p>
 
@@ -716,14 +902,14 @@ export default function BattleGame({
               <button
                 key={item.id}
                 onClick={() => tapPlacedLetter(item)}
-                disabled={!!feedback}
-                className="w-9 h-9 rounded-lg bg-white/90 border-2 border-sky-300 font-black text-base text-sky-700 uppercase"
+                disabled={!showQuestionInputs || !!feedback}
+                className="w-9 h-9 rounded-lg bg-white/90 border-2 border-sky-300 font-black text-base text-sky-700 uppercase leading-normal"
               >
                 {item.ch}
               </button>
             ))}
             {feedback === "wrong" && (
-              <span className="w-full text-center text-xs font-bold text-red-200">
+              <span className="w-full text-center text-xs font-bold text-red-200 leading-relaxed py-0.5">
                 정답: {question.word.english.toUpperCase()}
               </span>
             )}
@@ -735,8 +921,8 @@ export default function BattleGame({
               <button
                 key={item.id}
                 onClick={() => tapPoolLetter(item)}
-                disabled={!!feedback}
-                className="w-9 h-9 rounded-lg bg-white border-2 border-white/70 font-black text-base text-gray-700 uppercase active:scale-95 transition"
+                disabled={!showQuestionInputs || !!feedback}
+                className="w-9 h-9 rounded-lg bg-white border-2 border-white/70 font-black text-base text-gray-700 uppercase active:scale-95 transition leading-normal"
               >
                 {item.ch}
               </button>
@@ -747,7 +933,7 @@ export default function BattleGame({
 
       <button
         onClick={onDone}
-        className="relative z-10 self-center mb-2 text-[11px] text-white/80 bg-black/25 rounded-full px-3 py-0.5"
+        className="relative z-10 self-center mb-2 text-[11px] text-white/80 bg-black/25 rounded-full px-3 py-0.5 leading-normal"
       >
         그만하기
       </button>
