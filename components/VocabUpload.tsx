@@ -21,25 +21,46 @@ export default function VocabUpload({
   const [step, setStep] = useState<"pick" | "confirm">("pick");
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // 폰 사진은 수 MB라 서버 요청 한도를 넘기 쉬워서, 긴 변 1600px JPEG로 줄여서 보낸다.
+  async function shrinkToJpeg(file: File): Promise<string> {
+    const url = URL.createObjectURL(file);
+    try {
+      const img: HTMLImageElement = await new Promise((resolve, reject) => {
+        const el = new Image();
+        el.onload = () => resolve(el);
+        el.onerror = () => reject(new Error("이미지를 열지 못했습니다. (지원하지 않는 형식일 수 있어요)"));
+        el.src = url;
+      });
+      const scale = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.naturalWidth * scale);
+      canvas.height = Math.round(img.naturalHeight * scale);
+      canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL("image/jpeg", 0.85).split(",")[1];
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
   async function extractOne(file: File): Promise<{ title: string; words: VocabWord[] }> {
-    const dataUrl: string = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => reject(new Error("이미지를 읽지 못했습니다."));
-      reader.readAsDataURL(file);
-    });
-    const base64 = dataUrl.split(",")[1];
+    const base64 = await shrinkToJpeg(file);
 
     const res = await fetch("/api/vocab-ocr", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageBase64: base64, mimeType: file.type || "image/jpeg" }),
+      body: JSON.stringify({ imageBase64: base64, mimeType: "image/jpeg" }),
     });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || "단어를 인식하지 못했습니다.");
+    const text = await res.text();
+    let data: { error?: string; title?: string; words?: VocabWord[] };
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error(`서버 오류 (${res.status})`);
     }
-    return { title: data.title, words: data.words };
+    if (!res.ok) {
+      throw new Error(data.error || `단어를 인식하지 못했습니다. (${res.status})`);
+    }
+    return { title: data.title ?? "", words: data.words ?? [] };
   }
 
   async function handleFiles(files: FileList) {
@@ -63,12 +84,14 @@ export default function VocabUpload({
     const allWords: VocabWord[] = [];
     let firstTitle = "";
     const failedNumbers: number[] = [];
+    let lastMessage = "";
     settled.forEach((r, i) => {
       if (r.ok) {
         allWords.push(...r.result.words);
         if (!firstTitle) firstTitle = r.result.title;
       } else {
         failedNumbers.push(i + 1);
+        lastMessage = r.message;
       }
     });
 
@@ -77,7 +100,7 @@ export default function VocabUpload({
     }
 
     if (allWords.length === 0) {
-      setError("어떤 사진에서도 단어를 읽지 못했어요. 다시 시도해주세요.");
+      setError(`어떤 사진에서도 단어를 읽지 못했어요. (${lastMessage})`);
       return;
     }
 

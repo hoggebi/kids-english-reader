@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ThinkingLevel } from "@google/genai";
 import { getGeminiClient, GEMINI_MODEL } from "@/lib/gemini";
+
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
@@ -38,6 +41,7 @@ export async function POST(req: NextRequest) {
       ],
       config: {
         responseMimeType: "application/json",
+        thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
       },
     });
 
