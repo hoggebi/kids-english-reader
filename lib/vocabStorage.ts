@@ -34,14 +34,10 @@ function migrateWord(w: VocabWord): VocabWord {
 }
 
 function migrateSets(sets: VocabSet[]): VocabSet[] {
-  let activeAssigned = sets.some((s) => s.status === "active");
+  // 이전 단어장을 끝내지 않아도 어떤 단어장이든 시작할 수 있어서, 예전의 "locked"는 "active"로 푼다.
   return sets.map((s) => {
     const words = s.words.map(migrateWord);
-    let status = s.status;
-    if (!status) {
-      status = activeAssigned ? "locked" : "active";
-      if (status === "active") activeAssigned = true;
-    }
+    const status = !s.status || s.status === "locked" ? "active" : s.status;
     return { ...s, words, status };
   });
 }
@@ -66,8 +62,7 @@ export function saveVocabSets(sets: VocabSet[]) {
 
 export function addVocabSet(set: Omit<VocabSet, "status"> & { status?: VocabSet["status"] }) {
   const sets = loadVocabSets();
-  const hasActive = sets.some((s) => s.status === "active");
-  const newSet: VocabSet = { ...set, status: hasActive ? "locked" : "active" };
+  const newSet: VocabSet = { ...set, status: "active" };
   const updated = [...sets, newSet];
   saveVocabSets(updated);
   return updated;
@@ -92,7 +87,7 @@ export function getActiveSet(sets: VocabSet[]): VocabSet | null {
   return sets.find((s) => s.status === "active") ?? null;
 }
 
-// 세트의 모든 단어가 마스터(box 5)에 도달했는지 확인하고, 완료 처리 + 다음 세트 활성화
+// 세트의 모든 단어가 마스터(box 5)에 도달했는지 확인하고, 완료 처리 
 export function checkAndAdvanceSet(setId: string) {
   const sets = loadVocabSets();
   const idx = sets.findIndex((s) => s.id === setId);
@@ -102,10 +97,6 @@ export function checkAndAdvanceSet(setId: string) {
   if (!allMastered || set.status !== "active") return sets;
 
   sets[idx] = { ...set, status: "completed" };
-  const nextLockedIdx = sets.findIndex((s) => s.status === "locked");
-  if (nextLockedIdx !== -1) {
-    sets[nextLockedIdx] = { ...sets[nextLockedIdx], status: "active" };
-  }
   saveVocabSets(sets);
   return sets;
 }

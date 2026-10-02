@@ -53,7 +53,7 @@ export default function VocabList({
         <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:gap-4">
           {sets.map((s) => {
             const isEditing = editingId === s.id;
-            const isLocked = s.status === "locked";
+            const isLocked = false;
             const badge = statusLabel(s.status);
             return (
               <div
