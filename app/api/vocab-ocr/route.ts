@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ThinkingLevel } from "@google/genai";
-import { getGeminiClient, GEMINI_MODEL } from "@/lib/gemini";
+import { generateWithFallback } from "@/lib/gemini";
 
 export const maxDuration = 60;
 
@@ -11,10 +10,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "imageBase64가 필요합니다." }, { status: 400 });
     }
 
-    const ai = getGeminiClient();
-
-    const response = await ai.models.generateContent({
-      model: GEMINI_MODEL,
+    const response = await generateWithFallback({
       contents: [
         {
           role: "user",
@@ -41,7 +37,6 @@ export async function POST(req: NextRequest) {
       ],
       config: {
         responseMimeType: "application/json",
-        thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
       },
     });
 

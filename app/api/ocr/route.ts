@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getGeminiClient, GEMINI_MODEL } from "@/lib/gemini";
+import { generateWithFallback } from "@/lib/gemini";
 
 export async function POST(req: NextRequest) {
   try {
@@ -8,10 +8,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "imageBase64가 필요합니다." }, { status: 400 });
     }
 
-    const ai = getGeminiClient();
-
-    const response = await ai.models.generateContent({
-      model: GEMINI_MODEL,
+    const response = await generateWithFallback({
       contents: [
         {
           role: "user",
