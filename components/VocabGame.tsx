@@ -39,7 +39,7 @@ export function shuffle<T>(arr: T[]): T[] {
 
 // 게임 메뉴에는 이 3개만 노출한다 (바구니 담기/함께 달리기는 화면에서 제거 — 코드는 그대로 둔다).
 const GAME_INFO: { kind: GameKind; title: string; desc: string; emoji?: string; img?: string }[] = [
-  { kind: "hunt", title: "다트 게임", desc: "정답을 고르고 다트를 던져요", emoji: "🎯" },
+  { kind: "hunt", title: "다트 게임", desc: "정답 표적을 겨냥해서 던져요", emoji: "🎯" },
   { kind: "mole", title: "두더지 잡기", desc: "튀어나온 정답을 빠르게 탭해요", img: "/mole.png" },
   { kind: "battle", title: "몬스터 배틀", desc: "문제를 맞혀서 몬스터를 물리쳐요", emoji: "⚔️" },
 ];
@@ -378,7 +378,9 @@ export default function VocabGame({
       <button onClick={() => setKind(null)} className="self-start text-sm text-gray-400 underline">
         게임 다시 고르기
       </button>
-      {kind === "hunt" && <DartGame key={playKey} words={words} onDone={handleGameDone} onRetry={handleRetry} />}
+      {kind === "hunt" && (
+        <DartGame key={playKey} words={words} onDone={handleGameDone} onRetry={handleRetry} onExit={() => setKind(null)} />
+      )}
       {kind === "feed" && <FeedGame key={playKey} words={words} onDone={handleGameDone} onRetry={handleRetry} />}
       {kind === "mole" && <MoleGame key={playKey} words={words} onDone={handleGameDone} onRetry={handleRetry} />}
       {kind === "runner" && (
