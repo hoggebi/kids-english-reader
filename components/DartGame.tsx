@@ -173,7 +173,7 @@ const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n
 
 function computeLayout(w: number, h: number): Layout {
   const qTop = 52;
-  const qH = clamp(h * 0.12, 66, 104);
+  const qH = clamp(h * 0.09, 52, 72);
   const playTop = qTop + qH + 4;
   const trayH = clamp(h * 0.17, 96, 150);
   const trayTop = h - trayH;
@@ -1179,6 +1179,8 @@ export default function DartGame({
     return s;
   };
 
+  const revealLen = reveal ? [...reveal.english].length + [...reveal.korean].length + 3 : 1;
+  const revealFs = clamp(Math.min(L.trayH * 0.2, ((L.w * 0.9 - 60) / revealLen) * 1.05), 14, 26);
   const fxPx = fx ? toPx(L, fx.u, fx.v) : null;
   const fxSize = fx?.kind === "hit" ? ringD * 1.55 : ringD * 1.15;
 
@@ -1412,7 +1414,7 @@ export default function DartGame({
           <p
             key={qIndex}
             className="dg-pop font-black text-center leading-tight"
-            style={{ fontSize: clamp(L.qH * 0.5, 30, 52), wordBreak: "keep-all" }}
+            style={{ fontSize: clamp(Math.min(L.qH * 0.4, ((L.w * 0.8 - 90) / Math.max(1, [...q.prompt].length)) * 1.05), 14, 30), whiteSpace: "nowrap" }}
           >
             {q.prompt}
           </p>
@@ -1496,10 +1498,10 @@ export default function DartGame({
           style={{ position: "absolute", left: "50%", top: L.trayTop + L.trayH / 2, transform: "translate(-50%, -50%)", zIndex: 14, maxWidth: "94vw" }}
           className="pointer-events-none"
         >
-          <div className="dg-pop flex items-center justify-center gap-4 rounded-3xl bg-white/95 text-gray-900 px-8 py-2 shadow-xl">
-            <span className="font-black" style={{ fontSize: clamp(L.trayH * 0.34, 28, 46) }}>{reveal.english}</span>
-            <span className="text-gray-400 font-black text-2xl">·</span>
-            <span className="font-black text-sky-700" style={{ fontSize: clamp(L.trayH * 0.34, 28, 46) }}>{reveal.korean}</span>
+          <div className="dg-pop flex items-center justify-center gap-3 rounded-2xl bg-white/95 text-gray-900 px-5 py-1.5 shadow-xl whitespace-nowrap">
+            <span className="font-black" style={{ fontSize: revealFs }}>{reveal.english}</span>
+            <span className="text-gray-400 font-black" style={{ fontSize: revealFs }}>·</span>
+            <span className="font-black text-sky-700" style={{ fontSize: revealFs }}>{reveal.korean}</span>
           </div>
         </div>
       )}
