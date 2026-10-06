@@ -15,6 +15,7 @@ import { recordVocabGamePlayed } from "@/lib/vocabStorage";
 import { autoPush } from "@/lib/sync";
 import BattleGame from "./BattleGame";
 import DartGame from "./DartGame";
+import MoleGame from "./MoleGame";
 import PetDisplay from "./PetDisplay";
 
 type GameKind = "hunt" | "feed" | "mole" | "runner" | "battle";
@@ -40,7 +41,7 @@ export function shuffle<T>(arr: T[]): T[] {
 // 게임 메뉴에는 이 3개만 노출한다 (바구니 담기/함께 달리기는 화면에서 제거 — 코드는 그대로 둔다).
 const GAME_INFO: { kind: GameKind; title: string; desc: string; emoji?: string; img?: string }[] = [
   { kind: "hunt", title: "다트 게임", desc: "정답 표적을 겨냥해서 던져요", emoji: "🎯" },
-  { kind: "mole", title: "두더지 잡기", desc: "튀어나온 정답을 빠르게 탭해요", img: "/mole.png" },
+  { kind: "mole", title: "두더지 잡기", desc: "정답 단어가 쓰인 두더지를 톡 잡아요", img: "/mole.png" },
   { kind: "battle", title: "몬스터 배틀", desc: "문제를 맞혀서 몬스터를 물리쳐요", emoji: "⚔️" },
 ];
 
@@ -382,7 +383,9 @@ export default function VocabGame({
         <DartGame key={playKey} words={words} onDone={handleGameDone} onRetry={handleRetry} onExit={() => setKind(null)} />
       )}
       {kind === "feed" && <FeedGame key={playKey} words={words} onDone={handleGameDone} onRetry={handleRetry} />}
-      {kind === "mole" && <MoleGame key={playKey} words={words} onDone={handleGameDone} onRetry={handleRetry} />}
+      {kind === "mole" && (
+        <MoleGame key={playKey} words={words} onDone={handleGameDone} onRetry={handleRetry} onExit={() => setKind(null)} />
+      )}
       {kind === "runner" && (
         <RunnerGame key={playKey} words={words} onDone={handleGameDone} onRetry={handleRetry} />
       )}
@@ -536,125 +539,6 @@ function FeedGame({ words, onDone, onRetry }: { words: VocabWord[]; onDone: () =
         ))}
       </div>
       <p className="text-xs text-gray-400">빵을 바구니에 끌어다 놓으세요</p>
-    </div>
-  );
-}
-
-// ---------- 3) 두더지 잡기 ----------
-function MoleGame({ words, onDone, onRetry }: { words: VocabWord[]; onDone: () => void; onRetry: () => void }) {
-  const [queue] = useState(() => shuffle(words));
-  const [dirs] = useState<("toEng" | "toKor")[]>(() =>
-    queue.map(() => (Math.random() < 0.5 ? "toEng" : "toKor"))
-  );
-  const [index, setIndex] = useState(0);
-  const holes = 3;
-  const [visible, setVisible] = useState<Record<number, VocabWord>>({});
-  const [selected, setSelected] = useState<number | null>(null);
-  const [feedback, setFeedback] = useState<Feedback>(null);
-  const [combo, setCombo] = useState(0);
-  const [particleTrigger, setParticleTrigger] = useState(0);
-  const [correctCount, setCorrectCount] = useState(0);
-  const [shake, setShake] = useState(false);
-  const [hitSlot, setHitSlot] = useState<number | null>(null);
-
-  const current = queue[index];
-  const direction = dirs[index];
-  const done = index >= queue.length;
-
-  useEffect(() => {
-    if (done || !current) return;
-    const decoys = shuffle(words.filter((w) => w.id !== current.id)).slice(0, holes - 1);
-    const pool = shuffle([current, ...decoys]);
-    const slots = shuffle(Array.from({ length: holes }, (_, i) => i)).slice(0, pool.length);
-    const map: Record<number, VocabWord> = {};
-    slots.forEach((slot, i) => (map[slot] = pool[i]));
-    setVisible(map);
-    setSelected(null);
-    setFeedback(null);
-    setHitSlot(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index, done]);
-
-  function tap(slot: number) {
-    if (selected !== null || !visible[slot]) return;
-    setSelected(slot);
-    setHitSlot(slot);
-    const ok = visible[slot].id === current.id;
-    playTone(ok ? "correct" : "wrong");
-    setFeedback(ok ? "correct" : "wrong");
-    if (ok) {
-      setCombo((c) => c + 1);
-      setCorrectCount((c) => c + 1);
-      setParticleTrigger((t) => t + 1);
-    } else {
-      setCombo(0);
-      setShake(true);
-      setTimeout(() => setShake(false), 300);
-    }
-    setTimeout(() => setIndex((i) => i + 1), 500);
-  }
-
-  if (done) return <ResultScreen correct={correctCount} total={queue.length} onDone={onDone} onRetry={onRetry} />;
-
-  return (
-    <div
-      className={`relative rounded-3xl overflow-hidden p-3 flex flex-col items-center gap-4 ${THEME_BG.mole} ${
-        shake ? "animate-pulse" : ""
-      }`}
-    >
-      <Particles trigger={particleTrigger} />
-      <ComboBadge combo={combo} />
-      <p className="text-sm text-gray-500">
-        {index + 1} / {queue.length}
-      </p>
-      <p className="text-lg font-bold text-black">
-        &quot;{direction === "toEng" ? current.korean : current.english}&quot; 이(가) 나온 구멍을 탭!
-      </p>
-      <div className="grid grid-cols-3 gap-1 w-full max-w-2xl">
-        {Array.from({ length: holes }, (_, slot) => {
-          const w = visible[slot];
-          const isPicked = selected === slot;
-          const isAnswerSlot = w?.id === current.id;
-          let ringStyle = "";
-          if (isPicked && isAnswerSlot) ringStyle = "ring-4 ring-sky-400 rounded-2xl";
-          if (isPicked && !isAnswerSlot) ringStyle = "ring-4 ring-red-400 rounded-2xl";
-          return (
-            <button
-              key={slot}
-              onClick={() => tap(slot)}
-              className={`relative aspect-square flex items-end justify-center ${ringStyle}`}
-            >
-              {/* 구멍 (두더지 아래쪽) */}
-              <div
-                className="absolute bottom-1 w-[68%] h-[26%] rounded-[50%]"
-                style={{
-                  background:
-                    "radial-gradient(ellipse at 50% 40%, #5c3a1e 0%, #3f2712 70%, #2c1a0b 100%)",
-                  boxShadow: "inset 0 3px 6px rgba(0,0,0,0.5)",
-                }}
-              />
-              {w && (
-                <div className="relative w-full mb-[2%] animate-bounce">
-                  <div className="relative w-full flex justify-center">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="/mole.png" alt="두더지" className="w-full object-contain" />
-                    <span className="absolute top-[10%] w-[72%] text-center text-lg font-extrabold text-black leading-tight whitespace-nowrap overflow-hidden text-ellipsis">
-                      {direction === "toEng" ? w.english : w.korean}
-                    </span>
-                  </div>
-                </div>
-              )}
-              {/* 뿅망치: 두더지 머리 위 제자리에서 수직으로 한 번 내려침 */}
-              {hitSlot === slot && (
-                <div className="absolute top-2 left-1/2 w-20 h-20 pointer-events-none mallet-hit">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/mollet.png" alt="뿅망치" className="w-full h-full object-contain" />
-                </div>
-              )}
-            </button>
-          );
-        })}
-      </div>
     </div>
   );
 }
