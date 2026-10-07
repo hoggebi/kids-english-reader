@@ -31,6 +31,7 @@ const T_WRONG_RECOVER = 650;
 const T_WRONG_UNLOCK = 1000;
 const T_WHIFF_LOCK = 500;
 const T_EVOLVE = 1000;
+const TIME_LIMIT_SEC = 18; // 몬스터 배틀과 비슷한 시간감(문제당 18초). 올라온 뒤 입력을 받는 동안만 흐른다.
 
 // ---------- 스프라이트 아틀라스 (ASSET_MANIFEST.json 기준) ----------
 type Frame = { x: number; y: number; cx: number; cy: number };
@@ -212,6 +213,9 @@ export default function MoleGame({
 
   type Phase = "idle" | "rising" | "ready" | "busy" | "evolving";
   const phaseRef = useRef<Phase>("idle");
+  const [phaseUi, setPhaseUi] = useState<Phase>("idle"); // 타이머 제어용 화면 상태(입력 판단은 phaseRef)
+  const [timeLeftMs, setTimeLeftMs] = useState(TIME_LIMIT_SEC * 1000);
+  const remainingRef = useRef(TIME_LIMIT_SEC * 1000);
 
   const [poses, setPoses] = useState<Pose[]>(["idle", "idle", "idle"]);
   const [holes, setHoles] = useState<HoleState[]>(["base", "base", "base"]);
@@ -243,6 +247,8 @@ export default function MoleGame({
     evolvePlayed: false,
     hint: false,
     finished: false,
+    timeouts: 0,
+    qTimeouts: 0,
   });
   const token = useRef(0);
   const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
@@ -351,6 +357,7 @@ export default function MoleGame({
   }
   const setPhase = (p: Phase) => {
     phaseRef.current = p;
+    setPhaseUi(p);
   };
 
   // ---------- 애니메이션 도우미 ----------
@@ -472,6 +479,9 @@ export default function MoleGame({
     g.wrong = 0;
     g.answered = false;
     g.hint = false;
+    g.qTimeouts = 0;
+    remainingRef.current = TIME_LIMIT_SEC * 1000;
+    setTimeLeftMs(TIME_LIMIT_SEC * 1000);
     setQ(nq);
     setQIndex(i);
     setPoses(["idle", "idle", "idle"]);
@@ -523,6 +533,59 @@ export default function MoleGame({
     [0, 1, 2].forEach((s) => sinkSlot(s));
     later(280, () => startQuestion(i));
   }
+
+  // ---------- 제한시간 ----------
+  // 첫 시간 초과: 콤보 0, 정답 라벨에 힌트를 주고 시간을 다시 채워 같은 문제를 이어간다(최초 정답은 못 받음).
+  // 두 번째 시간 초과: 정답을 보여주고 다음 문제로 넘어간다(코인 없이 완료 처리). 점수/생명 차감은 없다.
+  function handleTimeout() {
+    const g = game.current;
+    const cq = g.q;
+    if (!cq || g.finished || phaseRef.current !== "ready") return;
+    setPhase("busy");
+    setHandsOn(false);
+    g.qTimeouts += 1;
+    g.timeouts += 1;
+    g.answered = true; // 이 문제는 최초 정답 대상에서 제외
+    g.combo = 0;
+    setCombo(0);
+    if (g.qTimeouts < 2) {
+      g.hint = true;
+      setHint(true);
+      playSfx("plop", mutedRef.current);
+      setBanner({ text: "시간 초과!", tone: "try", key: nextKey() });
+      remainingRef.current = TIME_LIMIT_SEC * 1000;
+      setTimeLeftMs(TIME_LIMIT_SEC * 1000);
+      later(1000, () => {
+        setBanner(null);
+        setPhase("ready");
+      });
+      return;
+    }
+    setBanner({ text: "시간 초과!", tone: "try", key: nextKey() });
+    setReveal({ english: cq.target.english, korean: cq.target.korean });
+    setHint(true);
+    const tk = token.current;
+    const spoken = speak(cq.target.english, "en-US", mutedRef.current);
+    void Promise.all([new Promise<void>((r) => setTimeout(r, T_REVEAL_MIN)), spoken]).then(() => {
+      if (token.current !== tk || game.current.finished) return;
+      goNext();
+    });
+  }
+
+  // 올라온 두더지를 누를 수 있는 동안(ready)만 시간이 흐른다
+  useEffect(() => {
+    if (stage !== "play" || phaseUi !== "ready") return;
+    const iv = setInterval(() => {
+      remainingRef.current -= 100;
+      setTimeLeftMs(Math.max(0, remainingRef.current));
+      if (remainingRef.current <= 0) {
+        clearInterval(iv);
+        handleTimeout();
+      }
+    }, 100);
+    return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage, phaseUi, qIndex]);
 
   // ---------- 3콤보 진화: 세 마리 모두 동시에 ----------
   function evolveAll(then: () => void) {
@@ -920,6 +983,7 @@ export default function MoleGame({
       display: kind === "idle" ? "block" : "none",
     };
   };
+  const timePct = Math.max(0, Math.min(100, (timeLeftMs / (TIME_LIMIT_SEC * 1000)) * 100));
   const baseFs = clamp(MOLE_BODY_W * L.sm * 0.15, 18, 34);
   const labelFsFor = (label: string) => (label.includes(" ") ? baseFs : clamp(Math.min(baseFs, (MOLE_BODY_W * L.sm * 1.05) / Math.max(1, [...label].length * 0.62)), 13, baseFs));
   const moleBtn = (slot: number): CSSProperties => {
@@ -1086,6 +1150,19 @@ export default function MoleGame({
           <button onClick={replayPrompt} aria-label="다시 듣기" className="mg-btn shrink-0 min-h-[48px] min-w-[48px] rounded-full bg-sky-100 text-2xl active:scale-95 transition">
             🔈
           </button>
+          <div
+            role="progressbar"
+            aria-label="남은 시간"
+            aria-valuemin={0}
+            aria-valuemax={TIME_LIMIT_SEC}
+            aria-valuenow={Math.ceil(timeLeftMs / 1000)}
+            style={{ position: "absolute", left: 16, right: 16, bottom: 5, height: 5, borderRadius: 999, background: "rgba(0,0,0,0.12)", overflow: "hidden" }}
+          >
+            <div
+              className={`h-full ${timePct > 50 ? "bg-emerald-400" : timePct > 20 ? "bg-yellow-400" : "bg-red-500"}`}
+              style={{ width: `${timePct}%`, transition: "width 100ms linear" }}
+            />
+          </div>
         </div>
       )}
 

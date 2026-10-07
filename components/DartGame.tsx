@@ -33,6 +33,13 @@ const T_WORD_CONFIRM = 1100; // 정답 단어 확인(최소)
 const T_TRY_AGAIN = 1100; // 오답/빗나감 피드백 후 다트 복귀
 const T_LETTER = 1000; // 스펠링 글자 명중 후 다음 글자 대기(불꽃 0.9초)
 const SPELL_ROUNDS = [4, 9]; // 0-based: 5번째, 10번째 라운드
+
+// 제한시간 (몬스터 배틀과 비슷한 시간감: 단어 선택 18초, 스펠링은 글자당 6초 + 12초)
+const TIME_CHOICE_SEC = 18;
+const TIME_SPELL_BASE_SEC = 12;
+const TIME_SPELL_PER_LETTER_SEC = 6;
+const timeLimitFor = (q: { kind: string; letters?: string[] }) =>
+  (q.kind === "spell" ? TIME_SPELL_BASE_SEC + TIME_SPELL_PER_LETTER_SEC * (q.letters?.length ?? 3) : TIME_CHOICE_SEC) * 1000;
 const SPEECH_CAP_MS = 4500;
 
 // ---------- 다트판 정규화 좌표 (다트판 중심 = 0,0 / 단위 = 다트판 지름) ----------
@@ -630,6 +637,10 @@ export default function DartGame({
   const [trayHidden, setTrayHidden] = useState(false);
   const [stuck, setStuck] = useState<Stuck | null>(null);
   const [fxList, setFxList] = useState<Fx[]>([]);
+  const [timeLeftMs, setTimeLeftMs] = useState(TIME_CHOICE_SEC * 1000);
+  const [timeLimitMs, setTimeLimitMs] = useState(TIME_CHOICE_SEC * 1000);
+  const remainingRef = useRef(TIME_CHOICE_SEC * 1000);
+  const limitRef = useRef(TIME_CHOICE_SEC * 1000);
   const [filled, setFilled] = useState(0); // 스펠링: 채워진 슬롯 수
   const [remaining, setRemaining] = useState<Record<string, number>>({}); // 스펠링: 글자별 앞으로 필요한 횟수
   const [banner, setBanner] = useState<Banner | null>(null);
@@ -661,6 +672,8 @@ export default function DartGame({
     finished: false,
     spellDone: 0,
     letterWrongs: 0,
+    timeouts: 0,
+    qTimeouts: 0,
     spell: { next: 0, remaining: {} as Record<string, number>, letterWrong: 0, clean: true, hint: false },
   });
   const token = useRef(0);
@@ -816,6 +829,11 @@ export default function DartGame({
     setReveal(null);
     setAim(null);
     g.spell = { next: 0, remaining: countLetters(q.letters), letterWrong: 0, clean: true, hint: false };
+    g.qTimeouts = 0;
+    limitRef.current = timeLimitFor(q);
+    remainingRef.current = limitRef.current;
+    setTimeLimitMs(limitRef.current);
+    setTimeLeftMs(limitRef.current);
     setFilled(0);
     setRemaining({ ...g.spell.remaining });
     if (q.kind === "spell") {
@@ -968,6 +986,64 @@ export default function DartGame({
       setKbAim(null);
     }
   }
+
+  // ---------- 제한시간 ----------
+  // 첫 시간 초과: 콤보 0, 정답 표적에 힌트를 주고 시간을 다시 채워 같은 문제를 이어간다(최초 성공은 못 받음).
+  // 두 번째 시간 초과: 정답을 보여주고 다음 문제로 넘어간다(코인 없이 완료 처리). 점수/생명 차감은 없다.
+  function handleTimeout() {
+    const g = game.current;
+    const q = g.q;
+    if (!q || g.finished) return;
+    if (phaseRef.current === "flight" || phaseRef.current === "result") return;
+    cancelAim();
+    kbAimRef.current = null;
+    setKbAim(null);
+    setPhase("result"); // 입력 잠금
+    g.qTimeouts += 1;
+    g.timeouts += 1;
+    g.combo = 0;
+    setCombo(0);
+    if (q.kind === "spell") g.spell.clean = false;
+    else g.wrong += 1;
+
+    if (g.qTimeouts < 2) {
+      if (q.kind === "spell") g.spell.hint = true;
+      else g.hint = true;
+      setHintOn(true);
+      playSfx("wrong", mutedRef.current);
+      setBanner({ text: "시간 초과!", sub: "다시 해봐! 반짝이는 표적을 봐!", tone: "try", key: nextKey() });
+      remainingRef.current = limitRef.current;
+      setTimeLeftMs(limitRef.current);
+      respawnAfter(T_TRY_AGAIN);
+      return;
+    }
+
+    setBanner({ text: "시간 초과!", tone: "miss", key: nextKey() });
+    setReveal(q.reveal);
+    setTrayHidden(true);
+    if (q.kind === "choice") setTstates((prev) => prev.map((st, i) => (i === q.correctSlot ? "correct" : st)));
+    else setFilled(q.letters?.length ?? 0);
+    const tk = token.current;
+    const spoken = speak(q.reveal.english, "en-US", mutedRef.current);
+    void Promise.all([delay(T_WORD_CONFIRM + 600), spoken]).then(() => {
+      if (token.current === tk && !game.current.finished) nextQuestion();
+    });
+  }
+
+  // 조준/대기 중에만 시간이 흐른다 (비행·피드백·정답 확인 중에는 멈춤)
+  useEffect(() => {
+    if (stage !== "play" || reveal || (phase !== "idle" && phase !== "aiming")) return;
+    const iv = setInterval(() => {
+      remainingRef.current -= 100;
+      setTimeLeftMs(Math.max(0, remainingRef.current));
+      if (remainingRef.current <= 0) {
+        clearInterval(iv);
+        handleTimeout();
+      }
+    }, 100);
+    return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage, phase, qIndex, reveal]);
 
   // ---------- 발사 ----------
   function launch(ax: number, ay: number) {
@@ -1399,6 +1475,7 @@ export default function DartGame({
   const revealLen = reveal ? [...reveal.english].length + [...reveal.korean].length + 3 : 1;
   const revealFs = clamp(Math.min(L.trayH * 0.2, ((L.w * 0.9 - 60) / revealLen) * 1.05), 14, 26);
   const spellSlotW = clamp(L.qH * 0.62, 30, 44);
+  const timePct = Math.max(0, Math.min(100, (timeLeftMs / timeLimitMs) * 100));
 
   return (
     <div
@@ -1661,6 +1738,19 @@ export default function DartGame({
           >
             🔈
           </button>
+          <div
+            role="progressbar"
+            aria-label="남은 시간"
+            aria-valuemin={0}
+            aria-valuemax={Math.round(timeLimitMs / 1000)}
+            aria-valuenow={Math.ceil(timeLeftMs / 1000)}
+            style={{ position: "absolute", left: 16, right: 16, bottom: 5, height: 5, borderRadius: 999, background: "rgba(0,0,0,0.12)", overflow: "hidden" }}
+          >
+            <div
+              className={`h-full ${timePct > 50 ? "bg-emerald-400" : timePct > 20 ? "bg-yellow-400" : "bg-red-500"}`}
+              style={{ width: `${timePct}%`, transition: "width 100ms linear" }}
+            />
+          </div>
           {q.kind === "spell" && q.letters && (
             // 답 슬롯: 정답 글자는 맞힌 만큼만 보인다 (완성 전에 전체를 알려주지 않는다)
             <div
