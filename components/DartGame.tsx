@@ -10,7 +10,8 @@ import { shuffle } from "./VocabGame";
 // 다트 게임 v2 — 직접 조준해서 던지는 방식
 //  - 한국어 ↔ 영어를 번갈아 출제 (방향 문구는 화면에 표시하지 않는다)
 //  - 큰 다트판 하나에 표적 3개. 다트를 끌어서 조준 → 놓으면 그 지점으로 발사
-//  - 표적 렌더링과 충돌 판정은 같은 정규화 좌표(TARGET_LAYOUT)를 쓴다
+//  - 표적 렌더링과 충돌 판정은 같은 정규화 좌표(TARGET_SETS)를 쓴다
+//  - 10라운드 = 단어 선택 4 → 스펠링 1 → 단어 선택 4 → 스펠링 1. 정답 명중 시 표적 테두리에 불꽃
 // ---------------------------------------------------------------------------
 
 const A = "/assets/dart-game/v2";
@@ -30,16 +31,19 @@ const T_FLIGHT_REDUCED = 200;
 const T_CELEBRATE = 800; // 정답 축하 연출
 const T_WORD_CONFIRM = 1100; // 정답 단어 확인(최소)
 const T_TRY_AGAIN = 1100; // 오답/빗나감 피드백 후 다트 복귀
+const T_LETTER = 1000; // 스펠링 글자 명중 후 다음 글자 대기(불꽃 0.9초)
+const SPELL_ROUNDS = [4, 9]; // 0-based: 5번째, 10번째 라운드
 const SPEECH_CAP_MS = 4500;
 
 // ---------- 다트판 정규화 좌표 (다트판 중심 = 0,0 / 단위 = 다트판 지름) ----------
-const TARGET_LAYOUT = [
-  { u: 0, v: -0.225 },
-  { u: -0.1949, v: 0.1125 },
-  { u: 0.1949, v: 0.1125 },
-] as const;
-const TARGET_R = 0.175; // 화면에 보이는 표적 링 반지름
-const HIT_R = TARGET_R * 1.03; // 판정 반지름 (표적끼리 겹치지 않는 범위)
+// 표적 개수(3~5)에 따라 같은 좌표를 렌더링과 판정에 함께 쓴다. r = 보이는 링 반지름.
+const TARGET_SETS: Record<number, { r: number; pos: { u: number; v: number }[] }> = {
+  3: { r: 0.175, pos: [{ u: 0, v: -0.225 }, { u: -0.1949, v: 0.1125 }, { u: 0.1949, v: 0.1125 }] },
+  4: { r: 0.145, pos: [{ u: -0.19, v: -0.19 }, { u: 0.19, v: -0.19 }, { u: -0.19, v: 0.19 }, { u: 0.19, v: 0.19 }] },
+  5: { r: 0.118, pos: [{ u: 0, v: 0 }, { u: -0.22, v: -0.22 }, { u: 0.22, v: -0.22 }, { u: -0.22, v: 0.22 }, { u: 0.22, v: 0.22 }] },
+};
+const setOf = (n: number) => TARGET_SETS[n] ?? TARGET_SETS[3];
+const HIT_MARGIN = 1.03; // 판정 반지름 = 링 반지름 × 이 값 (표적끼리 겹치지 않는 범위)
 const BOARD_R = 0.485; // board.png 바깥 원 반지름
 
 // ---------- 스프라이트 아틀라스 (ASSET_MANIFEST.json 기준) ----------
@@ -76,10 +80,11 @@ const FX_SHEET = { w: 1774, h: 887, frame: 443 };
 type Frame = { x: number; y: number; cx: number; cy: number };
 const COLX = [0, 444, 887, 1330];
 const ROWY = [0, 444];
-const HIT_FRAMES: Frame[] = [
-  [232, 247.5], [218.5, 253.5], [205.5, 245], [203, 239.5],
-  [224.5, 216.5], [218.5, 219.5], [210.5, 219], [200.5, 225.5],
-].map(([cx, cy], i) => ({ x: COLX[i % 4], y: ROWY[Math.floor(i / 4)], cx, cy }));
+// rim_fire_fx / word_complete_fx: 고리 모양이라 모든 프레임의 중심을 고리 중심(222,222)에 고정한다.
+const RING_FRAMES: Frame[] = Array.from({ length: 8 }, (_, i) => ({ x: COLX[i % 4], y: ROWY[Math.floor(i / 4)], cx: 222, cy: 222 }));
+const RIM_FRAMES = RING_FRAMES;
+const WORD_FRAMES = RING_FRAMES;
+const RIM_SCALE = 1.31; // 불꽃 고리 중심 반지름이 나무 표적 테두리 중심 반지름에 맞도록 한 배율 (프레임 한 변 / 표적 링 지름)
 const RETRY_FRAMES: Frame[] = [
   [238, 229.5], [230, 234], [223, 230.5], [205, 247],
   [229, 219], [225, 206], [229, 218], [216.5, 222],
@@ -87,32 +92,35 @@ const RETRY_FRAMES: Frame[] = [
 const WRONG_FRAMES = RETRY_FRAMES.slice(0, 4); // 위 행 = 오답(산호색 연기)
 const MISS_FRAMES = RETRY_FRAMES.slice(4); // 아래 행 = 빗나감(파란 슝)
 
-const IMAGES = ["background", "board", "targets", "darts", "hit_fx", "retry_fx"].map((n) => `${A}/${n}.png`);
+const IMAGES = ["background", "board", "targets", "darts", "retry_fx", "rim_fire_fx", "word_complete_fx"].map((n) => `${A}/${n}.png`);
 
 // ---------- 타입 ----------
 type Direction = "toEng" | "toKor";
-type Opt = { word: VocabWord; label: string };
-type Question = { target: VocabWord; dir: Direction; prompt: string; options: Opt[]; correctSlot: number };
+// 라운드 하나. choice = 단어 선택, spell = 글자 스펠링(표적 하나가 글자 하나)
+type Question = {
+  kind: "choice" | "spell";
+  prompt: string;
+  dir: Direction; // toEng = 한국어 질문(영어 쪽 답), toKor = 영어 질문
+  targets: { label: string }[];
+  correctSlot: number; // choice 전용(spell은 -1)
+  reveal: { english: string; korean: string };
+  letters?: string[]; // spell: 정답 글자 순서 (answerLetters)
+};
 type Phase = "idle" | "aiming" | "flight" | "result";
-type Banner = { text: string; sub?: string; tone: "good" | "try" | "miss"; key: number };
-type Fx = { kind: "hit" | "wrong" | "miss"; u: number; v: number; key: number };
+type Banner = { text: string; sub?: string; tone: "good" | "try" | "miss" | "info"; key: number };
+type Fx = { kind: "rim" | "word" | "wrong" | "miss"; u: number; v: number; key: number; big?: boolean };
 type Stuck = { u: number; v: number; angle: number; kind: DartKind; key: number };
-type Stats = { firstTry: number; bestCombo: number; retries: number; coins: number };
+type Stats = { firstTry: number; bestCombo: number; retries: number; spellDone: number; coins: number };
 type Layout = {
   w: number; h: number; qTop: number; qH: number; playTop: number; trayTop: number; trayH: number;
   bx: number; by: number; D: number; sd: number;
 };
 
 // ---------- 출제 ----------
-function labelOf(w: VocabWord, dir: Direction) {
-  return dir === "toEng" ? w.english : w.korean;
-}
-function promptOf(w: VocabWord, dir: Direction) {
-  return dir === "toEng" ? w.korean : w.english;
-}
 const norm = (s: string) => s.trim().toLowerCase();
+const labelOf = (w: VocabWord, dir: Direction) => (dir === "toEng" ? w.english : w.korean);
 
-function buildQuestion(words: VocabWord[], target: VocabWord, dir: Direction): Question | null {
+function buildChoice(words: VocabWord[], target: VocabWord, dir: Direction): Question | null {
   const tl = norm(labelOf(target, dir));
   if (!tl) return null;
   const seen = new Set([tl]);
@@ -125,18 +133,53 @@ function buildQuestion(words: VocabWord[], target: VocabWord, dir: Direction): Q
     if (distractors.length === 2) break;
   }
   if (distractors.length < 2) return null;
-  const options = shuffle([target, ...distractors]).map((word) => ({ word, label: labelOf(word, dir) }));
+  const opts = shuffle([target, ...distractors]);
   return {
-    target,
+    kind: "choice",
+    prompt: dir === "toEng" ? target.korean : target.english,
     dir,
-    prompt: promptOf(target, dir),
-    options,
-    correctSlot: options.findIndex((o) => o.word.id === target.id),
+    targets: opts.map((w) => ({ label: labelOf(w, dir) })),
+    correctSlot: opts.findIndex((w) => w.id === target.id),
+    reveal: { english: target.english, korean: target.korean },
   };
 }
 
-// 홀수 문제(1,3,..)는 한국어→영어, 짝수 문제(2,4,..)는 영어→한국어. 직전 단어는 가능한 피한다.
-function buildQuestions(words: VocabWord[]): Question[] | null {
+// 스펠링용 샘플(단어장에 3글자 단어가 없을 때)
+const SPELL_SAMPLES = [
+  { english: "cat", korean: "고양이" },
+  { english: "dog", korean: "강아지" },
+  { english: "sun", korean: "태양" },
+  { english: "map", korean: "지도" },
+  { english: "pen", korean: "펜" },
+];
+
+// 고유 글자마다 표적 하나. 고유 글자가 3개 미만이면 답에 없는 글자로 채워 3개를 만든다(최대 5).
+function buildSpell(w: { english: string; korean: string }): Question {
+  const letters = w.english.trim().toUpperCase().split("");
+  const unique = [...new Set(letters)];
+  const total = clamp(Math.max(3, unique.length), 3, 5);
+  const pool = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").filter((c) => !unique.includes(c));
+  const fillers = shuffle(pool).slice(0, total - unique.length);
+  return {
+    kind: "spell",
+    prompt: w.korean,
+    dir: "toEng",
+    targets: shuffle([...unique, ...fillers]).map((label) => ({ label })), // 라운드 동안 순서 고정
+    correctSlot: -1,
+    reveal: { english: letters.join(""), korean: w.korean },
+    letters,
+  };
+}
+
+function countLetters(letters?: string[]) {
+  const m: Record<string, number> = {};
+  (letters ?? []).forEach((c) => (m[c] = (m[c] ?? 0) + 1));
+  return m;
+}
+
+// 라운드 구성: 단어 선택 4 → 스펠링 1 → 단어 선택 4 → 스펠링 1.
+// 단어 선택은 선택 라운드 순서대로 한국어→영어, 영어→한국어를 번갈아 낸다(1,3,6,8번 = 한→영 / 2,4,7,9번 = 영→한).
+function buildRounds(words: VocabWord[]): Question[] | null {
   const seenIds = new Set<string>();
   const valid = words.filter((w) => {
     if (seenIds.has(w.id) || !w.english?.trim() || !w.korean?.trim()) return false;
@@ -144,21 +187,43 @@ function buildQuestions(words: VocabWord[]): Question[] | null {
     return true;
   });
   if (valid.length < 3) return null;
-  const qs: Question[] = [];
+
+  const choiceCount = ROUND_COUNT - SPELL_ROUNDS.length;
+  const choices: Question[] = [];
   let bag: VocabWord[] = [];
   let prevId: string | null = null;
-  for (let guard = 0; qs.length < ROUND_COUNT && guard < 200; guard++) {
+  for (let guard = 0; choices.length < choiceCount && guard < 200; guard++) {
     if (bag.length === 0) {
       bag = shuffle(valid);
       if (bag.length > 1 && bag[0].id === prevId) [bag[0], bag[bag.length - 1]] = [bag[bag.length - 1], bag[0]];
     }
     const target = bag.shift()!;
-    const q = buildQuestion(valid, target, qs.length % 2 === 0 ? "toEng" : "toKor");
+    const q = buildChoice(valid, target, choices.length % 2 === 0 ? "toEng" : "toKor");
     if (!q) continue;
-    qs.push(q);
+    choices.push(q);
     prevId = target.id;
   }
-  return qs.length === ROUND_COUNT ? qs : null;
+  if (choices.length < choiceCount) return null;
+
+  // 스펠링 단어: 단어장의 영어 3글자(알파벳만) 단어 우선, 부족하면 샘플로 채운다. 두 라운드는 서로 다른 단어.
+  const picked: { english: string; korean: string }[] = [];
+  const used = new Set<string>();
+  const add = (w: { english: string; korean: string }) => {
+    const k = w.english.trim().toLowerCase();
+    if (used.has(k) || picked.length >= SPELL_ROUNDS.length) return;
+    used.add(k);
+    picked.push(w);
+  };
+  shuffle(valid.filter((w) => /^[A-Za-z]{3}$/.test(w.english.trim()))).forEach(add);
+  shuffle(SPELL_SAMPLES).forEach(add);
+
+  const rounds: Question[] = [];
+  let ci = 0;
+  let si = 0;
+  for (let r = 0; r < ROUND_COUNT; r++) {
+    rounds.push(SPELL_ROUNDS.includes(r) ? buildSpell(picked[si++]) : choices[ci++]);
+  }
+  return rounds;
 }
 
 function kindForCombo(c: number): DartKind {
@@ -292,6 +357,34 @@ function runFlight(o: {
     cancelled = true;
     cancelAnimationFrame(raf);
   };
+}
+
+// FIRE 다트: 표적 테두리에서 작은 주황 입자가 튀어 나간다
+function spawnEmbers(layer: HTMLDivElement | null, cx: number, cy: number, r: number) {
+  if (!layer || typeof layer.animate !== "function") return;
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2 + Math.random() * 0.4;
+    const d = document.createElement("div");
+    const sz = 5 + Math.random() * 5;
+    Object.assign(d.style, {
+      position: "absolute",
+      left: `${cx + Math.cos(a) * r - sz / 2}px`,
+      top: `${cy + Math.sin(a) * r - sz / 2}px`,
+      width: `${sz}px`,
+      height: `${sz}px`,
+      borderRadius: "50%",
+      background: ["#ff7a1a", "#ffd23a", "#ff4a2a"][i % 3],
+      boxShadow: "0 0 8px #ff7a1a",
+      pointerEvents: "none",
+    });
+    layer.appendChild(d);
+    const out = 22 + Math.random() * 18;
+    const anim = d.animate(
+      [{ opacity: 1, transform: "translate(0,0) scale(1)" }, { opacity: 0, transform: `translate(${Math.cos(a) * out}px, ${Math.sin(a) * out - 10}px) scale(0.2)` }],
+      { duration: 700, easing: "ease-out" },
+    );
+    anim.onfinish = () => d.remove();
+  }
 }
 
 function readAimOffset() {
@@ -482,6 +575,8 @@ function DartStyles() {
       @keyframes dgRespawn { 0% { transform: translateY(60px) scale(0.7); opacity: 0; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
       @keyframes dgHint { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.35) drop-shadow(0 0 10px #ffd84a); } }
       @keyframes dgNudge { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+      @keyframes dgGlow { 0% { opacity: 0; } 20% { opacity: 1; } 70% { opacity: 0.8; } 100% { opacity: 0; } }
+      .dg-glow { animation: dgGlow 0.9s ease-out forwards; }
       .dg-pop { animation: dgPop 0.35s ease-out both; }
       .dg-respawn { animation: dgRespawn 0.32s ease-out both; }
       .dg-hint { animation: dgHint 1s ease-in-out infinite; }
@@ -490,6 +585,7 @@ function DartStyles() {
       .dg-btn:focus-visible { outline: 3px solid #ffd84a; outline-offset: 2px; }
       @media (prefers-reduced-motion: reduce) {
         .dg-pop, .dg-respawn, .dg-hint, .dg-nudge { animation: none; }
+        .dg-glow { animation: none; opacity: 0.9; }
       }
     `}</style>
   );
@@ -508,7 +604,7 @@ export default function DartGame({
   onExit?: () => void;
 }) {
   const [pet] = useState(() => loadPet("vocab"));
-  const [questions] = useState<Question[] | null>(() => buildQuestions(words));
+  const [questions] = useState<Question[] | null>(() => buildRounds(words));
   const leave = onExit ?? onDone;
 
   const stageRef = useRef<HTMLDivElement>(null);
@@ -533,7 +629,9 @@ export default function DartGame({
   const [dartKey, setDartKey] = useState(0);
   const [trayHidden, setTrayHidden] = useState(false);
   const [stuck, setStuck] = useState<Stuck | null>(null);
-  const [fx, setFx] = useState<Fx | null>(null);
+  const [fxList, setFxList] = useState<Fx[]>([]);
+  const [filled, setFilled] = useState(0); // 스펠링: 채워진 슬롯 수
+  const [remaining, setRemaining] = useState<Record<string, number>>({}); // 스펠링: 글자별 앞으로 필요한 횟수
   const [banner, setBanner] = useState<Banner | null>(null);
   const [reveal, setReveal] = useState<{ english: string; korean: string } | null>(null);
   const [aim, setAim] = useState<{ x: number; y: number; valid: boolean; angle: number } | null>(null);
@@ -561,6 +659,9 @@ export default function DartGame({
     misses: 0,
     kind: "basic" as DartKind,
     finished: false,
+    spellDone: 0,
+    letterWrongs: 0,
+    spell: { next: 0, remaining: {} as Record<string, number>, letterWrong: 0, clean: true, hint: false },
   });
   const token = useRef(0);
   const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
@@ -568,6 +669,8 @@ export default function DartGame({
   const stuckInfo = useRef({ u: 0, v: 0, angle: 0 });
   const keySeq = useRef(0);
   const nextKey = () => ++keySeq.current;
+  const addFx = (f: Omit<Fx, "key">) => setFxList((prev) => [...prev, { ...f, key: nextKey() }]);
+  const removeFx = (key: number) => setFxList((prev) => prev.filter((x) => x.key !== key));
 
   const aimRef = useRef({ active: false, pointerId: -1, entered: false, x: 0, y: 0 });
   const downPointers = useRef(new Set<number>());
@@ -578,8 +681,8 @@ export default function DartGame({
   const trailLayer = useRef<HTMLDivElement>(null);
   const stuckOuter = useRef<HTMLDivElement>(null);
   const stuckInner = useRef<HTMLDivElement>(null);
-  const targetEls = useRef<(HTMLDivElement | null)[]>([null, null, null]);
-  const labelEls = useRef<(HTMLDivElement | null)[]>([null, null, null]);
+  const targetEls = useRef<(HTMLDivElement | null)[]>([null, null, null, null, null]);
+  const labelEls = useRef<(HTMLDivElement | null)[]>([null, null, null, null, null]);
 
   // ---------- 조준 취소 (포인터 취소/화면 이탈/멀티터치/크기 변경 등에서 발사 없이 복귀) ----------
   function cancelAim() {
@@ -705,13 +808,22 @@ export default function DartGame({
     g.missStreak = 0;
     g.kind = kindForCombo(g.combo);
     setQIndex(i);
-    setTstates(["base", "base", "base"]);
+    setTstates(Array<TState>(q.targets.length).fill("base"));
     setHintOn(false);
     setStuck(null);
-    setFx(null);
+    setFxList([]);
     setBanner(null);
     setReveal(null);
     setAim(null);
+    g.spell = { next: 0, remaining: countLetters(q.letters), letterWrong: 0, clean: true, hint: false };
+    setFilled(0);
+    setRemaining({ ...g.spell.remaining });
+    if (q.kind === "spell") {
+      // 스펠링 시작에만 짧은 안내 (정답 글자는 알려주지 않는다)
+      const key = nextKey();
+      setBanner({ text: "글자를 순서대로 맞혀봐!", tone: "info", key });
+      later(2400, () => setBanner((b) => (b && b.key === key ? null : b)));
+    }
     setDartKind(g.kind);
     setDartKey((k) => k + 1);
     setTrayHidden(false);
@@ -744,7 +856,8 @@ export default function DartGame({
         firstTry: g.firstTry,
         bestCombo: g.bestCombo,
         retries: g.wrongAttempts,
-        coins: COIN_COMPLETE + COIN_PER_FIRST_TRY * g.firstTry,
+        spellDone: g.spellDone,
+        coins: COIN_COMPLETE + COIN_PER_FIRST_TRY * g.firstTry, // 글자 단위가 아니라 라운드 단위로 한 번만 계산
       });
       token.current += 1;
       setStage("result");
@@ -903,9 +1016,10 @@ export default function DartGame({
 
     let hit = -1;
     let best = Infinity;
-    TARGET_LAYOUT.forEach((t, i) => {
+    const set = setOf(q.targets.length);
+    set.pos.forEach((t, i) => {
       const d = Math.hypot(aimN.u - t.u, aimN.v - t.v);
-      if (d <= HIT_R && d < best) {
+      if (d <= set.r * HIT_MARGIN && d < best) {
         best = d;
         hit = i;
       }
@@ -913,15 +1027,21 @@ export default function DartGame({
     const insideBoard = Math.hypot(aimN.u, aimN.v) <= BOARD_R;
 
     if (hit < 0) onMiss(aimN, insideBoard);
-    else if (q.options[hit].word.id === q.target.id) onCorrect(hit, aimN);
+    else if (q.kind === "spell") onSpellHit(hit, aimN);
+    else if (hit === q.correctSlot) onCorrect(hit, aimN);
     else onWrong(hit, aimN);
   }
 
-  function animateTarget(i: number, kind: "shake" | "pulse") {
+  function animateTarget(i: number, kind: "shake" | "pulse" | "jolt") {
     if (reducedRef.current) return;
     [targetEls.current[i], labelEls.current[i]].forEach((el) => {
     if (!el || typeof el.animate !== "function") return;
-    if (kind === "shake") {
+    if (kind === "jolt") {
+      el.animate(
+        [{ transform: "translateX(0)" }, { transform: "translateX(-4px)" }, { transform: "translateX(4px)" }, { transform: "translateX(0)" }],
+        { duration: 160, easing: "ease-out" },
+      );
+    } else if (kind === "shake") {
       el.animate(
         [
           { transform: "translateX(0) rotate(0)" }, { transform: "translateX(-9px) rotate(-3deg)" },
@@ -968,9 +1088,9 @@ export default function DartGame({
   function respawnAfter(ms: number) {
     later(ms, () => {
       setStuck(null);
-      setFx(null);
+      setFxList([]);
       setBanner(null);
-      setTstates(["base", "base", "base"]);
+      setTstates(Array<TState>(game.current.q?.targets.length ?? 3).fill("base"));
       setDartKey((k) => k + 1);
       setTrayHidden(false);
       setPhase("idle");
@@ -992,15 +1112,106 @@ export default function DartGame({
     setCombo(g.combo);
     setTstates((prev) => prev.map((s, i) => (i === slot ? "correct" : s)));
     setHintOn(false);
-    setFx({ kind: "hit", u: TARGET_LAYOUT[slot].u, v: TARGET_LAYOUT[slot].v, key: nextKey() });
-    animateTarget(slot, "pulse");
+    igniteRim(slot);
     setBanner({ text: "명중!", tone: "good", key: nextKey() });
-    setReveal({ english: q.target.english, korean: q.target.korean });
+    setReveal(q.reveal);
     playSfx("correct", mutedRef.current);
     void aimN;
 
     const tk = token.current;
-    const spoken = speak(q.target.english, "en-US", mutedRef.current);
+    const spoken = speak(q.reveal.english, "en-US", mutedRef.current);
+    void Promise.all([delay(T_CELEBRATE + T_WORD_CONFIRM), spoken]).then(() => {
+      if (token.current === tk && !game.current.finished) nextQuestion();
+    });
+  }
+
+  // 정답 다트가 실제 도착한 표적의 둘레(나무 테두리)에 불꽃이 번졌다 사라진다. 틀린 표적/빗나감에는 쓰지 않는다.
+  function igniteRim(slot: number) {
+    const g = game.current;
+    const q = g.q!;
+    const set = setOf(q.targets.length);
+    const t = set.pos[slot];
+    const fire = g.kind === "fire"; // FIRE 다트는 효과만 1.15배 (판정에는 영향 없음)
+    setTstates((prev) => prev.map((s, i) => (i === slot ? "correct" : s)));
+    animateTarget(slot, "jolt"); // 표적 아주 짧은 흔들림 → 주황 발광 → 불꽃 프레임
+    addFx({ kind: "rim", u: t.u, v: t.v, big: fire });
+    if (fire && !reducedRef.current) {
+      const L = layoutRef.current;
+      const p = toPx(L, t.u, t.v);
+      spawnEmbers(trailLayer.current, p.x, p.y, set.r * L.D * 1.05);
+    }
+  }
+
+  // ---------- 스펠링: 글자를 순서대로 맞히면 완성 ----------
+  function onSpellHit(slot: number, aimN: { u: number; v: number }) {
+    const g = game.current;
+    const q = g.q!;
+    const sp = g.spell;
+    const letters = q.letters ?? [];
+    const label = q.targets[slot].label;
+    const needed = letters[sp.next];
+    const left = sp.remaining[label] ?? 0;
+
+    if (label === needed && left > 0) {
+      // 올바른 다음 글자: 슬롯 채움 + 그 표적 테두리 불꽃. 글자마다 코인/콤보/진행은 올리지 않는다.
+      sp.next += 1;
+      sp.remaining[label] = left - 1;
+      sp.letterWrong = 0; // 다음 글자로 넘어가면 그 글자의 오답 횟수는 초기화 (라운드 힌트 사용 여부는 유지)
+      g.missStreak = 0;
+      setFilled(sp.next);
+      setRemaining({ ...sp.remaining });
+      setHintOn(false);
+      playSfx("correct", mutedRef.current);
+      igniteRim(slot);
+      if (sp.next >= letters.length) {
+        completeSpell();
+        return;
+      }
+      setBanner({ text: `${label}!`, tone: "good", key: nextKey() });
+      respawnAfter(T_LETTER);
+      return;
+    }
+
+    // 순서가 아닌 글자(또는 이미 다 쓴 글자) 명중: 다트가 튕기고, 채운 슬롯과 글자 위치는 그대로 둔다.
+    sp.letterWrong += 1;
+    sp.clean = false;
+    g.letterWrongs += 1;
+    g.wrongAttempts += 1;
+    g.combo = 0; // 글자 오답 순간 콤보 0 (코인/생명 차감은 없다)
+    g.missStreak = 0;
+    setCombo(0);
+    setTstates((prev) => prev.map((s, i) => (i === slot ? "wrong" : s)));
+    addFx({ kind: "wrong", u: aimN.u, v: aimN.v });
+    animateTarget(slot, "shake");
+    playSfx("wrong", mutedRef.current);
+    let sub: string | undefined;
+    if (sp.letterWrong >= 2) {
+      sp.hint = true; // 같은 글자에서 두 번 틀리면 정답 글자 표적에 힌트
+      setHintOn(true);
+    }
+    if (sp.letterWrong >= 2) sub = "힌트! 반짝이는 글자를 봐!";
+    setBanner({ text: "다음 글자를 다시 골라봐!", sub, tone: "try", key: nextKey() });
+    later(260, dropStuckDart);
+    respawnAfter(T_TRY_AGAIN);
+  }
+
+  function completeSpell() {
+    const g = game.current;
+    const q = g.q!;
+    const sp = g.spell;
+    g.spellDone += 1;
+    if (sp.clean && !sp.hint) {
+      // 글자 오답/힌트 없이 완성 = 최초 성공 라운드, 콤보 +1. (오답/힌트가 있었던 라운드는 콤보를 올리지 않는다)
+      g.firstTry += 1;
+      g.combo += 1;
+      g.bestCombo = Math.max(g.bestCombo, g.combo);
+    }
+    setCombo(g.combo);
+    addFx({ kind: "word", u: 0, v: 0 });
+    setBanner({ text: "완성!", tone: "good", key: nextKey() });
+    setReveal(q.reveal);
+    const tk = token.current;
+    const spoken = speak(q.reveal.english, "en-US", mutedRef.current);
     void Promise.all([delay(T_CELEBRATE + T_WORD_CONFIRM), spoken]).then(() => {
       if (token.current === tk && !game.current.finished) nextQuestion();
     });
@@ -1014,7 +1225,7 @@ export default function DartGame({
     g.missStreak = 0;
     setCombo(0);
     setTstates((prev) => prev.map((s, i) => (i === slot ? "wrong" : s)));
-    setFx({ kind: "wrong", u: aimN.u, v: aimN.v, key: nextKey() });
+    addFx({ kind: "wrong", u: aimN.u, v: aimN.v });
     animateTarget(slot, "shake");
     playSfx("wrong", mutedRef.current);
     let sub: string | undefined;
@@ -1034,7 +1245,7 @@ export default function DartGame({
     const g = game.current;
     g.misses += 1;
     g.missStreak += 1;
-    setFx({ kind: "miss", u: aimN.u, v: aimN.v, key: nextKey() });
+    addFx({ kind: "miss", u: aimN.u, v: aimN.v });
     playSfx("miss", mutedRef.current);
     setBanner({
       text: "조금만 옆으로!",
@@ -1088,7 +1299,8 @@ export default function DartGame({
 
   // ---------- 렌더 ----------
   const L = layout;
-  const ringD = 2 * TARGET_R * L.D;
+  const tset = setOf(q ? q.targets.length : 3);
+  const ringD = 2 * tset.r * L.D;
   const ts = ringD / (2 * TARGET_SHEET.ring); // 표적 아틀라스 배율
   const faceD = 2 * TARGET_SHEET.faceR * ts;
 
@@ -1128,7 +1340,8 @@ export default function DartGame({
   if (stage === "result" && finalStats) {
     const rows: [string, string][] = [
       ["완료한 문제", `${ROUND_COUNT} / ${ROUND_COUNT}`],
-      ["최초 정답", `${finalStats.firstTry}개`],
+      ["최초 성공 라운드", `${finalStats.firstTry} / ${ROUND_COUNT}`],
+      ["스펠링 완성", `${finalStats.spellDone} / ${SPELL_ROUNDS.length}`],
       ["최고 콤보", `${finalStats.bestCombo}`],
       ["재도전", `${finalStats.retries}번`],
     ];
@@ -1175,14 +1388,17 @@ export default function DartGame({
 
   const dispState = (i: number): TState => {
     const s = tstates[i];
-    if (s === "base" && hintOn && q && i === q.correctSlot) return "hint";
+    if (s === "base" && hintOn && q) {
+      // 선택: 정답 표적 / 스펠링: 지금 필요한 글자 표적
+      const isTarget = q.kind === "choice" ? i === q.correctSlot : q.targets[i]?.label === q.letters?.[filled];
+      if (isTarget) return "hint";
+    }
     return s;
   };
 
   const revealLen = reveal ? [...reveal.english].length + [...reveal.korean].length + 3 : 1;
   const revealFs = clamp(Math.min(L.trayH * 0.2, ((L.w * 0.9 - 60) / revealLen) * 1.05), 14, 26);
-  const fxPx = fx ? toPx(L, fx.u, fx.v) : null;
-  const fxSize = fx?.kind === "hit" ? ringD * 1.55 : ringD * 1.15;
+  const spellSlotW = clamp(L.qH * 0.62, 30, 44);
 
   return (
     <div
@@ -1217,15 +1433,18 @@ export default function DartGame({
       {/* 표적 3개 */}
       {loaded &&
         q &&
-        TARGET_LAYOUT.map((t, i) => {
+        tset.pos.map((t, i) => {
           const st = dispState(i);
           const cell = TARGET_CELLS[TCELL[st]];
           const cx = L.bx + t.u * L.D;
           const cy = L.by + t.v * L.D;
-          const label = q.options[i].label;
+          const label = q.targets[i].label;
           const len = [...label].length;
-          const fs = Math.max(13, faceD * (len <= 6 ? 0.21 : len <= 9 ? 0.17 : 0.14));
-          const box: CSSProperties = { position: "absolute", left: cx - ringD / 2, top: cy - ringD / 2, width: ringD, height: ringD, pointerEvents: "none" };
+          const isSpell = q.kind === "spell";
+          const fs = isSpell ? faceD * 0.58 : Math.max(13, faceD * (len <= 6 ? 0.21 : len <= 9 ? 0.17 : 0.14));
+          // 앞으로 더 필요 없는(다 쓴) 정답 글자 표적은 흐리게. 답에 없는 글자는 그대로 둔다.
+          const spent = isSpell && (q.letters ?? []).includes(label) && (remaining[label] ?? 0) === 0;
+          const box: CSSProperties = { position: "absolute", left: cx - ringD / 2, top: cy - ringD / 2, width: ringD, height: ringD, pointerEvents: "none", opacity: spent ? 0.4 : 1 };
           return (
             <div key={i}>
             <div
@@ -1294,25 +1513,42 @@ export default function DartGame({
           );
         })}
 
-      {/* 효과 프레임 (표적 라벨 뒤, 한 번만 재생) */}
-      {fx && fxPx && (
-        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 2 }}>
-          <SpriteFx
-            key={fx.key}
-            src={`${A}/${fx.kind === "hit" ? "hit_fx" : "retry_fx"}.png`}
-            frames={
-              reduced
-                ? [fx.kind === "hit" ? HIT_FRAMES[2] : fx.kind === "wrong" ? WRONG_FRAMES[1] : MISS_FRAMES[1]]
-                : fx.kind === "hit" ? HIT_FRAMES : fx.kind === "wrong" ? WRONG_FRAMES : MISS_FRAMES
-            }
-            x={fxPx.x}
-            y={fxPx.y}
-            size={fxSize}
-            duration={fx.kind === "hit" ? (reduced ? 500 : 750) : reduced ? 350 : 420}
-            onEnd={() => setFx((cur) => (cur && cur.key === fx.key ? null : cur))}
-          />
-        </div>
-      )}
+      {/* 효과 프레임 (표적 링과 라벨 사이, 한 번만 재생) */}
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 2 }}>
+        {fxList.map((f) => {
+          const p = toPx(L, f.u, f.v);
+          const isRim = f.kind === "rim";
+          const frames = isRim
+            ? reduced ? [RIM_FRAMES[4]] : RIM_FRAMES
+            : f.kind === "word"
+              ? reduced ? [WORD_FRAMES[2]] : WORD_FRAMES
+              : f.kind === "wrong"
+                ? reduced ? [WRONG_FRAMES[1]] : WRONG_FRAMES
+                : reduced ? [MISS_FRAMES[1]] : MISS_FRAMES;
+          const src = isRim ? "rim_fire_fx" : f.kind === "word" ? "word_complete_fx" : "retry_fx";
+          const size = isRim ? ringD * RIM_SCALE * (f.big ? 1.15 : 1) : f.kind === "word" ? L.D * 0.98 : ringD * 1.15;
+          const duration = isRim || f.kind === "word" ? (reduced ? 600 : 900) : reduced ? 350 : 420;
+          return (
+            <div key={f.key}>
+              {isRim && (
+                <div
+                  className="dg-glow"
+                  style={{
+                    position: "absolute",
+                    left: p.x - ringD / 2,
+                    top: p.y - ringD / 2,
+                    width: ringD,
+                    height: ringD,
+                    borderRadius: "50%",
+                    boxShadow: "0 0 0 3px rgba(255,170,60,0.85), 0 0 18px 6px rgba(255,120,20,0.7)",
+                  }}
+                />
+              )}
+              <SpriteFx src={`${A}/${src}.png`} frames={frames} x={p.x} y={p.y} size={size} duration={duration} onEnd={() => removeFx(f.key)} />
+            </div>
+          );
+        })}
+      </div>
 
       {/* 판에 꽂힌 다트 */}
       {stuck && stuckPx && (
@@ -1425,6 +1661,26 @@ export default function DartGame({
           >
             🔈
           </button>
+          {q.kind === "spell" && q.letters && (
+            // 답 슬롯: 정답 글자는 맞힌 만큼만 보인다 (완성 전에 전체를 알려주지 않는다)
+            <div
+              role="img"
+              aria-label={`${q.letters.length}글자 중 ${filled}글자 완성`}
+              className="flex items-center gap-1.5 pl-3 border-l-2 border-gray-200"
+            >
+              {q.letters.map((ch, i) => (
+                <span
+                  key={`${i}-${i < filled}`}
+                  className={`inline-flex items-center justify-center rounded-lg font-black ${
+                    i < filled ? "bg-amber-200 text-amber-900 dg-pop" : i === filled ? "bg-sky-100 text-sky-400 ring-2 ring-sky-400" : "bg-gray-100 text-gray-300"
+                  }`}
+                  style={{ width: spellSlotW, height: spellSlotW * 1.1, fontSize: spellSlotW * 0.62 }}
+                >
+                  {i < filled ? ch : "_"}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -1481,7 +1737,7 @@ export default function DartGame({
           <div className="dg-pop flex flex-col items-center gap-1">
           <span
             className={`rounded-full px-7 py-2 font-black text-3xl shadow-lg ${
-              banner.tone === "good" ? "bg-amber-300 text-amber-900" : banner.tone === "try" ? "bg-rose-400 text-white" : "bg-sky-400 text-white"
+              banner.tone === "good" ? "bg-amber-300 text-amber-900" : banner.tone === "try" ? "bg-rose-400 text-white" : banner.tone === "info" ? "bg-emerald-500 text-white" : "bg-sky-400 text-white"
             }`}
           >
             {banner.text}
