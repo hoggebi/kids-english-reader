@@ -48,7 +48,8 @@ export type VocabSet = {
 };
 
 // 노출(영어+한글 동시), 뜻고르기(영→한), 영어고르기(한→영), 스펠링(배열/빈칸채우기)
-export type VocabStudyMode = "expose" | "meaning" | "toEnglish" | "spell";
+// "teach" = Lesson 단어 학습 흐름(소개 → 철자 시연 → 섞인 글자 순서대로 눌러 완성). Lesson 묶음에서만 쓴다.
+export type VocabStudyMode = "expose" | "meaning" | "toEnglish" | "spell" | "teach";
 
 export type VocabDailyCard = {
   wordId: string;

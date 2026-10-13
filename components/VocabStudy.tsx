@@ -14,6 +14,7 @@ import {
 import { autoPush } from "@/lib/sync";
 import { recordLessonStudyDone } from "@/lib/lessonPlan";
 import VocabGame from "./VocabGame";
+import SpellTeachCard from "./SpellTeachCard";
 
 type Mode = "hub" | "study" | "game";
 
@@ -236,6 +237,14 @@ export default function VocabStudy({ set, onBack }: { set: VocabSet; onBack: () 
         </span>
       </div>
 
+      {card.mode === "teach" && (
+        <SpellTeachCard
+          key={word.id}
+          word={word}
+          isLast={session.cursor + 1 >= session.cards.length}
+          onFinish={(clean) => advanceCard(clean)}
+        />
+      )}
       {card.mode === "expose" && (
         <ExposureCard word={word} isLast={session.cursor + 1 >= session.cards.length} onNext={() => advanceCard()} />
       )}

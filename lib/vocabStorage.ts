@@ -148,7 +148,7 @@ export function recordAnswer(setId: string, wordId: string, correct: boolean) {
 }
 
 // ---------- 오늘의 세션(카드 큐) 저장/조회 ----------
-const VALID_STUDY_MODES: VocabStudyMode[] = ["expose", "meaning", "toEnglish", "spell"];
+const VALID_STUDY_MODES: VocabStudyMode[] = ["expose", "meaning", "toEnglish", "spell", "teach"];
 
 function sessionKey(setId: string) {
   return SESSION_KEY_PREFIX + setId;
@@ -165,6 +165,8 @@ export function loadTodaySession(setId: string): VocabDailySession | null {
     if (s.dateKey !== todayKey() && !resumable) return null;
     // 예전 버전(flash/listen/game phase 등)으로 저장된 캐시면 무효 처리하고 새로 만들게 함
     const hasUnknownMode = s.cards.some((c) => !VALID_STUDY_MODES.includes(c.mode));
+    // Lesson 묶음은 새 학습 흐름("teach")만 쓴다. 이전 구성(expose/문제 카드)으로 저장된 세션은 새로 만든다.
+    if (lessonFromSetId(setId) !== null && s.cards.some((c) => c.mode !== "teach")) return null;
     const hasUnknownPhase = s.phase !== "study" && s.phase !== "done";
     if (hasUnknownMode || hasUnknownPhase) return null;
     return s;
@@ -190,12 +192,18 @@ function shuffle<T>(arr: T[]): T[] {
 // 단어당 항상 2개: 노출(expose) 보장 + 나머지(뜻고르기/영어고르기/스펠링) 중 랜덤 1개 테스트
 // (신규/복습 상관없이 항상 "단어 알려주기 → 문제풀기" 순서를 보장)
 export function buildDailySession(set: VocabSet): VocabDailySession {
+  const isLesson = lessonFromSetId(set.id) !== null;
   // Lesson 묶음은 하루 10개 제한 없이 그 Lesson의 전체 학습 단어를 쓴다(추가 단어 포함).
-  const dailyWords = lessonFromSetId(set.id) !== null ? set.words : selectDailyWords(set);
+  const dailyWords = isLesson ? set.words : selectDailyWords(set);
   const testModes: VocabStudyMode[] = ["meaning", "toEnglish", "spell"];
   const cards: VocabDailySession["cards"] = [];
 
   for (const w of dailyWords) {
+    if (isLesson) {
+      // Lesson 단어는 단어당 카드 하나: 소개 → 철자 시연 → 글자 눌러 완성
+      cards.push({ wordId: w.id, mode: "teach" });
+      continue;
+    }
     const testMode = shuffle(testModes)[0];
     cards.push({ wordId: w.id, mode: "expose" });
     cards.push({ wordId: w.id, mode: testMode });
