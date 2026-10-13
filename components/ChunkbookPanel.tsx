@@ -524,7 +524,7 @@ export default function ChunkbookPanel({
               selected === l.lesson ? "border-sky-500 bg-sky-50" : "border-gray-200 bg-white"
             }`}
           >
-            <p className="font-title text-lg text-gray-800">Lesson {l.lesson}</p>
+            <p className="text-sm font-bold text-gray-800">Lesson {l.lesson}</p>
             <p className="text-xs text-gray-500">{l.pages.length}쪽</p>
           </button>
         ))}

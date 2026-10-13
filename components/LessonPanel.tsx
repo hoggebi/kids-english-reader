@@ -150,7 +150,7 @@ export default function LessonPanel({
   if (!confirmed || !plan) {
     return (
       <div className="w-full max-w-4xl rounded-2xl bg-sky-50 border-2 border-sky-200 p-4 flex flex-col gap-2" data-testid="lesson-intro">
-        <p className="font-bold text-sky-900">청크북 Lesson 학습</p>
+        <p className="text-base font-bold text-sky-900">청크북 Lesson 학습</p>
         <p className="text-sm text-sky-800">
           Lesson 2부터 8까지, 하루에 한 Lesson씩 핵심 단어를 학습하고 게임해요. 시작하기 전에 단어 뜻을 한 번 확인해 주세요.
         </p>
@@ -172,7 +172,7 @@ export default function LessonPanel({
       <div className="rounded-2xl bg-sky-50 border-2 border-sky-200 p-4 flex flex-col gap-3">
         {plan.finished ? (
           <>
-            <p className="font-bold text-sky-900">🎉 Lesson 8까지 모두 완료했어요! ({plan.cycle}회차)</p>
+            <p className="text-base font-bold text-sky-900">🎉 Lesson 8까지 모두 완료했어요! ({plan.cycle}회차)</p>
             <p className="text-sm text-sky-800">
               자동으로 다시 시작하지 않아요. 아래에서 다시 볼 Lesson을 고르거나, 처음(Lesson 2)부터 새로 시작할 수 있어요.
               (단어별 학습 기록은 그대로 남아요)
@@ -190,9 +190,9 @@ export default function LessonPanel({
         ) : (
           <>
             <div className="flex items-center justify-between gap-2">
-              <p className="font-bold text-sky-900">
+              <p className="text-base font-bold text-sky-900">
                 오늘의 Lesson: Lesson {current}
-                {currentSet && <span className="text-sm font-normal text-sky-700"> · 단어 {currentSet.words.length}개</span>}
+                {currentSet && <span className="text-xs font-normal text-sky-700"> · 단어 {currentSet.words.length}개</span>}
               </p>
               <span className="text-xs text-sky-700">{plan.cycle}회차</span>
             </div>
@@ -212,7 +212,7 @@ export default function LessonPanel({
             {currentSet && (
               <button
                 onClick={() => onStart(currentSet)}
-                className="self-start min-h-[52px] px-6 rounded-full bg-sky-600 text-white font-bold text-lg"
+                className="self-start min-h-[48px] px-5 rounded-full bg-sky-600 text-white font-bold text-base"
               >
                 {doneToday ? "Lesson 다시 하기" : progress?.studyDone ? "이어서 하기" : "학습 시작"}
               </button>
@@ -231,7 +231,7 @@ export default function LessonPanel({
               key={l}
               disabled={!selectable || !set}
               onClick={() => set && onStart(set)}
-              className={`min-h-[56px] rounded-xl border-2 px-2 py-1 text-center transition ${
+              className={`min-h-[52px] rounded-xl border-2 px-2 py-1.5 text-center transition ${
                 st === "current"
                   ? "border-sky-500 bg-sky-50"
                   : st === "completed"
@@ -240,7 +240,7 @@ export default function LessonPanel({
               }`}
               aria-label={`Lesson ${l} ${st === "completed" ? "완료, 다시 보기" : st === "current" ? "오늘의 Lesson" : "아직 잠김"}`}
             >
-              <span className="block font-title text-base">Lesson {l}</span>
+              <span className="block text-sm font-bold">Lesson {l}</span>
               <span className="block text-[11px]">{st === "completed" ? "완료 ✓" : st === "current" ? "오늘" : "잠김"}</span>
             </button>
           );

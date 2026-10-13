@@ -40,7 +40,7 @@ export default function VocabList({
     <div className="w-full max-w-4xl flex flex-col gap-4">
       <button
         onClick={onAdd}
-        className="w-full py-3 rounded-full bg-sky-600 text-white font-bold text-lg active:scale-95 transition"
+        className="w-full py-3 rounded-full bg-sky-600 text-white font-bold text-base active:scale-95 transition"
       >
         새 단어장 만들기
       </button>
