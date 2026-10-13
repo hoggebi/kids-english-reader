@@ -40,14 +40,14 @@ export default function VocabList({
     <div className="w-full max-w-4xl flex flex-col gap-4">
       <button
         onClick={onAdd}
-        className="w-full py-3 rounded-full bg-sky-600 text-white font-bold text-base active:scale-95 transition"
+        className="self-start min-h-[44px] px-4 rounded-full border border-sky-300 bg-white text-sky-700 text-sm font-bold active:scale-95 transition"
       >
         새 단어장 만들기
       </button>
 
       {sets.length === 0 ? (
         <p className="text-center text-gray-400 text-sm py-8">
-          아직 만든 단어장이 없어요. 위 버튼으로 시작해보세요.
+          직접 만든 단어장이 없어요. 위 버튼으로 만들 수 있어요.
         </p>
       ) : (
         <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:gap-4">
