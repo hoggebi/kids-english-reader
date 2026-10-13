@@ -66,6 +66,23 @@ export function isLessonSet(set: Pick<VocabSet, "id">): boolean {
   return lessonFromSetId(set.id) !== null;
 }
 
+// 코드의 Lesson 단어 정의가 늘어난 경우(예: 추가 단어 배치 변경), 이미 저장된 Lesson 세트에 빠진 단어를 채워 넣는다.
+// 단어별 기록(box 등)과 부모가 고친 뜻은 그대로 두고, 아직 확인·저장 전(세트가 없음)이면 아무것도 하지 않는다.
+export function refreshLessonSets(existing: VocabSet[]): { sets: VocabSet[]; changedLessons: number[] } {
+  const have = existing.filter(isLessonSet);
+  if (have.length === 0) return { sets: existing, changedLessons: [] };
+  const refreshed = lessonSetsFromDefs(existing, {});
+  const changedLessons: number[] = [];
+  for (const rs of refreshed) {
+    const old = existing.find((s) => s.id === rs.id);
+    const sameWords = old && old.words.length === rs.words.length && old.words.every((w, i) => w.id === rs.words[i].id);
+    if (!sameWords) changedLessons.push(lessonFromSetId(rs.id) as number);
+  }
+  if (changedLessons.length === 0) return { sets: existing, changedLessons };
+  const others = existing.filter((s) => !isLessonSet(s));
+  return { sets: [...others, ...refreshed], changedLessons };
+}
+
 // 부모가 확인·저장하면 7개 Lesson 세트를 만들고 진행 계획을 시작한다.
 export function confirmLessons(existing: VocabSet[], draft: MeaningDraft): { sets: VocabSet[]; plan: LessonPlan } {
   const lessonSets = lessonSetsFromDefs(existing, draft);

@@ -1,7 +1,8 @@
 // 청크북 A2 Lesson 2~8의 "Write the word twice" 페이지(Word 열) 핵심 단어 10개씩.
 //  - origin "seed": 기존 단어장 Seed 1_2610과 겹치는 단어 → 기존 한국어 뜻을 쓴다.
 //  - origin "book": Seed에 없는 청크북 단어 → 교재(Word/Meaning 표)의 뜻. 저장 전 부모가 확인·수정한다.
-//  - origin "seed-extra": Seed 1_2610에만 있는 단어(baseball, family tree, first, often). 하루 1개씩 Lesson에 섞는다.
+//  - origin "seed-extra": 핵심 단어가 아닌 Seed 1_2610 단어 6개. Lesson 2~7에 하루 1개씩 섞는다.
+//    (baseball→2, family tree→3, first→4, often→5, great→6, show→7, Lesson 8은 추가 없음)
 // 기준 데이터: 호_청크북_A2.pdf (42쪽) + Seed 1_2610 (2026-10-13 기준).
 
 import type { VocabSet, VocabWord } from "./types";
@@ -88,6 +89,7 @@ export const LESSON_DEFS: Record<number, LessonWordDef[]> = {
     b("right", "옳은"),
     s("understand", "이해하다", "v."),
     s("yesterday", "어제", "adv./n."),
+    x("great", "대단한", "adj."),
   ],
   7: [
     s("act", "행동하다", "v."),
@@ -100,6 +102,7 @@ export const LESSON_DEFS: Record<number, LessonWordDef[]> = {
     b("strangely", "이상하게"),
     s("weird", "이상한", "adj."),
     s("whisper", "속삭이다", "v."),
+    x("show", "보여 주다", "v."),
   ],
   8: [
     s("care", "관심을 가지다", "v."),

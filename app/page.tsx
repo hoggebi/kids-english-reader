@@ -42,7 +42,7 @@ import VocabUpload from "@/components/VocabUpload";
 import VocabStudy from "@/components/VocabStudy";
 import ChunkbookPanel from "@/components/ChunkbookPanel";
 import LessonPanel from "@/components/LessonPanel";
-import { isLessonSet, loadLessonPlan, type LessonPlan } from "@/lib/lessonPlan";
+import { isLessonSet, loadLessonPlan, refreshLessonSets, type LessonPlan } from "@/lib/lessonPlan";
 
 type Section = "chunkbook" | "chapters" | "vocab";
 type View = "list" | "add" | "read";
@@ -71,7 +71,15 @@ export default function Home() {
     setChapters(loadChapters());
     setPet(loadPet());
     setVocabPet(loadPet("vocab"));
-    setVocabSets(loadVocabSets());
+    // 이미 저장된 Lesson 세트에 새로 정해진 추가 단어가 빠져 있으면 채운다(단어별 기록은 유지).
+    const loadedSets = loadVocabSets();
+    const refreshed = refreshLessonSets(loadedSets);
+    if (refreshed.changedLessons.length > 0) {
+      saveVocabSets(refreshed.sets);
+      // 단어 구성이 바뀐 Lesson의 오늘 학습 카드는 새 묶음으로 다시 만든다
+      refreshed.changedLessons.forEach((l) => localStorage.removeItem(`chunkbook-v2-vocab-session-lesson-${l}`));
+    }
+    setVocabSets(refreshed.sets);
     setChunkbooks(loadChunkbooks());
     setLessonPlan(loadLessonPlan());
 
