@@ -1,0 +1,77 @@
+"use client";
+
+import type { VocabSet } from "./types";
+import { lessonFromSetId, lessonSetsFromDefs, type MeaningDraft } from "./lessonData";
+import { applyGameDone, applyStudyDone, localDateKey, newPlan, normalizePlan, restartPlan, type LessonPlan } from "./lessonPlanCore";
+
+export { lessonFromSetId, lessonSetId, draftKey, type MeaningDraft } from "./lessonData";
+export type { LessonPlan } from "./lessonPlanCore";
+
+const PLAN_KEY = "chunkbook-v2-lesson-plan";
+
+// ---------- 진행 저장 ----------
+export function loadLessonPlanRaw(): LessonPlan | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(PLAN_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as LessonPlan;
+    return p && p.version === 1 ? p : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveLessonPlan(plan: LessonPlan | null) {
+  if (typeof window === "undefined") return;
+  if (plan === null) localStorage.removeItem(PLAN_KEY);
+  else localStorage.setItem(PLAN_KEY, JSON.stringify(plan));
+}
+
+// 불러오면서 날짜 이동(완료한 다음 학습일에 다음 Lesson)을 반영하고 저장한다.
+export function loadLessonPlan(): LessonPlan | null {
+  const raw = loadLessonPlanRaw();
+  if (!raw) return null;
+  const norm = normalizePlan(raw, localDateKey());
+  if (norm !== raw) saveLessonPlan(norm);
+  return norm;
+}
+
+// ---------- 학습/게임 완료 기록 (단어별 기록과는 별개) ----------
+export function recordLessonStudyDone(setId: string) {
+  const lesson = lessonFromSetId(setId);
+  const plan = loadLessonPlan();
+  if (lesson === null || !plan) return;
+  saveLessonPlan(applyStudyDone(plan, lesson, localDateKey()));
+}
+
+export function recordLessonGameDone(setId: string) {
+  const lesson = lessonFromSetId(setId);
+  const plan = loadLessonPlan();
+  if (lesson === null || !plan) return;
+  saveLessonPlan(applyGameDone(plan, lesson, localDateKey()));
+}
+
+export function restartLessonPlan(): LessonPlan | null {
+  const plan = loadLessonPlanRaw();
+  if (!plan) return null;
+  const next = restartPlan(plan, localDateKey());
+  saveLessonPlan(next);
+  return next;
+}
+
+// ---------- Lesson 묶음 → 단어장 세트 ----------
+// 이미 만든 세트는 단어별 학습 기록(box, nextDueAt, wrongCount)을 그대로 두고 뜻만 갱신한다.
+export function isLessonSet(set: Pick<VocabSet, "id">): boolean {
+  return lessonFromSetId(set.id) !== null;
+}
+
+// 부모가 확인·저장하면 7개 Lesson 세트를 만들고 진행 계획을 시작한다.
+export function confirmLessons(existing: VocabSet[], draft: MeaningDraft): { sets: VocabSet[]; plan: LessonPlan } {
+  const lessonSets = lessonSetsFromDefs(existing, draft);
+  const others = existing.filter((s) => !isLessonSet(s));
+  const prevPlan = loadLessonPlanRaw();
+  const plan = prevPlan ? { ...prevPlan, confirmedAt: Date.now() } : newPlan(localDateKey(), Date.now());
+  saveLessonPlan(plan);
+  return { sets: [...others, ...lessonSets], plan };
+}

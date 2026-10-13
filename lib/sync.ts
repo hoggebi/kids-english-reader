@@ -4,6 +4,7 @@ import { loadChapters, saveChapters } from "./storage";
 import { loadPet, savePet, setDoneChapterIds, getAllDoneChapterIds, type PetState } from "./pet";
 import { loadVocabSets, saveVocabSets } from "./vocabStorage";
 import { loadChunkbooks, saveChunkbooks, type ChunkbookMeta } from "./chunkbook";
+import { loadLessonPlanRaw, saveLessonPlan, type LessonPlan } from "./lessonPlan";
 import type { Chapter, VocabSet } from "./types";
 
 const SYNC_CODE_KEY = "chunkbook-v2-sync-code";
@@ -55,6 +56,7 @@ type SyncPayload = {
   vocabPet: PetState;
   vocabSets: VocabSet[];
   chunkbooks: ChunkbookMeta[]; // 청크북 메타데이터(레슨 분류). PDF 본문은 기기별 저장소에만 있다.
+  lessonPlan: LessonPlan | null; // Lesson 진행 기록(단어별 기록과 별개)
 };
 
 function currentPayload(): SyncPayload {
@@ -65,6 +67,7 @@ function currentPayload(): SyncPayload {
     vocabPet: loadPet("vocab"),
     vocabSets: loadVocabSets(),
     chunkbooks: loadChunkbooks(),
+    lessonPlan: loadLessonPlanRaw(),
   };
 }
 
@@ -78,6 +81,7 @@ function applyServerPayload(data: Partial<SyncPayload> | null) {
   if (data.vocabPet) savePet(data.vocabPet, "vocab");
   if (data.vocabSets) saveVocabSets(data.vocabSets);
   if (data.chunkbooks) saveChunkbooks(data.chunkbooks);
+  if (data.lessonPlan) saveLessonPlan(data.lessonPlan);
 }
 
 // 지금 내 기기 상태를 서버에 올림. 단, 내가 마지막으로 받아본 버전보다 서버가 이미 앞서 있으면

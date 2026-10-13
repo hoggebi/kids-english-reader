@@ -17,6 +17,7 @@ import {
   addVocabSet,
   deleteVocabSet,
   renameVocabSet,
+  saveVocabSets,
 } from "@/lib/vocabStorage";
 import {
   loadPet,
@@ -40,6 +41,8 @@ import VocabList from "@/components/VocabList";
 import VocabUpload from "@/components/VocabUpload";
 import VocabStudy from "@/components/VocabStudy";
 import ChunkbookPanel from "@/components/ChunkbookPanel";
+import LessonPanel from "@/components/LessonPanel";
+import { isLessonSet, loadLessonPlan, type LessonPlan } from "@/lib/lessonPlan";
 
 type Section = "chunkbook" | "chapters" | "vocab";
 type View = "list" | "add" | "read";
@@ -47,6 +50,7 @@ type View = "list" | "add" | "read";
 export default function Home() {
   const [section, setSection] = useState<Section>("chunkbook");
   const [chunkbooks, setChunkbooks] = useState<ChunkbookMeta[]>([]);
+  const [lessonPlan, setLessonPlan] = useState<LessonPlan | null>(null);
   const [view, setView] = useState<View>("list");
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [activeChapter, setActiveChapter] = useState<Chapter | null>(null);
@@ -69,6 +73,7 @@ export default function Home() {
     setVocabPet(loadPet("vocab"));
     setVocabSets(loadVocabSets());
     setChunkbooks(loadChunkbooks());
+    setLessonPlan(loadLessonPlan());
 
     // 다른 기기에서 받은 동기화 링크로 열었으면, 그 안의 챕터들을 가져와서 합침
     if (typeof window !== "undefined" && window.location.hash.startsWith("#sync=")) {
@@ -98,6 +103,7 @@ export default function Home() {
         setVocabPet(result.vocabPet);
         setVocabSets(result.vocabSets);
         setChunkbooks(result.chunkbooks);
+    setLessonPlan(loadLessonPlan());
         setSyncing(false);
         setSyncMessage(
           result.pushOk
@@ -133,6 +139,7 @@ export default function Home() {
       setVocabPet(pulled.vocabPet);
       setVocabSets(pulled.vocabSets);
       setChunkbooks(pulled.chunkbooks);
+      setLessonPlan(loadLessonPlan());
     }
     const interval = setInterval(silentPull, 10000);
     function onFocusOrVisible() {
@@ -170,6 +177,7 @@ export default function Home() {
     setVocabPet(result.vocabPet);
     setVocabSets(result.vocabSets);
     setChunkbooks(result.chunkbooks);
+    setLessonPlan(loadLessonPlan());
     setSyncing(false);
     setShowJoinBox(false);
     setJoinInput("");
@@ -195,6 +203,7 @@ export default function Home() {
     setVocabPet(result.vocabPet);
     setVocabSets(result.vocabSets);
     setChunkbooks(result.chunkbooks);
+    setLessonPlan(loadLessonPlan());
     setSyncing(false);
     setSyncMessage(
       result.pushOk
@@ -435,8 +444,23 @@ export default function Home() {
         <>
           {vocabPet && <PetDisplay pet={vocabPet} track="vocab" />}
 
-          <VocabList
+          <LessonPanel
             sets={vocabSets}
+            plan={lessonPlan}
+            onSetsChange={(next) => {
+              saveVocabSets(next);
+              setVocabSets(next);
+              autoPush();
+            }}
+            onPlanChange={(p) => {
+              setLessonPlan(p);
+              autoPush();
+            }}
+            onStart={handleVocabSelect}
+          />
+
+          <VocabList
+            sets={vocabSets.filter((s) => !isLessonSet(s))}
             onSelect={handleVocabSelect}
             onAdd={() => setVocabView("add")}
             onDelete={handleVocabDelete}
@@ -458,6 +482,8 @@ export default function Home() {
           onBack={() => {
             setVocabView("list");
             setVocabPet(loadPet("vocab"));
+            setVocabSets(loadVocabSets()); // 학습 중 바뀐 단어별 기록 반영
+            setLessonPlan(loadLessonPlan()); // 학습/게임 완료로 바뀐 Lesson 진행 반영
           }}
         />
       )}

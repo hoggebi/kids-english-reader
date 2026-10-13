@@ -1,6 +1,9 @@
 "use client";
 import type { VocabSet, VocabWord, VocabDailySession, VocabStudyMode } from "./types";
 import { completeVocabRound } from "./pet";
+import { lessonFromSetId } from "./lessonData";
+import { localDateKey } from "./lessonPlanCore";
+import { recordLessonGameDone } from "./lessonPlan";
 
 const VOCAB_KEY = "chunkbook-v2-vocab-sets";
 const SESSION_KEY_PREFIX = "chunkbook-v2-vocab-session-";
@@ -14,8 +17,9 @@ function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+// 기기 현지 날짜 기준 (UTC로 자르면 한국에서는 오전 9시에 하루가 바뀐다)
 function todayKey(d = new Date()) {
-  return d.toISOString().slice(0, 10);
+  return localDateKey(d);
 }
 
 function daysFromNow(days: number) {
@@ -156,7 +160,9 @@ export function loadTodaySession(setId: string): VocabDailySession | null {
     const raw = localStorage.getItem(sessionKey(setId));
     if (!raw) return null;
     const s = JSON.parse(raw) as VocabDailySession;
-    if (s.dateKey !== todayKey()) return null; // 날짜 바뀌면 무효
+    // 날짜 바뀌면 무효. 단, Lesson 묶음은 학습을 다 마치지 않았으면 날짜가 바뀌어도 이어서 한다.
+    const resumable = lessonFromSetId(setId) !== null && s.phase === "study" && s.cursor < s.cards.length;
+    if (s.dateKey !== todayKey() && !resumable) return null;
     // 예전 버전(flash/listen/game phase 등)으로 저장된 캐시면 무효 처리하고 새로 만들게 함
     const hasUnknownMode = s.cards.some((c) => !VALID_STUDY_MODES.includes(c.mode));
     const hasUnknownPhase = s.phase !== "study" && s.phase !== "done";
@@ -184,7 +190,8 @@ function shuffle<T>(arr: T[]): T[] {
 // 단어당 항상 2개: 노출(expose) 보장 + 나머지(뜻고르기/영어고르기/스펠링) 중 랜덤 1개 테스트
 // (신규/복습 상관없이 항상 "단어 알려주기 → 문제풀기" 순서를 보장)
 export function buildDailySession(set: VocabSet): VocabDailySession {
-  const dailyWords = selectDailyWords(set);
+  // Lesson 묶음은 하루 10개 제한 없이 그 Lesson의 전체 학습 단어를 쓴다(추가 단어 포함).
+  const dailyWords = lessonFromSetId(set.id) !== null ? set.words : selectDailyWords(set);
   const testModes: VocabStudyMode[] = ["meaning", "toEnglish", "spell"];
   const cards: VocabDailySession["cards"] = [];
 
@@ -258,6 +265,7 @@ export function recordVocabGamePlayed(
   }
   if (!played.includes(kind)) played.push(kind);
   localStorage.setItem(key, JSON.stringify(played));
+  recordLessonGameDone(setId); // Lesson 진행 기록(게임 1회). 단어별 기록과는 별개
 
   const allDone = ALL_GAME_KINDS.every((k) => played.includes(k));
   if (allDone) {

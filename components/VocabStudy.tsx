@@ -12,6 +12,7 @@ import {
   getMoreStudyCandidates,
 } from "@/lib/vocabStorage";
 import { autoPush } from "@/lib/sync";
+import { recordLessonStudyDone } from "@/lib/lessonPlan";
 import VocabGame from "./VocabGame";
 
 type Mode = "hub" | "study" | "game";
@@ -215,6 +216,7 @@ export default function VocabStudy({ set, onBack }: { set: VocabSet; onBack: () 
     saveTodaySession(updated);
     setSession(updated);
     if (finished) {
+      recordLessonStudyDone(set.id); // Lesson 진행 기록(학습 완료). Lesson 묶음이 아니면 아무 일도 안 한다
       setMode("hub");
       autoPush();
     }
