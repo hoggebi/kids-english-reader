@@ -160,13 +160,15 @@ t("미완료면 날짜가 바뀌어도 같은 Lesson을 이어서 한다", () =>
   assert.equal(later.progress.studyDone, true);
 });
 
-t("복습(현재가 아닌 Lesson)은 진행·완료 기록을 바꾸지 않는다", () => {
+t("자유 선택한 Lesson(현재가 아닌 Lesson) 학습은 진행·완료 기록을 바꾸지 않는다", () => {
   let p = newPlan("2026-10-14");
   p = normalizePlan(applyGameDone(applyStudyDone(p, 2, "2026-10-14"), 2, "2026-10-14"), "2026-10-15"); // 현재 3
   assert.equal(p.currentLesson, 3);
   assert.equal(canSelect(p, 2), true);
   assert.equal(canSelect(p, 3), true);
-  assert.equal(canSelect(p, 5), false);
+  assert.equal(canSelect(p, 5), true); // 잠그지 않는다
+  assert.equal(canSelect(p, 8), true);
+  assert.equal(lessonStatus(p, 5), "open");
   const before = JSON.stringify(p);
   const q = applyGameDone(applyStudyDone(p, 2, "2026-10-15"), 2, "2026-10-15");
   assert.equal(JSON.stringify(q), before);

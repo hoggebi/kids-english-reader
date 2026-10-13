@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import type { VocabSet } from "@/lib/types";
 import { LESSON_DEFS, LESSON_NUMBERS, lessonSetId } from "@/lib/lessonData";
 import { confirmLessons, draftKey, restartLessonPlan, type LessonPlan, type MeaningDraft } from "@/lib/lessonPlan";
-import { canSelect, lessonStatus } from "@/lib/lessonPlanCore";
+import { lessonStatus } from "@/lib/lessonPlanCore";
 
 // 저장 전에 부모가 새 단어(교재 뜻)를 확인·수정하는 화면
 function LessonReview({
@@ -166,88 +166,86 @@ export default function LessonPanel({
   const currentSet = lessonSets.find((s) => s.id === lessonSetId(current)) ?? null;
   const doneToday = plan.completedOn !== null;
   const progress = plan.progress && plan.progress.lesson === current ? plan.progress : null;
+  const studyDone = !!progress?.studyDone || doneToday;
+  const gameDone = !!progress?.gameDone || doneToday;
+  const actionLabel = doneToday ? "다시 하기" : progress?.studyDone ? "이어서 하기" : "학습 시작";
 
   return (
     <div className="w-full max-w-4xl flex flex-col gap-3" data-testid="lesson-panel">
-      <div className="rounded-2xl bg-sky-50 border-2 border-sky-200 p-4 flex flex-col gap-3">
+      {/* 위계: 라벨(12) → Lesson 이름(18) → 상태·메타(12) → 행동 버튼(14, 오른쪽 작게) */}
+      <div className="rounded-2xl bg-sky-50 border border-sky-200 px-4 py-3">
         {plan.finished ? (
-          <>
-            <p className="text-base font-bold text-sky-900">🎉 Lesson 8까지 모두 완료했어요! ({plan.cycle}회차)</p>
-            <p className="text-sm text-sky-800">
-              자동으로 다시 시작하지 않아요. 아래에서 다시 볼 Lesson을 고르거나, 처음(Lesson 2)부터 새로 시작할 수 있어요.
-              (단어별 학습 기록은 그대로 남아요)
-            </p>
+          <div className="flex flex-col gap-2">
+            <p className="text-base font-bold text-sky-900">🎉 Lesson 8까지 모두 완료했어요 ({plan.cycle}회차)</p>
+            <p className="text-xs text-sky-800">자동으로 다시 시작하지 않아요. 아래에서 보고 싶은 Lesson을 고르거나, 처음부터 새로 시작할 수 있어요. (단어별 학습 기록은 그대로 남아요)</p>
             <button
               onClick={() => {
                 if (!confirm("Lesson 2부터 다시 시작할까요? Lesson 완료 기록만 새로 시작하고, 단어별 학습 기록은 그대로 남아요.")) return;
                 onPlanChange(restartLessonPlan());
               }}
-              className="self-start min-h-[48px] px-5 rounded-full bg-sky-600 text-white font-bold"
+              className="self-start min-h-[44px] px-4 rounded-full bg-sky-600 text-white text-sm font-bold"
             >
               Lesson 2부터 다시 시작
             </button>
-          </>
+          </div>
         ) : (
-          <>
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-base font-bold text-sky-900">
-                오늘의 Lesson: Lesson {current}
-                {currentSet && <span className="text-xs font-normal text-sky-700"> · 단어 {currentSet.words.length}개</span>}
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-sky-700">오늘의 Lesson · {plan.cycle}회차</p>
+              <p className="text-lg font-bold text-gray-900 leading-tight">
+                Lesson {current}
+                {currentSet && <span className="ml-2 text-xs font-normal text-gray-500">단어 {currentSet.words.length}개</span>}
               </p>
-              <span className="text-xs text-sky-700">{plan.cycle}회차</span>
-            </div>
-            <div className="flex gap-2 text-xs font-bold">
-              <span className={`rounded-full px-3 py-1 ${progress?.studyDone || doneToday ? "bg-sky-600 text-white" : "bg-white text-gray-500"}`}>
-                학습 {progress?.studyDone || doneToday ? "✓" : "전"}
-              </span>
-              <span className={`rounded-full px-3 py-1 ${progress?.gameDone || doneToday ? "bg-sky-600 text-white" : "bg-white text-gray-500"}`}>
-                게임 {progress?.gameDone || doneToday ? "✓" : "전"}
-              </span>
-            </div>
-            {doneToday && (
-              <p className="text-sm text-sky-800">
-                오늘 Lesson {current}을 마쳤어요! 다음 학습일에 Lesson {Math.min(8, current + 1)}로 넘어가요. 같은 Lesson을 더 해도 괜찮아요.
+              <p className="mt-0.5 text-xs text-gray-500">
+                <span className={studyDone ? "font-bold text-sky-700" : ""}>학습 {studyDone ? "완료 ✓" : "전"}</span>
+                <span className="mx-1.5 text-gray-300">·</span>
+                <span className={gameDone ? "font-bold text-sky-700" : ""}>게임 {gameDone ? "완료 ✓" : "전"}</span>
               </p>
-            )}
+              {doneToday && (
+                <p className="mt-1 text-xs text-sky-800">오늘 Lesson {current}을 마쳤어요. 다음 학습일에 Lesson {Math.min(8, current + 1)}로 넘어가요.</p>
+              )}
+            </div>
             {currentSet && (
               <button
                 onClick={() => onStart(currentSet)}
-                className="self-start min-h-[48px] px-5 rounded-full bg-sky-600 text-white font-bold text-base"
+                className="shrink-0 min-h-[44px] px-4 rounded-full bg-sky-600 text-white text-sm font-bold active:scale-95 transition"
               >
-                {doneToday ? "Lesson 다시 하기" : progress?.studyDone ? "이어서 하기" : "학습 시작"}
+                {actionLabel}
               </button>
             )}
-          </>
+          </div>
         )}
       </div>
 
-      <div className="grid grid-cols-4 sm:grid-cols-7 gap-2" data-testid="lesson-chips">
-        {LESSON_NUMBERS.map((l) => {
-          const st = lessonStatus(plan, l);
-          const selectable = canSelect(plan, l);
-          const set = lessonSets.find((s) => s.id === lessonSetId(l));
-          return (
-            <button
-              key={l}
-              disabled={!selectable || !set}
-              onClick={() => set && onStart(set)}
-              className={`min-h-[52px] rounded-xl border-2 px-2 py-1.5 text-center transition ${
-                st === "current"
-                  ? "border-sky-500 bg-sky-50"
-                  : st === "completed"
-                    ? "border-emerald-300 bg-emerald-50"
-                    : "border-gray-200 bg-gray-50 text-gray-400"
-              }`}
-              aria-label={`Lesson ${l} ${st === "completed" ? "완료, 다시 보기" : st === "current" ? "오늘의 Lesson" : "아직 잠김"}`}
-            >
-              <span className="block text-sm font-bold">Lesson {l}</span>
-              <span className="block text-[11px]">{st === "completed" ? "완료 ✓" : st === "current" ? "오늘" : "잠김"}</span>
-            </button>
-          );
-        })}
+      <div className="flex flex-col gap-1.5">
+        <p className="text-xs font-bold text-gray-500">Lesson 고르기 <span className="font-normal text-gray-400">(모두 열려 있어요)</span></p>
+        <div className="grid grid-cols-4 sm:grid-cols-7 gap-2" data-testid="lesson-chips">
+          {LESSON_NUMBERS.map((l) => {
+            const st = lessonStatus(plan, l);
+            const set = lessonSets.find((s) => s.id === lessonSetId(l));
+            return (
+              <button
+                key={l}
+                disabled={!set}
+                onClick={() => set && onStart(set)}
+                className={`min-h-[48px] rounded-xl border px-2 py-1 text-center transition active:scale-95 ${
+                  st === "current"
+                    ? "border-sky-500 bg-sky-50 text-sky-900"
+                    : st === "completed"
+                      ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+                      : "border-gray-200 bg-white text-gray-800"
+                }`}
+                aria-label={`Lesson ${l}${st === "completed" ? " 완료, 다시 하기" : st === "current" ? " 오늘의 Lesson" : ""}`}
+              >
+                <span className="block text-sm font-bold">Lesson {l}</span>
+                <span className="block text-[11px] text-gray-500">{st === "completed" ? "완료 ✓" : st === "current" ? "오늘" : "\u00a0"}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <button onClick={() => setReviewing(true)} className="self-start text-xs text-gray-500 underline">
+      <button onClick={() => setReviewing(true)} className="self-start min-h-[44px] text-xs text-gray-500 underline">
         Lesson 단어 뜻 확인·수정
       </button>
     </div>

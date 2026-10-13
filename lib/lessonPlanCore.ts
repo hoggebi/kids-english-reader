@@ -82,18 +82,18 @@ export function applyGameDone(plan: LessonPlan, lesson: number, today: string): 
   return tryComplete({ ...p, progress }, today);
 }
 
-export type LessonStatus = "completed" | "current" | "locked";
+export type LessonStatus = "completed" | "current" | "open";
 
 export function lessonStatus(plan: LessonPlan, lesson: number): LessonStatus {
   if (plan.completed[String(lesson)]) return "completed";
   if (!plan.finished && lesson === plan.currentLesson) return "current";
-  return "locked";
+  return "open";
 }
 
-// 완료한 Lesson과 현재 Lesson은 다시 선택할 수 있다.
-export function canSelect(plan: LessonPlan, lesson: number): boolean {
-  const st = lessonStatus(plan, lesson);
-  return st === "completed" || st === "current";
+// 어떤 Lesson이든 자유롭게 고를 수 있다(잠그지 않는다). 다만 "오늘의 Lesson" 진행·완료 기록은
+// 현재 Lesson에만 반영되고, 다른 Lesson을 고른 학습은 연습으로만 남는다.
+export function canSelect(_plan: LessonPlan, lesson: number): boolean {
+  return lesson >= FIRST && lesson <= LAST;
 }
 
 // Lesson 8 완료 뒤 사용자가 고르는 "다시 시작": 새 회차. Lesson 완료 기록만 초기화하고 단어별 기록은 건드리지 않는다.
