@@ -28,7 +28,8 @@ import { autoPush } from "@/lib/sync";
 
 type Mode = "home" | "read" | "write" | "review" | "roles";
 
-const norm = (s: string) => s.replace(/[“”"‘’']/g, "'").replace(/\s+/g, " ").trim().toLowerCase();
+// 따옴표 표기(둥근/곧은, 문장 일부를 인용한 경우의 여닫는 따옴표)는 비교에서 뺀다. 글자와 구두점이 다를 때만 경고한다.
+const norm = (s: string) => s.replace(/[“”"‘’']/g, "").replace(/\s+/g, " ").trim().toLowerCase();
 
 function speakSupported() {
   return typeof window !== "undefined" && "speechSynthesis" in window;

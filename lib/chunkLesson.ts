@@ -50,6 +50,9 @@ function writeMap<T>(key: string, m: Record<string, T>) {
 
 // ---------- 추출·확인된 본문 ----------
 export const loadLessonTexts = () => readMap<LessonText>(TEXT_KEY);
+export function saveLessonTexts(m: Record<string, LessonText>) {
+  writeMap(TEXT_KEY, m);
+}
 export function loadLessonText(lesson: number): LessonText | null {
   return loadLessonTexts()[String(lesson)] ?? null;
 }
@@ -79,6 +82,9 @@ export const VERIFIED_ROLES_42: Record<number, PageRoles> = {
 
 export function loadRoleOverrides() {
   return readMap<PageRoles>(ROLE_KEY);
+}
+export function saveRoleOverrides(m: Record<string, PageRoles>) {
+  writeMap(ROLE_KEY, m);
 }
 export function saveRoleOverride(lesson: number, roles: PageRoles) {
   const m = loadRoleOverrides();

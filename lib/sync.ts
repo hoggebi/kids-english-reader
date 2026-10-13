@@ -5,6 +5,14 @@ import { loadPet, savePet, setDoneChapterIds, getAllDoneChapterIds, type PetStat
 import { loadVocabSets, saveVocabSets } from "./vocabStorage";
 import { loadChunkbooks, saveChunkbooks, type ChunkbookMeta } from "./chunkbook";
 import { loadLessonPlanRaw, saveLessonPlan, type LessonPlan } from "./lessonPlan";
+import {
+  loadLessonTexts,
+  saveLessonTexts,
+  loadRoleOverrides,
+  saveRoleOverrides,
+  type LessonText,
+  type PageRoles,
+} from "./chunkLesson";
 import type { Chapter, VocabSet } from "./types";
 
 const SYNC_CODE_KEY = "chunkbook-v2-sync-code";
@@ -57,6 +65,8 @@ type SyncPayload = {
   vocabSets: VocabSet[];
   chunkbooks: ChunkbookMeta[]; // 청크북 메타데이터(레슨 분류). PDF 본문은 기기별 저장소에만 있다.
   lessonPlan: LessonPlan | null; // Lesson 진행 기록(단어별 기록과 별개)
+  lessonTexts?: Record<string, LessonText>; // 부모가 확인한 본문·번역·문장쓰기 정답 (다른 기기에서 다시 가져오지 않도록)
+  pageRoles?: Record<string, PageRoles>; // 부모가 고친 페이지 역할
 };
 
 function currentPayload(): SyncPayload {
@@ -68,6 +78,8 @@ function currentPayload(): SyncPayload {
     vocabSets: loadVocabSets(),
     chunkbooks: loadChunkbooks(),
     lessonPlan: loadLessonPlanRaw(),
+    lessonTexts: loadLessonTexts(),
+    pageRoles: loadRoleOverrides(),
   };
 }
 
@@ -82,6 +94,9 @@ function applyServerPayload(data: Partial<SyncPayload> | null) {
   if (data.vocabSets) saveVocabSets(data.vocabSets);
   if (data.chunkbooks) saveChunkbooks(data.chunkbooks);
   if (data.lessonPlan) saveLessonPlan(data.lessonPlan);
+  // 이 기기에 확인 저장된 본문이 있고 서버에는 없는 Lesson은 지우지 않고 합친다.
+  if (data.lessonTexts) saveLessonTexts({ ...loadLessonTexts(), ...data.lessonTexts });
+  if (data.pageRoles) saveRoleOverrides({ ...loadRoleOverrides(), ...data.pageRoles });
 }
 
 // 지금 내 기기 상태를 서버에 올림. 단, 내가 마지막으로 받아본 버전보다 서버가 이미 앞서 있으면

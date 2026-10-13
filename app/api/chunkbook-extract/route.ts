@@ -57,13 +57,45 @@ JSON만 출력: {"body":[{"en":"...","ko":"...","section":"passage"}]}`;
 function writingPrompt(body: string[]) {
   return `너는 초등학생용 영어 교재(청크북)의 "문장쓰기 페이지" 이미지를 읽는 도우미야.
 이 페이지에는 인쇄된 한국어 문장(문제)이 있고, 손글씨로 쓴 영어 답이 섞여 있을 수 있어. 손글씨는 무시해.
-인쇄된 한국어 문제를 위에서 아래 순서로 읽어서, 각각에 대응하는 영어 문장을 아래 "본문 영어 목록"에서 골라 그대로 복사해 써.
-목록에 대응하는 문장이 없으면 en을 빈 문자열로 둬(지어내지 마). 문항 번호는 쓰지 마.
+인쇄된 한국어 문제를 위에서 아래 순서로 읽어서, 각각에 대응하는 영어를 아래 "본문 영어 목록"에서 찾아 그대로 복사해 써.
+- 한국어가 번역하는 부분만 정확히 복사해. 같은 목록 줄 안에 앞뒤로 붙어 있는 다른 문장(예: "Let's switch.", "Good job!", "Let's check the list.")은 한국어에 없으면 포함하지 마.
+- 말머리(he says, I say 등)는 한국어가 그 말머리를 번역하고 있으면 포함하고, 번역하지 않으면 제외해. 단, 따옴표 안이 쉼표(,)로 끝나서 말머리와 한 문장을 이루면 말머리까지 포함해.
+- 복사할 때 글자, 따옴표(“ ” ’), 구두점을 바꾸지 마. 목록에 대응하는 문장이 없으면 en을 빈 문자열로 둬(지어내지 마). 문항 번호는 쓰지 마.
 
 본문 영어 목록:
 ${body.map((b, i) => `${i + 1}. ${b}`).join("\n")}
 
 JSON만 출력: {"writing":[{"ko":"...","en":"..."}]}`;
+}
+
+// 교재는 둥근 따옴표(“ ” ’)로 인쇄돼 있다. 모델이 곧은 따옴표로 바꿔 돌려주는 경우를 교재 표기로 되돌린다.
+function typographic(s: string): string {
+  let out = s.replace(/(\w)'(\w)/g, "$1’$2").replace(/(\w)'(\s|$|[.,!?])/g, "$1’$2");
+  let open = true;
+  out = out.replace(/"/g, () => {
+    const q = open ? "“" : "”";
+    open = !open;
+    return q;
+  });
+  out = out.replace(/(^|[\s(“])'/g, "$1‘").replace(/'/g, "’");
+  return out;
+}
+
+const flat = (t: string) => t.replace(/[“”"‘’']/g, "'").replace(/\s+/g, " ").trim();
+
+// 따옴표 안이 쉼표(,)로 끝나서 말머리("I say." 등)와 한 문장을 이루는 경우, 본문에서 말머리까지 이어 붙인다.
+function completeTag(en: string, bodyLines: string[]): string {
+  if (!/,[”"’']?$/.test(en.trim())) return en;
+  const key = flat(en);
+  for (const line of bodyLines) {
+    const f = flat(line);
+    const at = f.indexOf(key);
+    if (at < 0) continue;
+    const rest = f.slice(at + key.length);
+    const m = rest.match(/^\s*([A-Za-z]+(?: [A-Za-z]+){0,3}[.!?])/);
+    if (m) return `${en.trim()} ${m[1]}`;
+  }
+  return en;
 }
 
 function parseJson(raw: string) {
@@ -92,7 +124,7 @@ export async function POST(req: NextRequest) {
       const writing = (Array.isArray(parsed.writing) ? parsed.writing : [])
         .map((w) => {
           const o = w as Record<string, unknown>;
-          return { ko: String(o.ko ?? "").trim(), en: String(o.en ?? "").trim() };
+          return { ko: String(o.ko ?? "").trim(), en: completeTag(typographic(String(o.en ?? "").trim()), body) };
         })
         .filter((w) => w.ko.length > 0);
       return NextResponse.json({ writing });
@@ -115,7 +147,7 @@ export async function POST(req: NextRequest) {
       .map((b) => {
         const o = b as Record<string, unknown>;
         return {
-          en: String(o.en ?? "").trim(),
+          en: typographic(String(o.en ?? "").trim()),
           ko: String(o.ko ?? "").trim(),
           section: o.section === "dialogue" ? "dialogue" : "passage",
         };
