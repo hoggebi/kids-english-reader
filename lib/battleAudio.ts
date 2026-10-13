@@ -175,7 +175,7 @@ export function isBgmEnabled() {
   return bgmEnabled;
 }
 
-const BGM_PREF_KEY = "little-reader-battle-bgm";
+const BGM_PREF_KEY = "chunkbook-v2-battle-bgm";
 
 export function getBgmPref(): boolean {
   if (typeof window === "undefined") return true;

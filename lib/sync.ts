@@ -3,10 +3,11 @@
 import { loadChapters, saveChapters } from "./storage";
 import { loadPet, savePet, setDoneChapterIds, getAllDoneChapterIds, type PetState } from "./pet";
 import { loadVocabSets, saveVocabSets } from "./vocabStorage";
+import { loadChunkbooks, saveChunkbooks, type ChunkbookMeta } from "./chunkbook";
 import type { Chapter, VocabSet } from "./types";
 
-const SYNC_CODE_KEY = "little-reader-sync-code";
-const SYNC_REV_KEY = "little-reader-sync-rev";
+const SYNC_CODE_KEY = "chunkbook-v2-sync-code";
+const SYNC_REV_KEY = "chunkbook-v2-sync-rev";
 
 // 마지막으로 서버에서 받아본(또는 성공적으로 저장한) 버전 번호. 이 값보다 서버가 이미 앞서 있으면
 // 서버가 push를 거부한다 — 즉, 오래 안 열어봤거나 방금 받아오기(pull)에 실패한 기기가 옛날 값으로
@@ -53,6 +54,7 @@ type SyncPayload = {
   pet: PetState;
   vocabPet: PetState;
   vocabSets: VocabSet[];
+  chunkbooks: ChunkbookMeta[]; // 청크북 메타데이터(레슨 분류). PDF 본문은 기기별 저장소에만 있다.
 };
 
 function currentPayload(): SyncPayload {
@@ -62,6 +64,7 @@ function currentPayload(): SyncPayload {
     pet: loadPet("chapter"),
     vocabPet: loadPet("vocab"),
     vocabSets: loadVocabSets(),
+    chunkbooks: loadChunkbooks(),
   };
 }
 
@@ -74,6 +77,7 @@ function applyServerPayload(data: Partial<SyncPayload> | null) {
   if (data.pet) savePet(data.pet, "chapter");
   if (data.vocabPet) savePet(data.vocabPet, "vocab");
   if (data.vocabSets) saveVocabSets(data.vocabSets);
+  if (data.chunkbooks) saveChunkbooks(data.chunkbooks);
 }
 
 // 지금 내 기기 상태를 서버에 올림. 단, 내가 마지막으로 받아본 버전보다 서버가 이미 앞서 있으면
@@ -119,6 +123,7 @@ export async function pullSync(code: string): Promise<{
   pet: PetState;
   vocabPet: PetState;
   vocabSets: VocabSet[];
+  chunkbooks: ChunkbookMeta[];
 }> {
   let ok = false;
   try {
@@ -140,6 +145,7 @@ export async function pullSync(code: string): Promise<{
     pet: loadPet("chapter"),
     vocabPet: loadPet("vocab"),
     vocabSets: loadVocabSets(),
+    chunkbooks: loadChunkbooks(),
   };
 }
 

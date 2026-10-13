@@ -1,10 +1,10 @@
 "use client";
 
-const CHAPTER_PET_KEY = "little-reader-pet";
-const VOCAB_PET_KEY = "little-reader-vocab-pet";
-const DONE_CHAPTERS_KEY = "little-reader-done-chapters";
-const DONE_VOCAB_ROUNDS_KEY = "little-reader-done-vocab-rounds";
-const VOCAB_STAGE_BOOST_FLAG = "little-reader-vocab-stage-boost-v1";
+const CHAPTER_PET_KEY = "chunkbook-v2-pet";
+const VOCAB_PET_KEY = "chunkbook-v2-vocab-pet";
+const DONE_CHAPTERS_KEY = "chunkbook-v2-done-chapters";
+const DONE_VOCAB_ROUNDS_KEY = "chunkbook-v2-done-vocab-rounds";
+const VOCAB_STAGE_BOOST_FLAG = "chunkbook-v2-vocab-stage-boost-v1";
 
 export const MAX_STAGE = 8;
 
@@ -511,7 +511,7 @@ function markVocabRoundDone(roundId: string) {
 // ---------- 게임 3종(다트/두더지/몬스터) 완료 사이클 ----------
 // 날짜나 단어장에 상관없이, 서로 다른 3개 게임을 각각 1번 이상 완료하면 캐릭터가 성장한다.
 // 게임 하나를 반복해서 성장시킬 수 없도록, 세 값이 모두 true가 됐을 때만 성장시키고 다시 초기화한다.
-const GAME_CYCLE_KEY = "little-reader-game-cycle";
+const GAME_CYCLE_KEY = "chunkbook-v2-game-cycle";
 
 export type GameCycleKind = "dart" | "mole" | "monster";
 export type GameCycleState = { dart: boolean; mole: boolean; monster: boolean };

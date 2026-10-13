@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Chapter, VocabSet } from "@/lib/types";
+import { loadChunkbooks, saveChunkbooks, type ChunkbookMeta } from "@/lib/chunkbook";
 import {
   loadChapters,
   addChapter,
@@ -38,12 +39,14 @@ import PetDisplay from "@/components/PetDisplay";
 import VocabList from "@/components/VocabList";
 import VocabUpload from "@/components/VocabUpload";
 import VocabStudy from "@/components/VocabStudy";
+import ChunkbookPanel from "@/components/ChunkbookPanel";
 
-type Section = "chapters" | "vocab";
+type Section = "chunkbook" | "chapters" | "vocab";
 type View = "list" | "add" | "read";
 
 export default function Home() {
-  const [section, setSection] = useState<Section>("chapters");
+  const [section, setSection] = useState<Section>("chunkbook");
+  const [chunkbooks, setChunkbooks] = useState<ChunkbookMeta[]>([]);
   const [view, setView] = useState<View>("list");
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [activeChapter, setActiveChapter] = useState<Chapter | null>(null);
@@ -65,6 +68,7 @@ export default function Home() {
     setPet(loadPet());
     setVocabPet(loadPet("vocab"));
     setVocabSets(loadVocabSets());
+    setChunkbooks(loadChunkbooks());
 
     // 다른 기기에서 받은 동기화 링크로 열었으면, 그 안의 챕터들을 가져와서 합침
     if (typeof window !== "undefined" && window.location.hash.startsWith("#sync=")) {
@@ -93,6 +97,7 @@ export default function Home() {
         setPet(result.pet);
         setVocabPet(result.vocabPet);
         setVocabSets(result.vocabSets);
+        setChunkbooks(result.chunkbooks);
         setSyncing(false);
         setSyncMessage(
           result.pushOk
@@ -127,6 +132,7 @@ export default function Home() {
       setPet(pulled.pet);
       setVocabPet(pulled.vocabPet);
       setVocabSets(pulled.vocabSets);
+      setChunkbooks(pulled.chunkbooks);
     }
     const interval = setInterval(silentPull, 10000);
     function onFocusOrVisible() {
@@ -163,6 +169,7 @@ export default function Home() {
     setPet(result.pet);
     setVocabPet(result.vocabPet);
     setVocabSets(result.vocabSets);
+    setChunkbooks(result.chunkbooks);
     setSyncing(false);
     setShowJoinBox(false);
     setJoinInput("");
@@ -187,6 +194,7 @@ export default function Home() {
     setPet(result.pet);
     setVocabPet(result.vocabPet);
     setVocabSets(result.vocabSets);
+    setChunkbooks(result.chunkbooks);
     setSyncing(false);
     setSyncMessage(
       result.pushOk
@@ -249,6 +257,12 @@ export default function Home() {
     setView("read");
   }
 
+  function handleChunkbooksChange(next: ChunkbookMeta[]) {
+    saveChunkbooks(next);
+    setChunkbooks(next);
+    autoPush();
+  }
+
   function handleVocabCreated(set: VocabSet) {
     setVocabSets(addVocabSet(set));
     setActiveVocabSet(set);
@@ -280,6 +294,7 @@ export default function Home() {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/character.png" alt="캐릭터" className="w-24 h-24 object-contain" />
         <h1 className="font-title text-black text-4xl text-center">오늘도 호 English</h1>
+        <span className="rounded-full bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1">청크북 새 버전 (미리보기)</span>
       </header>
 
       {syncMessage && (
@@ -288,8 +303,16 @@ export default function Home() {
         </div>
       )}
 
-      {/* 최상위 탭: 챕터(동화책 읽기) / 단어장 */}
+      {/* 최상위 탭: 청크북 / 챕터(동화책 읽기) / 단어장 */}
       <div className="w-full max-w-4xl flex rounded-full bg-gray-100 p-1">
+        <button
+          onClick={() => setSection("chunkbook")}
+          className={`flex-1 py-2 rounded-full font-bold transition ${
+            section === "chunkbook" ? "bg-sky-600 text-white" : "text-gray-500"
+          }`}
+        >
+          청크북
+        </button>
         <button
           onClick={() => setSection("chapters")}
           className={`flex-1 py-2 rounded-full font-bold transition ${
@@ -375,6 +398,8 @@ export default function Home() {
           </>
         )}
       </div>
+
+      {section === "chunkbook" && <ChunkbookPanel books={chunkbooks} onChange={handleChunkbooksChange} />}
 
       {section === "chapters" && view === "list" && (
         <>

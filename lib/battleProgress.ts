@@ -2,7 +2,7 @@
 
 // 몬스터 배틀의 "20 스테이지 학습 구간" 진행 상태. 캐릭터 성장 사이클(dart/mole/monster)과는
 // 완전히 별개로 관리된다 — 여기서는 오직 "지금 단어 묶음으로 몇 스테이지까지 왔는지"만 기록한다.
-const BATTLE_PROGRESS_PREFIX = "little-reader-battle-progress-";
+const BATTLE_PROGRESS_PREFIX = "chunkbook-v2-battle-progress-";
 
 export const BATTLE_STAGE_CAP = 20;
 

@@ -8,7 +8,7 @@ const redis = new Redis({
 });
 
 function keyFor(code: string) {
-  return `sync:${code}`;
+  return `chunkbook-v2:sync:${code}`; // 기존 운영 앱(sync:*)과 분리된 새 버전 전용 영역
 }
 
 export const dynamic = "force-dynamic";

@@ -2,9 +2,9 @@
 import type { VocabSet, VocabWord, VocabDailySession, VocabStudyMode } from "./types";
 import { completeVocabRound } from "./pet";
 
-const VOCAB_KEY = "little-reader-vocab-sets";
-const SESSION_KEY_PREFIX = "little-reader-vocab-session-";
-const GAMES_PLAYED_PREFIX = "little-reader-vocab-games-";
+const VOCAB_KEY = "chunkbook-v2-vocab-sets";
+const SESSION_KEY_PREFIX = "chunkbook-v2-vocab-session-";
+const GAMES_PLAYED_PREFIX = "chunkbook-v2-vocab-games-";
 
 // 박스별 복습 간격(일). 3주 완주 목표에 맞춰 촘촘하게 설정.
 const BOX_INTERVAL_DAYS: Record<number, number> = { 1: 1, 2: 2, 3: 3, 4: 5 };

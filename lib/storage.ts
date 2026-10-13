@@ -3,7 +3,7 @@
 import type { Chapter } from "./types";
 import { getAllDoneChapterIds, mergeDoneChapterIds, loadPet, mergePetState, type PetState } from "./pet";
 
-const STORAGE_KEY = "little-reader-chapters";
+const STORAGE_KEY = "chunkbook-v2-chapters";
 
 export function loadChapters(): Chapter[] {
   if (typeof window === "undefined") return [];
