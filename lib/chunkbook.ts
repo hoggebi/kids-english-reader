@@ -166,7 +166,7 @@ export function classifyPages(pageCount: number, labels: (string | null)[] | nul
 }
 
 // ---------- PDF 열기 (pdf.js, 필요할 때만 불러온다) ----------
-type PdfDoc = import("pdfjs-dist").PDFDocumentProxy;
+export type PdfDoc = import("pdfjs-dist").PDFDocumentProxy;
 
 let pdfjsPromise: Promise<typeof import("pdfjs-dist")> | null = null;
 async function loadPdfjs() {
@@ -245,4 +245,22 @@ export function destroyPdf(doc: PdfDoc | null | undefined) {
   } catch {
     /* ignore */
   }
+}
+
+// 서버(OCR/번역)로 보낼 JPEG를 base64 문자열(접두어 없음)로 만든다.
+export async function renderPageBase64(doc: PdfDoc, pageNumber: number, targetWidth = 1400, quality = 0.8): Promise<string> {
+  const page = await doc.getPage(pageNumber);
+  const base = page.getViewport({ scale: 1 });
+  const viewport = page.getViewport({ scale: targetWidth / base.width });
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.ceil(viewport.width);
+  canvas.height = Math.ceil(viewport.height);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("캔버스를 만들 수 없어요.");
+  await page.render({ canvasContext: ctx, canvas, viewport }).promise;
+  page.cleanup();
+  const dataUrl = canvas.toDataURL("image/jpeg", quality);
+  canvas.width = 0;
+  canvas.height = 0;
+  return dataUrl.slice(dataUrl.indexOf(",") + 1);
 }

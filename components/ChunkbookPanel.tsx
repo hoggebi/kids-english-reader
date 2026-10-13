@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import ChunkLessonView from "./ChunkLessonView";
 import {
   type ChunkbookMeta,
   classifyPages,
@@ -190,9 +191,11 @@ type ImportState =
 export default function ChunkbookPanel({
   books,
   onChange,
+  onOpenVocab,
 }: {
   books: ChunkbookMeta[];
   onChange: (books: ChunkbookMeta[]) => void;
+  onOpenVocab?: (lesson: number) => void;
 }) {
   const book = books[0] ?? null;
   const [imp, setImp] = useState<ImportState>({ phase: "idle" });
@@ -530,10 +533,26 @@ export default function ChunkbookPanel({
         ))}
       </div>
 
-      {/* 페이지 미리보기 */}
+      {/* Lesson 활동: 읽고 듣기 / 문장 보고 쓰기 */}
+      {current && (
+        <ChunkLessonView
+          key={`${book.id}-${current.lesson}`}
+          book={book}
+          lessonDef={current}
+          doc={doc}
+          fileOk={fileState === "ok"}
+          onOpenVocab={(l) => onOpenVocab?.(l)}
+          onOpenPage={(p) => {
+            const i = current.pages.indexOf(p);
+            if (i >= 0) setViewer(i);
+          }}
+        />
+      )}
+
+      {/* 원본 페이지 보기 */}
       {current && doc && fileState === "ok" && (
         <div className="flex flex-col gap-2">
-          <p className="font-bold text-gray-700">Lesson {current.lesson} 미리보기</p>
+          <p className="text-sm font-bold text-gray-700">Lesson {current.lesson} 원본 페이지</p>
           <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2" data-testid="page-grid">
             {current.pages.map((p, i) => (
               <PageThumb
@@ -549,7 +568,7 @@ export default function ChunkbookPanel({
         </div>
       )}
       {current && fileState === "checking" && <p className="text-sm text-gray-500">파일을 여는 중…</p>}
-      {!current && <p className="text-sm text-gray-400">Lesson을 눌러 페이지를 미리 볼 수 있어요.</p>}
+      {!current && <p className="text-sm text-gray-400">Lesson을 눌러 읽고 듣기·문장 보고 쓰기를 시작해요.</p>}
 
       {viewer !== null && doc && current && (
         <PageViewer

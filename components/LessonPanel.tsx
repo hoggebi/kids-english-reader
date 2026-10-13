@@ -5,6 +5,7 @@ import type { VocabSet } from "@/lib/types";
 import { LESSON_DEFS, LESSON_NUMBERS, lessonSetId } from "@/lib/lessonData";
 import { confirmLessons, draftKey, restartLessonPlan, type LessonPlan, type MeaningDraft } from "@/lib/lessonPlan";
 import { lessonStatus } from "@/lib/lessonPlanCore";
+import { worksheetUrl } from "@/lib/chunkLesson";
 
 // 저장 전에 부모가 새 단어(교재 뜻)를 확인·수정하는 화면
 function LessonReview({
@@ -201,6 +202,9 @@ export default function LessonPanel({
                 <span className="mx-1.5 text-gray-300">·</span>
                 <span className={gameDone ? "font-bold text-sky-700" : ""}>게임 {gameDone ? "완료 ✓" : "전"}</span>
               </p>
+              <a href={worksheetUrl(current)} target="_blank" rel="noreferrer" className="mt-1 inline-flex min-h-[44px] items-center text-xs font-bold text-sky-700 underline">
+                📄 Lesson {current} 학습지 열기 / 인쇄
+              </a>
               {doneToday && (
                 <p className="mt-1 text-xs text-sky-800">오늘 Lesson {current}을 마쳤어요. 다음 학습일에 Lesson {Math.min(8, current + 1)}로 넘어가요.</p>
               )}

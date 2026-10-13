@@ -416,7 +416,24 @@ export default function Home() {
         )}
       </div>
 
-      {section === "chunkbook" && <ChunkbookPanel books={chunkbooks} onChange={handleChunkbooksChange} />}
+      {section === "chunkbook" && (
+        <ChunkbookPanel
+          books={chunkbooks}
+          onChange={handleChunkbooksChange}
+          onOpenVocab={(lesson) => {
+            // 단어장 탭으로 이동해서 그 Lesson의 단어 학습을 연다(아직 단어 확인 전이면 목록만 보여준다)
+            setSection("vocab");
+            setVocabPet(loadPet("vocab"));
+            const set = loadVocabSets().find((x) => x.id === `lesson-${lesson}`);
+            if (set) {
+              setActiveVocabSet(set);
+              setVocabView("read");
+            } else {
+              setVocabView("list");
+            }
+          }}
+        />
+      )}
 
       {section === "chapters" && view === "list" && (
         <>
