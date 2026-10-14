@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { VocabWord } from "@/lib/types";
 import { nextMonster, type Monster } from "@/lib/monsters";
+import { COINS_BATTLE_BOSS, COINS_BATTLE_STAGE, earnCoins } from "@/lib/pet";
+import { CoinAmount } from "./Coin";
 import { shuffle, playTone } from "./VocabGame";
 import {
   sfxSlash,
@@ -257,7 +259,7 @@ export default function BattleGame({
   setId: string;
   onStudyMore?: () => void;
 }) {
-  // 이 단어 묶음 기준 20스테이지 진행 상태. 학습한 단어가 바뀌면(=wordIds가 달라지면) 자동으로
+  // 이 단어 묶음 기준 10스테이지 진행 상태. 학습한 단어가 바뀌면(=wordIds가 달라지면) 자동으로
   // 새 스테이지 1부터 다시 시작한다. 컴포넌트가 재마운트되기 전까진 값이 바뀌지 않으므로
   // 일반 state로 한 번만 계산해서(lazy initializer) 아래 다른 초기값 계산에도 그대로 쓴다.
   const [wordIds] = useState(() => words.map((w) => w.id).sort());
@@ -269,6 +271,7 @@ export default function BattleGame({
   const [defeatedCount, setDefeatedCount] = useState(initialDefeatedCount);
   const [monster, setMonster] = useState<Monster>(() => nextMonster(0));
   const [monsterMaxHp, setMonsterMaxHp] = useState(3);
+  const [stageCoins, setStageCoins] = useState(0); // 이번 스테이지를 깨고 받은 코인
   const [monsterHp, setMonsterHp] = useState(3);
   const [playerHp, setPlayerHp] = useState(PLAYER_MAX_HP);
   const [question, setQuestion] = useState<Question | null>(() =>
@@ -465,6 +468,8 @@ export default function BattleGame({
       }, ms);
 
     setKoStage("hold");
+    // 스테이지를 깰 때마다 코인(보스는 더 많이)을 지갑에 넣는다.
+    setStageCoins(earnCoins(monster.isBoss ? COINS_BATTLE_BOSS : COINS_BATTLE_STAGE, "vocab").granted);
     at(KO_HOLD_MS, () => {
       setKoStage("defeat");
       sfxKO();
@@ -480,7 +485,7 @@ export default function BattleGame({
       setDefeatedTotal(nextCount);
       saveBattleProgress(setId, { defeatedCount: nextCount, wordIds });
       if (nextCount >= BATTLE_STAGE_CAP) {
-        // 20스테이지 클리어: 바로 다음 스테이지로 넘기지 않고 안내 화면을 보여준다.
+        // 10스테이지 클리어: 바로 다음 스테이지로 넘기지 않고 안내 화면을 보여준다.
         setPhase("setCleared");
       } else {
         beginEncounter(nextCount);
@@ -595,7 +600,7 @@ export default function BattleGame({
   }
 
   // 첫 몬스터도 HP 랜덤 타수/등장 연출이 제대로 적용되도록 마운트 시 한 번 다시 굴린다.
-  // 이미 20스테이지를 다 깬 단어 묶음이면(phase가 이미 setCleared로 시작) 전투를 시작하지 않는다.
+  // 이미 10스테이지를 다 깬 단어 묶음이면(phase가 이미 setCleared로 시작) 전투를 시작하지 않는다.
   useEffect(() => {
     if (initialDefeatedCount < BATTLE_STAGE_CAP) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- 최초 스테이지 진입 자체가 이 컴포넌트의 목적이라 마운트 시 곧바로 시작한다.
@@ -1027,6 +1032,11 @@ export default function BattleGame({
           />
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={`${A}/effects/dust.png`} alt="" className="object-contain -mt-2 opacity-80" style={{ width: SIZE.dust, height: `calc(${SIZE.dust} * 0.6)` }} />
+          {stageCoins > 0 && (
+            <div className="rounded-full bg-white/90 px-4 py-1 font-black text-amber-700 text-xl shadow">
+              <CoinAmount amount={stageCoins} prefix="+" size={26} />
+            </div>
+          )}
         </div>
       )}
 

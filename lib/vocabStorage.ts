@@ -1,6 +1,5 @@
 "use client";
 import type { VocabSet, VocabWord, VocabDailySession, VocabStudyMode } from "./types";
-import { completeVocabRound } from "./pet";
 import { lessonFromSetId } from "./lessonData";
 import { localDateKey } from "./lessonPlanCore";
 import { recordLessonGameDone } from "./lessonPlan";
@@ -254,9 +253,7 @@ export function extendDailySession(set: VocabSet, session: VocabDailySession): V
 }
 
 // ---------- 오늘 이 단어장으로 어떤 게임을 마쳤는지 기록 ----------
-// 오늘의 학습 + 게임 4종류(단어사냥/바구니담기/두더지잡기/함께달리기)를 전부 한 번씩 마치면
-// 단어장 캐릭터(vocab 트랙)가 한 단계 성장한다.
-const ALL_GAME_KINDS = ["hunt", "feed", "mole", "runner"];
+// 게임별 성장은 다트·두더지·몬스터 3종 사이클(lib/pet.ts recordGameCycleProgress)이 맡는다.
 
 export function recordVocabGamePlayed(
   setId: string,
@@ -275,10 +272,5 @@ export function recordVocabGamePlayed(
   localStorage.setItem(key, JSON.stringify(played));
   recordLessonGameDone(setId); // Lesson 진행 기록(게임 1회). 단어별 기록과는 별개
 
-  const allDone = ALL_GAME_KINDS.every((k) => played.includes(k));
-  if (allDone) {
-    // completeVocabRound는 같은 id로 이미 오늘 처리됐으면 아무 일도 안 하므로 중복 성장 걱정 없음
-    completeVocabRound(`vocab-${setId}-${todayKey()}`);
-  }
-  return { allGamesDoneToday: allDone };
+  return { allGamesDoneToday: false };
 }

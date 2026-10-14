@@ -27,16 +27,16 @@ export const BOSS_MONSTER: Monster = {
   isBoss: true,
 };
 
-// 일반 몬스터를 몇 마리 잡을 때마다 보스가 등장할지 (설정값으로 관리, 나중에 쉽게 조정 가능)
-export const BOSS_EVERY = 4;
+// 보스는 한 사이클(10 스테이지)에 한 번, 일반 몬스터를 이 수만큼 잡은 다음 스테이지(= 5번째)에 등장한다.
+export const BOSS_AFTER_DEFEATED = 4;
 
 export function pickRandomMonster(): Monster {
   return MONSTERS[Math.floor(Math.random() * MONSTERS.length)];
 }
 
-// 이번 판이 보스전인지 판단 (일반 몬스터를 BOSS_EVERY마리 잡을 때마다 등장)
+// 이번 판이 보스전인지 판단
 export function isBossRound(defeatedCount: number): boolean {
-  return defeatedCount > 0 && defeatedCount % BOSS_EVERY === 0;
+  return defeatedCount === BOSS_AFTER_DEFEATED;
 }
 
 export function nextMonster(defeatedCount: number): Monster {

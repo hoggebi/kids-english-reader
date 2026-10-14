@@ -586,7 +586,8 @@ export const COINS_LESSON_DONE = 100; // Lesson 한 번 끝까지(보너스)
 export const COINS_READ_ROUND = 30; // 챕터 한 페이지 2번 읽기
 export const COINS_CHAPTER_DONE = 200; // 챕터 끝까지 + 퀴즈(보너스)
 export const COINS_VOCAB_ROUND = 100; // 단어장 하루 게임 전부 완료(보너스)
-export const COINS_GAME_SIMPLE = 80; // 바구니·러너·몬스터 배틀 한 판
+export const COINS_BATTLE_STAGE = 10; // 몬스터 배틀: 스테이지를 깰 때마다
+export const COINS_BATTLE_BOSS = 30; // 몬스터 배틀: 보스 스테이지
 
 function numFromStorage(key: string): number {
   if (typeof window === "undefined") return 0;

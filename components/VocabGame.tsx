@@ -1,12 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type { VocabWord } from "@/lib/types";
 import {
-  loadPet,
-  getPetImagePath,
-  earnCoins,
-  COINS_GAME_SIMPLE,
   loadGameCycle,
   recordGameCycleProgress,
   type GameCycleKind,
@@ -21,11 +17,7 @@ import MoleGame from "./MoleGame";
 import PetDisplay from "./PetDisplay";
 import { CoinIcon } from "./Coin";
 
-type GameKind = "hunt" | "feed" | "mole" | "runner" | "battle";
-type Feedback = "correct" | "wrong" | null;
-
-// 다트·두더지는 게임 안에서 결과에 따라 코인을 지갑에 넣는다. 나머지 게임은 한 판에 고정 코인을 받는다.
-const COIN_PAID_IN_GAME: GameKind[] = ["hunt", "mole"];
+type GameKind = "hunt" | "mole" | "battle";
 
 // 캐릭터 성장 사이클: 다트/두더지/몬스터를 한 번씩 마치면(3/3) 캐릭터가 바로 한 단계 자란다.
 const CYCLE_KIND_BY_GAME: Partial<Record<GameKind, GameCycleKind>> = {
@@ -44,20 +36,12 @@ export function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-// 게임 메뉴에는 이 3개만 노출한다 (바구니 담기/함께 달리기는 화면에서 제거 — 코드는 그대로 둔다).
+// 게임은 이 3개만 있다. 코인은 각 게임 안에서(다트·두더지: 결과, 몬스터 배틀: 스테이지를 깰 때마다) 지갑에 들어간다.
 const GAME_INFO: { kind: GameKind; title: string; desc: string; emoji?: string; img?: string }[] = [
   { kind: "hunt", title: "다트 게임", desc: "정답 표적을 겨냥해서 던져요", emoji: "🎯" },
   { kind: "mole", title: "두더지 잡기", desc: "정답 단어가 쓰인 두더지를 톡 잡아요", img: "/mole.png" },
   { kind: "battle", title: "몬스터 배틀", desc: "문제를 맞혀서 몬스터를 물리쳐요", emoji: "⚔️" },
 ];
-
-const THEME_BG: Record<GameKind, string> = {
-  hunt: "bg-gray-100",
-  feed: "bg-gray-100",
-  mole: "bg-gray-100",
-  runner: "bg-gray-100",
-  battle: "bg-gray-100",
-};
 
 // 공통 애니메이션 정의 (게임 화면에서 한 번만 렌더)
 function GameStyles() {
@@ -151,96 +135,11 @@ export function playTone(kind: "correct" | "wrong") {
   osc.stop(now + 0.3);
 }
 
-// ---------- 정답/오답 파티클 ----------
-function Particles({ trigger }: { trigger: number }) {
-  const [items, setItems] = useState<{ id: number; dx: number; dy: number; emoji: string }[]>([]);
-  useEffect(() => {
-    if (trigger === 0) return;
-    const emojis = ["⭐", "✨", "🎉"];
-    const next = Array.from({ length: 8 }, (_, i) => ({
-      id: Date.now() + i,
-      dx: (Math.random() - 0.5) * 160,
-      dy: -Math.random() * 110 - 30,
-      emoji: emojis[Math.floor(Math.random() * emojis.length)],
-    }));
-    setItems(next);
-    const t = setTimeout(() => setItems([]), 750);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trigger]);
-
-  return (
-    <div className="pointer-events-none absolute inset-0 overflow-visible z-20">
-      {items.map((p) => (
-        <span
-          key={p.id}
-          className="particle text-2xl"
-          style={{ ["--dx" as string]: `${p.dx}px`, ["--dy" as string]: `${p.dy}px` }}
-        >
-          {p.emoji}
-        </span>
-      ))}
-    </div>
-  );
-}
-
 export function ComboBadge({ combo }: { combo: number }) {
   if (combo < 2) return null;
   return (
     <div key={combo} className="combo-badge text-sky-500 font-black text-xl z-20 -translate-x-1/2">
       {combo} 콤보!
-    </div>
-  );
-}
-
-// ---------- 결과 화면 (별점) ----------
-function ResultScreen({
-  correct,
-  total,
-  onDone,
-  onRetry,
-}: {
-  correct: number;
-  total: number;
-  onDone: () => void;
-  onRetry: () => void;
-}) {
-  const [pet] = useState(() => loadPet("vocab"));
-  const ratio = total > 0 ? correct / total : 0;
-  const stars = ratio >= 0.9 ? 3 : ratio >= 0.6 ? 2 : ratio > 0 ? 1 : 0;
-
-  return (
-    <div className="flex flex-col items-center gap-3 py-10">
-      <div className="flex gap-1 text-5xl">
-        {[0, 1, 2].map((i) => (
-          <span
-            key={i}
-            className={i < stars ? "star-pop" : "opacity-20"}
-            style={{ animationDelay: `${i * 0.15}s` }}
-          >
-            ⭐
-          </span>
-        ))}
-      </div>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={getPetImagePath(pet, "vocab")} alt="캐릭터" className="w-20 h-20 object-contain" />
-      <p className="text-lg font-bold text-gray-800">
-        {total}개 중 {correct}개 맞혔어요!
-      </p>
-      <div className="flex gap-3 mt-1">
-        <button
-          onClick={onRetry}
-          className="px-5 py-2.5 rounded-full bg-emerald-500 text-white font-bold"
-        >
-          다시하기
-        </button>
-        <button
-          onClick={onDone}
-          className="px-5 py-2.5 rounded-full bg-sky-600 text-white font-bold"
-        >
-          완료
-        </button>
-      </div>
     </div>
   );
 }
@@ -368,8 +267,6 @@ export default function VocabGame({
   function handleGameDone() {
     if (kind) recordVocabGamePlayed(setId, kind);
 
-    // 다트·두더지는 게임 안에서 이미 코인을 받았다. 나머지는 여기서 한 판 보상을 준다.
-    if (kind && !COIN_PAID_IN_GAME.includes(kind)) earnCoins(COINS_GAME_SIMPLE, "vocab");
     autoPush();
 
     const cycleKind = kind ? CYCLE_KIND_BY_GAME[kind] : undefined;
@@ -393,12 +290,8 @@ export default function VocabGame({
       {kind === "hunt" && (
         <DartGame key={playKey} words={words} onDone={handleGameDone} onRetry={handleRetry} onExit={() => setKind(null)} />
       )}
-      {kind === "feed" && <FeedGame key={playKey} words={words} onDone={handleGameDone} onRetry={handleRetry} />}
       {kind === "mole" && (
         <MoleGame key={playKey} words={words} onDone={handleGameDone} onRetry={handleRetry} onExit={() => setKind(null)} />
-      )}
-      {kind === "runner" && (
-        <RunnerGame key={playKey} words={words} onDone={handleGameDone} onRetry={handleRetry} />
       )}
       {kind === "battle" && (
         <BattleGame
@@ -410,251 +303,6 @@ export default function VocabGame({
           onStudyMore={onStudyMore}
         />
       )}
-    </div>
-  );
-}
-
-// ---------- 2) 바구니 담기: 드래그해서 바구니에 넣기 ----------
-function FeedGame({ words, onDone, onRetry }: { words: VocabWord[]; onDone: () => void; onRetry: () => void }) {
-  const [pet] = useState(() => loadPet("vocab"));
-  const [queue] = useState(() => shuffle(words));
-  const [dirs] = useState<("toEng" | "toKor")[]>(() =>
-    queue.map(() => (Math.random() < 0.5 ? "toEng" : "toKor"))
-  );
-  const [index, setIndex] = useState(0);
-  const [options, setOptions] = useState(() => buildOptions(words, queue[0], 3));
-  const [dragId, setDragId] = useState<string | null>(null);
-  const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
-  const [feedback, setFeedback] = useState<Feedback>(null);
-  const [combo, setCombo] = useState(0);
-  const [particleTrigger, setParticleTrigger] = useState(0);
-  const [correctCount, setCorrectCount] = useState(0);
-  const basketRef = useRef<HTMLDivElement>(null);
-
-  const current = queue[index];
-  const direction = dirs[index];
-  const done = index >= queue.length;
-
-  function goNext() {
-    const next = index + 1;
-    setIndex(next);
-    setFeedback(null);
-    if (queue[next]) setOptions(buildOptions(words, queue[next], 3));
-  }
-
-  function onPointerMove(e: React.PointerEvent) {
-    if (!dragId) return;
-    setDragPos({ x: e.clientX, y: e.clientY });
-  }
-
-  function onPointerUp() {
-    if (!dragId || !dragPos || !basketRef.current) {
-      setDragId(null);
-      return;
-    }
-    const rect = basketRef.current.getBoundingClientRect();
-    const inside =
-      dragPos.x >= rect.left && dragPos.x <= rect.right && dragPos.y >= rect.top && dragPos.y <= rect.bottom;
-    if (inside) {
-      const ok = dragId === current.id;
-      playTone(ok ? "correct" : "wrong");
-      setFeedback(ok ? "correct" : "wrong");
-      if (ok) {
-        setCombo((c) => c + 1);
-        setCorrectCount((c) => c + 1);
-        setParticleTrigger((t) => t + 1);
-      } else {
-        setCombo(0);
-      }
-      setTimeout(goNext, 500);
-    }
-    setDragId(null);
-    setDragPos(null);
-  }
-
-  if (done) return <ResultScreen correct={correctCount} total={queue.length} onDone={onDone} onRetry={onRetry} />;
-
-  return (
-    <div
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      className={`relative rounded-3xl overflow-hidden p-3 flex flex-col items-center gap-5 select-none touch-none ${THEME_BG.feed}`}
-    >
-      <Particles trigger={particleTrigger} />
-      <ComboBadge combo={combo} />
-      <p className="text-sm text-gray-500">
-        {index + 1} / {queue.length}
-      </p>
-
-      <div
-        ref={basketRef}
-        className={`relative flex flex-col items-center transition-transform duration-300 ${
-          feedback === "correct" ? "scale-110" : ""
-        } ${feedback === "correct" ? "char-correct" : feedback === "wrong" ? "char-wrong" : ""}`}
-      >
-        {/* 캐릭터 머리 위 바구니 (실제 이미지) */}
-        <div className="relative z-10 -mb-8 w-20 h-16">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/basket.png" alt="바구니" className="w-20 h-16 object-contain" />
-          {correctCount > 0 && (
-            <div
-              className="absolute left-1/2 top-1 -translate-x-1/2 flex items-end justify-center pointer-events-none"
-              style={{ height: "26px" }}
-            >
-              {Array.from({ length: Math.min(correctCount, 6) }).map((_, i) => {
-                const count = Math.min(correctCount, 6);
-                const fan = (i - (count - 1) / 2) * 14;
-                return (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    key={i}
-                    src="/bread.png"
-                    alt="빵"
-                    className="w-7 h-3 object-contain -mx-1"
-                    style={{ transform: `rotate(${90 + fan}deg)` }}
-                  />
-                );
-              })}
-            </div>
-          )}
-        </div>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={getPetImagePath(pet, "vocab")} alt="캐릭터" className="w-24 h-24 object-contain" />
-      </div>
-      <p className="text-lg font-bold text-black">
-        {direction === "toEng" ? current.korean : current.english}
-      </p>
-      <div className="flex gap-x-1 gap-y-0 flex-wrap justify-center">
-        {options.map((w) => (
-          <div
-            key={w.id}
-            onPointerDown={(e) => {
-              setDragId(w.id);
-              setDragPos({ x: e.clientX, y: e.clientY });
-            }}
-            style={
-              dragId === w.id && dragPos
-                ? { position: "fixed", left: dragPos.x - 88, top: dragPos.y - 32, zIndex: 50 }
-                : undefined
-            }
-            className={`relative w-44 h-16 flex items-center justify-center cursor-grab active:cursor-grabbing ${
-              dragId === w.id ? "scale-110" : ""
-            }`}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/bread.png" alt="빵" className="absolute inset-0 w-full h-full object-contain select-none" />
-            <span className="relative text-lg font-extrabold text-black text-center leading-tight px-2">
-              {direction === "toEng" ? w.english : w.korean}
-            </span>
-          </div>
-        ))}
-      </div>
-      <p className="text-xs text-gray-400">빵을 바구니에 끌어다 놓으세요</p>
-    </div>
-  );
-}
-
-// ---------- 4) 함께 달리기: 갈림길 선택 ----------
-function RunnerGame({ words, onDone, onRetry }: { words: VocabWord[]; onDone: () => void; onRetry: () => void }) {
-  const [pet] = useState(() => loadPet("vocab"));
-  const [queue] = useState(() => shuffle(words));
-  const [dirs] = useState<("toEng" | "toKor")[]>(() =>
-    queue.map(() => (Math.random() < 0.5 ? "toEng" : "toKor"))
-  );
-  const [index, setIndex] = useState(0);
-  const [options, setOptions] = useState(() => buildOptions(words, queue[0], 3));
-  const [progress, setProgress] = useState(0);
-  const [choiceId, setChoiceId] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<Feedback>(null);
-  const [combo, setCombo] = useState(0);
-  const [particleTrigger, setParticleTrigger] = useState(0);
-  const [correctCount, setCorrectCount] = useState(0);
-
-  const current = queue[index];
-  const direction = dirs[index];
-  const done = index >= queue.length;
-
-  useEffect(() => {
-    if (done || choiceId) return;
-    const t = setInterval(() => setProgress((p) => Math.min(100, p + 1.2)), 80);
-    return () => clearInterval(t);
-  }, [done, choiceId]);
-
-  useEffect(() => {
-    if (progress >= 100 && !choiceId) goNext();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [progress]);
-
-  function goNext() {
-    const next = index + 1;
-    setIndex(next);
-    setProgress(0);
-    setChoiceId(null);
-    setFeedback(null);
-    if (queue[next]) setOptions(buildOptions(words, queue[next], 3));
-  }
-
-  function pick(w: VocabWord) {
-    if (choiceId) return;
-    setChoiceId(w.id);
-    const ok = w.id === current.id;
-    playTone(ok ? "correct" : "wrong");
-    setFeedback(ok ? "correct" : "wrong");
-    if (ok) {
-      setCombo((c) => c + 1);
-      setCorrectCount((c) => c + 1);
-      setParticleTrigger((t) => t + 1);
-    } else {
-      setCombo(0);
-    }
-    setTimeout(goNext, 500);
-  }
-
-  if (done) return <ResultScreen correct={correctCount} total={queue.length} onDone={onDone} onRetry={onRetry} />;
-
-  return (
-    <div className={`relative rounded-3xl overflow-hidden p-3 flex flex-col items-center gap-4 ${THEME_BG.runner}`}>
-      <Particles trigger={particleTrigger} />
-      <ComboBadge combo={combo} />
-      <p className="text-sm text-gray-500">
-        {index + 1} / {queue.length}
-      </p>
-      <div className="relative w-full max-w-sm h-28">
-        <div className="absolute bottom-2 left-0 right-0 h-2 rounded-full bg-white/60 overflow-hidden">
-          <div className="h-full bg-sky-400 transition-all" style={{ width: `${progress}%` }} />
-        </div>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={getPetImagePath(pet, "vocab")}
-          alt="캐릭터"
-          className={`absolute bottom-3 w-24 h-24 object-contain transition-all duration-100 ${
-            choiceId ? (feedback === "correct" ? "char-correct" : "char-wrong") : "run-bob"
-          }`}
-          style={{ left: `calc(${progress}% - 48px)` }}
-        />
-        <span className="absolute -bottom-1 right-0 text-5xl">🏁</span>
-      </div>
-      <p className="text-lg font-bold text-black">
-        {direction === "toEng" ? current.korean : current.english}
-      </p>
-      <div className="flex gap-2 w-full max-w-sm">
-        {options.map((w) => (
-          <button
-            key={w.id}
-            onClick={() => pick(w)}
-            disabled={!!choiceId}
-            className={`flex-1 py-6 rounded-2xl font-bold border-2 transition ${
-              choiceId === w.id
-                ? w.id === current.id
-                  ? "bg-sky-100 border-sky-500 text-black"
-                  : "bg-red-50 border-red-400 text-red-500"
-                : "bg-white border-gray-200 text-black"
-            }`}
-          >
-            {direction === "toEng" ? w.english : w.korean}
-          </button>
-        ))}
-      </div>
     </div>
   );
 }

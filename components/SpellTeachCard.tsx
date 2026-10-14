@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { VocabWord } from "@/lib/types";
 
 // Lesson 단어 학습 흐름 (한 단어당 한 카드):
-//  1) 영어·한국어 소개 → 2) 철자를 한 글자씩 나타내며 강조(시연) → 3) 영어를 숨기고 섞인 글자를 순서대로 눌러 완성
+//  1) 영어·한국어 소개 → 2) 철자를 한 글자씩 나타내며 강조(시연) → 단어 전체를 두 번 강조 → 3) 영어를 숨기고 섞인 글자를 순서대로 눌러 완성
 //  - 공백/기호는 자동으로 표시하고, 반복 글자는 글자마다 별개의 타일이라 각각 고를 수 있다.
 //  - 막히면 "철자 다시 보기"로 시연을 다시 보고 돌아온다. 올바르게 완성해야 다음 단어로 넘어간다.
 
@@ -12,6 +12,10 @@ type Phase = "intro" | "demo" | "build" | "done";
 type Tile = { id: number; ch: string };
 
 const DEMO_STEP_MS = 650;
+// 글자가 모두 나타난 뒤 단어 전체를 두 번 깜빡여 강조한다(켜짐 → 꺼짐 → 켜짐 → 꺼짐).
+const PULSE_ON_MS = 700;
+const PULSE_OFF_MS = 350;
+const PULSE_STEPS = 4;
 const isLetter = (c: string) => /[A-Za-z]/.test(c);
 
 function shuffleTiles(tiles: Tile[]): Tile[] {
@@ -55,6 +59,7 @@ export default function SpellTeachCard({
 
   const [phase, setPhase] = useState<Phase>("intro");
   const [shown, setShown] = useState(0); // 시연에서 나타난 글자 수
+  const [pulse, setPulse] = useState(0); // 전체 강조 진행(1,3: 켜짐 / 2,4: 꺼짐 / 4가 지나면 맞추기로)
   const [tiles] = useState<Tile[]>(() => shuffleTiles(letterPositions.map((p) => ({ id: p, ch: chars[p] }))));
   const [placed, setPlaced] = useState(0); // 맞게 놓은 글자 수
   const [usedIds, setUsedIds] = useState<number[]>([]);
@@ -69,13 +74,17 @@ export default function SpellTeachCard({
     if (phase !== "demo") return;
     if (shown < total) {
       timer.current = setTimeout(() => setShown((n) => n + 1), shown === 0 ? 350 : DEMO_STEP_MS);
+    } else if (pulse < PULSE_STEPS) {
+      // 마지막 글자를 잠깐 본 뒤 전체 강조 두 번
+      const wait = pulse === 0 ? 600 : pulse % 2 === 1 ? PULSE_ON_MS : PULSE_OFF_MS;
+      timer.current = setTimeout(() => setPulse((p) => p + 1), wait);
     } else {
-      timer.current = setTimeout(() => setPhase("build"), 1400);
+      timer.current = setTimeout(() => setPhase("build"), PULSE_OFF_MS);
     }
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [phase, shown, total]);
+  }, [phase, shown, pulse, total]);
 
   useEffect(() => {
     return () => {
@@ -89,6 +98,7 @@ export default function SpellTeachCard({
 
   function startDemo() {
     setShown(0);
+    setPulse(0);
     setPhase("demo");
   }
 
@@ -119,7 +129,7 @@ export default function SpellTeachCard({
   }
 
   // 지금까지 맞춘 글자로 단어를 그린다. showAll=true면 영어 전체, 아니면 맞힌 글자만(나머지는 빈칸).
-  function renderWord(opts: { visibleLetters: number; highlight?: number; fillAll?: boolean }) {
+  function renderWord(opts: { visibleLetters: number; highlight?: number; fillAll?: boolean; emphasizeAll?: boolean }) {
     let letterIdx = -1;
     return (
       <div className="flex flex-wrap items-end justify-center gap-x-1.5 gap-y-3" aria-label={opts.fillAll ? word.english : "철자 칸"}>
@@ -143,9 +153,11 @@ export default function SpellTeachCard({
               key={i}
               className={`inline-flex items-center justify-center w-12 h-16 sm:w-14 sm:h-20 rounded-xl border-b-4 text-4xl sm:text-5xl font-black transition-all ${
                 visible
-                  ? hl
-                    ? "bg-amber-300 border-amber-500 text-amber-900 scale-125"
-                    : "bg-white border-sky-400 text-gray-800"
+                  ? opts.emphasizeAll
+                    ? "bg-amber-300 border-amber-500 text-amber-900 scale-110"
+                    : hl
+                      ? "bg-sky-600 border-sky-800 text-white scale-125"
+                      : "bg-white border-sky-400 text-gray-800"
                   : "bg-gray-100 border-gray-300 text-transparent"
               }`}
             >
@@ -183,9 +195,15 @@ export default function SpellTeachCard({
           <p className="text-sm text-gray-500">철자를 잘 보세요</p>
           <p className="text-2xl font-bold text-sky-700">{word.korean}</p>
           <div className="w-full max-w-2xl rounded-3xl bg-gray-50 border-2 border-gray-200 px-4 py-8 min-h-[160px] flex items-center justify-center">
-            {renderWord({ visibleLetters: shown, highlight: shown > 0 && shown <= total ? shown - 1 : undefined })}
+            {renderWord({
+              visibleLetters: shown,
+              highlight: shown > 0 && shown < total ? shown - 1 : shown === total && pulse === 0 ? shown - 1 : undefined,
+              emphasizeAll: pulse === 1 || pulse === 3,
+            })}
           </div>
-          <p className="text-sm text-gray-400">글자가 하나씩 나타나요</p>
+          <p className="text-sm text-gray-400">
+            {shown < total ? "글자가 하나씩 나타나요" : "전체를 두 번 보여줘요"}
+          </p>
         </>
       )}
 
@@ -233,8 +251,8 @@ export default function SpellTeachCard({
 
       {phase === "done" && (
         <>
-          <p className="text-2xl font-black text-emerald-600">잘했어요! 🎉</p>
-          <div className="w-full max-w-2xl rounded-3xl bg-emerald-50 border-2 border-emerald-300 px-4 py-8 flex flex-col items-center gap-3">
+          <p className="text-2xl font-black text-sky-600">잘했어요! 🎉</p>
+          <div className="w-full max-w-2xl rounded-3xl bg-sky-50 border-2 border-sky-300 px-4 py-8 flex flex-col items-center gap-3">
             {renderWord({ visibleLetters: total, fillAll: true })}
             <p className="text-2xl font-bold text-sky-700">{word.korean}</p>
           </div>
@@ -244,7 +262,7 @@ export default function SpellTeachCard({
           <button
             onClick={() => onFinish(wrongTaps === 0)}
             data-testid="teach-next"
-            className={`w-full max-w-md min-h-[56px] rounded-full text-white font-bold text-lg ${isLast ? "bg-emerald-600" : "bg-sky-600"}`}
+            className={`w-full max-w-md min-h-[56px] rounded-full text-white font-bold text-lg bg-sky-600`}
           >
             {nextLabel}
           </button>

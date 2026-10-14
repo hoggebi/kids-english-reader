@@ -1,10 +1,10 @@
 "use client";
 
-// 몬스터 배틀의 "20 스테이지 학습 구간" 진행 상태. 캐릭터 성장 사이클(dart/mole/monster)과는
+// 몬스터 배틀의 "10 스테이지 학습 구간" 진행 상태. 캐릭터 성장 사이클(dart/mole/monster)과는
 // 완전히 별개로 관리된다 — 여기서는 오직 "지금 단어 묶음으로 몇 스테이지까지 왔는지"만 기록한다.
 const BATTLE_PROGRESS_PREFIX = "chunkbook-v2-battle-progress-";
 
-export const BATTLE_STAGE_CAP = 20;
+export const BATTLE_STAGE_CAP = 10;
 
 export type BattleProgress = {
   // 지금까지 이 단어 묶음으로 물리친 몬스터 수 (= 다음에 싸울 스테이지 - 1)
@@ -25,7 +25,7 @@ function sameWordIds(a: string[], b: string[]): boolean {
 }
 
 // 현재 단어 묶음(wordIds) 기준 진행 상태를 읽어온다. 저장된 진행 상태가 다른 단어 묶음
-// 것이면(=새로운 단어를 학습해서 묶음이 바뀜) 새 20스테이지 사이클로 초기화해서 반환한다.
+// 것이면(=새로운 단어를 학습해서 묶음이 바뀜) 새 10스테이지 사이클로 초기화해서 반환한다.
 export function loadBattleProgress(setId: string, wordIds: string[]): BattleProgress {
   const sortedIds = [...wordIds].sort();
   if (typeof window === "undefined") return { defeatedCount: 0, wordIds: sortedIds };
