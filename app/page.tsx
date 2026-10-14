@@ -9,7 +9,6 @@ import {
   deleteChapter,
   saveChapters,
   renameChapter,
-  exportChaptersData,
   importChaptersData,
 } from "@/lib/storage";
 import {
@@ -226,27 +225,6 @@ export default function Home() {
     );
   }
 
-  async function handleExport() {
-    const encoded = exportChaptersData();
-    const url = `${window.location.origin}${window.location.pathname}#sync=${encoded}`;
-
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: "오늘도 호 English 챕터", url });
-        return;
-      } catch {
-        // 공유 취소 등은 무시하고 복사로 대체
-      }
-    }
-
-    try {
-      await navigator.clipboard.writeText(url);
-      alert("링크가 복사됐어요! 카카오톡이나 문자로 보내서 다른 기기에서 열어보세요.");
-    } catch {
-      alert(url);
-    }
-  }
-
   function goToList() {
     setView("list");
     setPet(loadPet());
@@ -395,13 +373,6 @@ export default function Home() {
       {section === "chapters" && view === "list" && (
         <>
           {pet && <PetDisplay pet={pet} />}
-
-          <button
-            onClick={handleExport}
-            className="text-sm text-sky-600 font-bold underline"
-          >
-            링크로 한 번만 보내기
-          </button>
 
           <ChapterList
             chapters={chapters}
