@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChunkLesson, ChunkbookMeta } from "@/lib/chunkbook";
 import { renderPageBase64, type PdfDoc as PdfDocLike } from "@/lib/chunkbook";
 import {
@@ -55,7 +55,7 @@ function ReadListen({
   const [endedThisVisit, setEndedThisVisit] = useState(0); // 이번 방문에서 끝까지 들은 횟수
   const token = useRef(0);
   const watchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const rowRefs = useRef<(HTMLLIElement | null)[]>([]);
+  const rowRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const supported = speakSupported();
 
   const stopAll = useCallback(() => {
@@ -128,7 +128,13 @@ function ReadListen({
   }, [idx, status]);
 
   const firstDone = endedThisVisit >= 1;
-  const sections = lines.map((l) => l.section);
+  const activeIdx = idx >= 0 && (status === "playing" || status === "paused") ? idx : -1;
+  const hl = (i: number) =>
+    `cursor-pointer rounded px-1 transition-colors duration-200 ${
+      i === activeIdx
+        ? "bg-amber-200 font-bold text-gray-900 underline decoration-amber-500 decoration-2 underline-offset-4"
+        : "hover:bg-gray-100"
+    }`;
 
   return (
     <div className="flex flex-col gap-3" data-testid="read-listen">
@@ -145,34 +151,77 @@ function ReadListen({
       {!supported && <p className="text-sm text-amber-700">이 기기에서는 음성을 쓸 수 없어요. 화면의 문장을 읽어 보세요.</p>}
       {listens > 0 && endedThisVisit === 0 && <p className="text-xs text-gray-500">이 Lesson을 {listens}번 들었어요.</p>}
 
-      <ul className="flex flex-col gap-2">
-        {lines.map((l, i) => {
-          const active = i === idx && (status === "playing" || status === "paused");
-          const showHeader = l.section === "dialogue" && (i === 0 || sections[i - 1] !== "dialogue");
-          return (
-            <li
-              key={i}
-              ref={(el) => {
-                rowRefs.current[i] = el;
-              }}
-              className="flex flex-col gap-1"
-            >
-              {showHeader && <p className="mt-2 text-xs font-bold text-gray-400">대화 연습</p>}
-              <button
-                onClick={() => playFrom(i)}
-                disabled={!supported}
-                aria-label={`${i + 1}번째 문장부터 듣기`}
-                className={`w-full text-left rounded-xl border-2 px-4 py-3 transition ${
-                  active ? "border-amber-400 bg-amber-100 shadow" : "border-gray-200 bg-white"
-                }`}
-              >
-                <span className="block text-xl font-bold text-gray-900 leading-snug">{l.en}</span>
-                <span className="block mt-1 text-sm text-gray-500">{l.ko}</span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+      {/* 본문: 한 장의 카드에 문단처럼 이어서 보여주고, 지금 읽는 문장만 강조한다 */}
+      <div className="rounded-2xl border-2 border-gray-200 bg-white p-4 flex flex-col gap-4">
+        <p className="text-xl leading-loose text-gray-900" data-testid="body-en">
+          {lines.map((l, i) =>
+            l.section === "passage" ? (
+              <Fragment key={i}>
+                <span
+                  ref={(el) => {
+                    rowRefs.current[i] = el;
+                  }}
+                  role="button"
+                  tabIndex={supported ? 0 : -1}
+                  aria-label={`${i + 1}번째 문장부터 듣기`}
+                  onClick={() => supported && playFrom(i)}
+                  onKeyDown={(e) => {
+                    if (supported && (e.key === "Enter" || e.key === " ")) {
+                      e.preventDefault();
+                      playFrom(i);
+                    }
+                  }}
+                  className={hl(i)}
+                >
+                  {l.en}
+                </span>{" "}
+              </Fragment>
+            ) : null,
+          )}
+        </p>
+        <p className="border-t border-gray-100 pt-3 text-base leading-loose text-gray-500" data-testid="body-ko">
+          {lines.map((l, i) =>
+            l.section === "passage" ? (
+              <Fragment key={i}>
+                <span className={i === activeIdx ? "rounded bg-amber-100 px-1 text-gray-900 underline decoration-amber-400 decoration-2 underline-offset-4" : "px-1"}>
+                  {l.ko}
+                </span>{" "}
+              </Fragment>
+            ) : null,
+          )}
+        </p>
+      </div>
+
+      {lines.some((l) => l.section === "dialogue") && (
+        <div className="rounded-2xl border-2 border-gray-200 bg-white p-4 flex flex-col gap-3">
+          <p className="text-xs font-bold text-gray-400">대화 연습</p>
+          {lines.map((l, i) =>
+            l.section === "dialogue" ? (
+              <div key={i} className="flex flex-col">
+                <span
+                  ref={(el) => {
+                    rowRefs.current[i] = el;
+                  }}
+                  role="button"
+                  tabIndex={supported ? 0 : -1}
+                  aria-label={`${i + 1}번째 문장부터 듣기`}
+                  onClick={() => supported && playFrom(i)}
+                  onKeyDown={(e) => {
+                    if (supported && (e.key === "Enter" || e.key === " ")) {
+                      e.preventDefault();
+                      playFrom(i);
+                    }
+                  }}
+                  className={`${hl(i)} self-start text-xl leading-snug`}
+                >
+                  {l.en}
+                </span>
+                <span className={`px-1 text-sm ${i === activeIdx ? "text-gray-900" : "text-gray-500"}`}>{l.ko}</span>
+              </div>
+            ) : null,
+          )}
+        </div>
+      )}
 
       {firstDone && status === "ended" && (
         <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-3 flex flex-col gap-2" data-testid="after-listen">
