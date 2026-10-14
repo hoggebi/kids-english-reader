@@ -6,10 +6,11 @@ import {
   loadPet,
   getPetImagePath,
   earnCoins,
-  consumeGrowth,
   COINS_GAME_SIMPLE,
-  COINS_PER_STAGE,
-  DAILY_COIN_CAP,
+  loadGameCycle,
+  recordGameCycleProgress,
+  type GameCycleKind,
+  type GameCycleState,
   type PetState,
 } from "@/lib/pet";
 import { recordVocabGamePlayed } from "@/lib/vocabStorage";
@@ -24,6 +25,14 @@ type Feedback = "correct" | "wrong" | null;
 
 // 다트·두더지는 게임 안에서 결과에 따라 코인을 지갑에 넣는다. 나머지 게임은 한 판에 고정 코인을 받는다.
 const COIN_PAID_IN_GAME: GameKind[] = ["hunt", "mole"];
+
+// 캐릭터 성장 사이클: 다트/두더지/몬스터를 한 번씩 마치면(3/3) 캐릭터가 바로 한 단계 자란다.
+const CYCLE_KIND_BY_GAME: Partial<Record<GameKind, GameCycleKind>> = {
+  hunt: "dart",
+  mole: "mole",
+  battle: "monster",
+};
+const CYCLE_LABEL: Record<GameCycleKind, string> = { dart: "다트", mole: "두더지", monster: "몬스터" };
 
 export function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -253,6 +262,7 @@ export default function VocabGame({
 }) {
   const [kind, setKind] = useState<GameKind | null>(null);
   const [playKey, setPlayKey] = useState(0);
+  const [cycle, setCycle] = useState<GameCycleState>(() => loadGameCycle());
   const [levelUp, setLevelUp] = useState<PetState | null>(null);
 
   if (words.length === 0) {
@@ -266,7 +276,7 @@ export default function VocabGame({
     );
   }
 
-  // 캐릭터 성장 축하 화면 — 코인이 가득 차서 단계가 올랐을 때만 보여준다.
+  // 캐릭터 성장 축하 화면 — 다트/두더지/몬스터를 모두 완료해서 3/3이 됐을 때만 보여준다.
   if (levelUp) {
     return (
       <div className="w-full max-w-4xl flex flex-col items-center gap-5 py-8">
@@ -291,15 +301,33 @@ export default function VocabGame({
       <div className="w-full max-w-4xl flex flex-col gap-4">
         <p className="text-center text-sm text-gray-400 font-bold">어떤 게임으로 복습할까요?</p>
 
-        <div className="rounded-2xl bg-amber-50 border-2 border-amber-100 px-4 py-3 text-center">
-          <p className="text-sm font-bold text-amber-700">
-            🪙 게임을 한 판 마칠 때마다 코인을 받아요! 코인 {COINS_PER_STAGE}개가 모이면 친구가 한 단계 자라요.
-          </p>
-          <p className="text-xs text-amber-600 mt-0.5">하루에 코인은 {DAILY_COIN_CAP}개까지 모을 수 있어요.</p>
+        {/* 성장 사이클: 다트/두더지/몬스터 완료 여부 + N/3. 게임을 할 때마다 🪙 코인도 쌓여요 */}
+        <div className="rounded-2xl bg-sky-50 border-2 border-sky-100 px-4 py-3 flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-bold text-sky-700">캐릭터 성장 진행도</span>
+            <span className="text-sm font-bold text-sky-700">
+              {[cycle.dart, cycle.mole, cycle.monster].filter(Boolean).length} / 3
+            </span>
+          </div>
+          <div className="flex gap-2">
+            {(["dart", "mole", "monster"] as GameCycleKind[]).map((k) => (
+              <div
+                key={k}
+                className={`flex-1 rounded-full py-1.5 text-center text-xs font-bold ${
+                  cycle[k] ? "bg-sky-500 text-white" : "bg-white text-gray-400 border border-sky-200"
+                }`}
+              >
+                {cycle[k] ? `${CYCLE_LABEL[k]} 완료` : `${CYCLE_LABEL[k]} 도전 중`}
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-amber-600 font-bold">🪙 게임을 할 때마다 코인이 쌓여요. 상점에서 쓸 수 있어요.</p>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           {GAME_INFO.map((g) => {
+            const cycleKind = CYCLE_KIND_BY_GAME[g.kind];
+            const isDone = cycleKind ? cycle[cycleKind] : false;
             return (
               <button
                 key={g.kind}
@@ -309,6 +337,11 @@ export default function VocabGame({
                 }}
                 className="relative flex flex-col items-center gap-1 py-6 rounded-2xl bg-gray-50 border-2 border-transparent hover:border-sky-300 active:scale-95 transition"
               >
+                {isDone && (
+                  <span className="absolute top-2 right-2 w-6 h-6 rounded-full bg-sky-500 text-white text-xs font-bold flex items-center justify-center">
+                    ✓
+                  </span>
+                )}
                 <div className="w-14 h-14 flex items-center justify-center">
                   {g.img ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -330,17 +363,22 @@ export default function VocabGame({
   const handleRetry = () => setPlayKey((k) => k + 1);
 
   // 게임을 완료(onDone)하면 오늘 이 게임 종류를 마쳤다고 기록하고(기존 방식 유지),
-  // 코인을 받아 캐릭터가 한 단계 자라면 축하 화면을 보여준다.
+  // 코인은 게임을 할 때마다 쌓이고, 3종을 모두 마치면 캐릭터가 자란다.
   function handleGameDone() {
     if (kind) recordVocabGamePlayed(setId, kind);
 
     // 다트·두더지는 게임 안에서 이미 코인을 받았다. 나머지는 여기서 한 판 보상을 준다.
     if (kind && !COIN_PAID_IN_GAME.includes(kind)) earnCoins(COINS_GAME_SIMPLE, "vocab");
     autoPush();
-    const grow = consumeGrowth();
-    if (grow?.grew) {
-      setLevelUp(grow.pet);
-      return; // 축하 화면을 먼저 보여주고, 확인을 누르면 onDone()이 호출된다.
+
+    const cycleKind = kind ? CYCLE_KIND_BY_GAME[kind] : undefined;
+    if (cycleKind) {
+      const result = recordGameCycleProgress(cycleKind);
+      setCycle(result.cycle);
+      if (result.leveledUp && result.grow) {
+        setLevelUp(result.grow.pet);
+        return; // 축하 화면을 먼저 보여주고, 확인을 누르면 onDone()이 호출된다.
+      }
     }
     onDone();
   }

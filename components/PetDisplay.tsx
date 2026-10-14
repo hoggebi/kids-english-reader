@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { COINS_PER_STAGE, MAX_STAGE, getStageInfo, getPetImagePath, loadPetXp, type PetState, type PetTrack } from "@/lib/pet";
+import { MAX_STAGE, getStageInfo, getPetImagePath, type PetState, type PetTrack } from "@/lib/pet";
 export default function PetDisplay({
   pet,
   size = "md",
@@ -14,15 +14,6 @@ export default function PetDisplay({
 }) {
   const info = getStageInfo(pet, track);
   const [talkIndex, setTalkIndex] = useState(0);
-  const [xp, setXp] = useState(0);
-
-  // 코인을 받을 때마다 "다음 단계까지" 막대를 다시 읽는다.
-  useEffect(() => {
-    const read = () => setXp(loadPetXp(track));
-    read();
-    window.addEventListener("coins-changed", read);
-    return () => window.removeEventListener("coins-changed", read);
-  }, [track, pet.stage, pet.generation]);
   const isEagle = track === "vocab" && pet.generation >= 3;
   // 말풍선 문구를 주기적으로 바꿔줌 (항상 보이되 지루하지 않게)
   useEffect(() => {
@@ -85,12 +76,6 @@ export default function PetDisplay({
         <span className="text-xs text-gray-400 font-bold shrink-0">
           {pet.stage}/{MAX_STAGE}
         </span>
-      </div>
-      <div className="w-full max-w-[240px] flex items-center gap-2" data-testid="pet-coin-bar">
-        <div className="flex-1 h-2.5 rounded-full bg-amber-100 overflow-hidden">
-          <div className="h-full bg-amber-400 transition-all duration-700" style={{ width: `${(xp / COINS_PER_STAGE) * 100}%` }} />
-        </div>
-        <span className="text-xs text-amber-600 font-bold shrink-0">🪙 {xp}/{COINS_PER_STAGE}</span>
       </div>
       {pet.generation > 1 && (
         <p className="text-xs text-gray-400">{pet.generation}번째 친구</p>

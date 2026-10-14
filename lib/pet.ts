@@ -472,9 +472,10 @@ export function completeChapter(chapterId: string): GrowResult {
   }
 
   markChapterDone(chapterId);
-  // 챕터를 끝까지 마친 보상은 코인으로 준다(하루 한도와 상관없이 항상 받는다).
+  // 챕터를 끝까지 마치면 캐릭터가 바로 한 단계 자라고, 보너스 코인도 받는다(하루 한도와 상관없이).
+  const grown = growPet("chapter");
   const r = earnCoins(COINS_CHAPTER_DONE, "chapter", { milestone: true });
-  return { pet: r.pet, grew: r.grew, graduated: r.graduated, coins: r.granted };
+  return { ...grown, coins: r.granted };
 }
 
 function isVocabRoundDone(roundId: string): boolean {
@@ -563,28 +564,29 @@ export function completeVocabRound(roundId: string): GrowResult {
   }
 
   markVocabRoundDone(roundId);
+  const grown = growPet("vocab");
   const r = earnCoins(COINS_VOCAB_ROUND, "vocab", { milestone: true });
-  return { pet: r.pet, grew: r.grew, graduated: r.graduated, coins: r.granted };
+  return { ...grown, coins: r.granted };
 }
 
-// ---------- 코인: 앱 전체 공통 경험치 ----------
-// 공부하면 어디서든 코인이 모이고, 코인이 가득 차면 그 활동의 캐릭터가 한 단계 자란다.
-// 하루 10분 공부 기준: 약 20~25코인 → 2~3일에 한 단계, 한 친구(8단계)는 약 3주.
+// ---------- 코인과 성장은 따로 간다 ----------
+// 코인(🪙): 정답을 맞히고, 문장을 쓰고, 게임을 할 때마다 바로 쌓인다. 상점에서 쓰는 돈이다.
+// 성장: 챕터 한 편, 청크북 Lesson 한 번, 단어장 게임 3종을 "한 세트 마치면" 캐릭터가 바로 한 단계 자란다.
+// 하루 10분 기준: 코인 약 200~250개.
 const COINS_TOTAL_KEY = "chunkbook-v2-coins-total";
 const COINS_DAY_KEY = "chunkbook-v2-coins-day";
-const PET_XP_KEY = "chunkbook-v2-pet-xp"; // 챕터·청크북 캐릭터의 다음 단계까지 쌓인 코인
-const VOCAB_XP_KEY = "chunkbook-v2-vocab-xp"; // 단어장 캐릭터
+const COINS_X10_FLAG = "chunkbook-v2-coins-x10";
 const DONE_LESSONS_KEY = "chunkbook-v2-done-lessons";
+const LESSON_DAY_KEY = "chunkbook-v2-lesson-growth-day";
 
-export const COINS_PER_STAGE = 50;
-export const DAILY_COIN_CAP = 60; // 하루 10분 기준의 약 2.5배. 넘으면 "오늘은 여기까지!"
-export const COINS_SENTENCE = 2; // 문장 하나 쓰기
-export const COINS_LISTEN = 3; // 읽고 듣기 한 바퀴
-export const COINS_LESSON_DONE = 10; // Lesson 처음 끝까지 마치기
-export const COINS_READ_ROUND = 3; // 챕터 한 페이지 3번 읽기
-export const COINS_CHAPTER_DONE = 20; // 챕터 끝까지 + 퀴즈
-export const COINS_VOCAB_ROUND = 10; // 단어장 하루 게임 전부 완료
-export const COINS_GAME_SIMPLE = 8; // 바구니·러너·몬스터 배틀 한 판
+export const DAILY_COIN_CAP = 600; // 하루 10분 기준의 약 2.5배. 넘으면 "오늘은 여기까지!"
+export const COINS_SENTENCE = 20; // 문장 하나 쓰기
+export const COINS_LISTEN = 30; // 읽고 듣기 한 바퀴
+export const COINS_LESSON_DONE = 100; // Lesson 한 번 끝까지(보너스)
+export const COINS_READ_ROUND = 30; // 챕터 한 페이지 3번 읽기
+export const COINS_CHAPTER_DONE = 200; // 챕터 끝까지 + 퀴즈(보너스)
+export const COINS_VOCAB_ROUND = 100; // 단어장 하루 게임 전부 완료(보너스)
+export const COINS_GAME_SIMPLE = 80; // 바구니·러너·몬스터 배틀 한 판
 
 function numFromStorage(key: string): number {
   if (typeof window === "undefined") return 0;
@@ -592,7 +594,18 @@ function numFromStorage(key: string): number {
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
 }
 
+// 처음 10배 단위로 바뀔 때 이미 모은 코인도 같은 비율로 올려 준다(한 번만).
+function migrateX10() {
+  if (typeof window === "undefined") return;
+  if (localStorage.getItem(COINS_X10_FLAG) === "1") return;
+  localStorage.setItem(COINS_X10_FLAG, "1");
+  const total = Number(localStorage.getItem(COINS_TOTAL_KEY));
+  if (Number.isFinite(total) && total > 0) localStorage.setItem(COINS_TOTAL_KEY, String(Math.floor(total) * 10));
+  localStorage.removeItem(COINS_DAY_KEY);
+}
+
 export function loadCoinsTotal(): number {
+  migrateX10();
   return numFromStorage(COINS_TOTAL_KEY);
 }
 
@@ -601,13 +614,14 @@ export function saveCoinsTotal(n: number) {
   localStorage.setItem(COINS_TOTAL_KEY, String(Math.max(0, Math.floor(n))));
 }
 
+// 예전 "다음 단계까지 쌓인 코인" 값. 이제 성장에는 쓰지 않는다(동기화 호환용으로만 남김).
 export function loadPetXp(track: PetTrack = "chapter"): number {
-  return numFromStorage(track === "vocab" ? VOCAB_XP_KEY : PET_XP_KEY);
+  return numFromStorage(track === "vocab" ? "chunkbook-v2-vocab-xp" : "chunkbook-v2-pet-xp");
 }
 
 export function savePetXp(xp: number, track: PetTrack = "chapter") {
   if (typeof window === "undefined") return;
-  localStorage.setItem(track === "vocab" ? VOCAB_XP_KEY : PET_XP_KEY, String(Math.max(0, Math.floor(xp))));
+  localStorage.setItem(track === "vocab" ? "chunkbook-v2-vocab-xp" : "chunkbook-v2-pet-xp", String(Math.max(0, Math.floor(xp))));
 }
 
 function dayKey(): string {
@@ -617,6 +631,7 @@ function dayKey(): string {
 
 export function coinsEarnedToday(): number {
   if (typeof window === "undefined") return 0;
+  migrateX10();
   try {
     const raw = localStorage.getItem(COINS_DAY_KEY);
     const v = raw ? (JSON.parse(raw) as { day?: string; earned?: number }) : null;
@@ -642,25 +657,21 @@ export function setDoneLessons(lessons: number[]) {
   localStorage.setItem(DONE_LESSONS_KEY, JSON.stringify(Array.from(new Set(lessons))));
 }
 
-function growOnce(pet: PetState): { pet: PetState; graduated: boolean } {
-  if (pet.stage >= MAX_STAGE) return { pet: { stage: 1, generation: pet.generation + 1 }, graduated: true };
-  return { pet: { stage: pet.stage + 1, generation: pet.generation }, graduated: false };
+// 캐릭터를 한 단계 키운다. 8단계를 넘으면 다음 친구가 1단계로 시작한다.
+function growPet(track: PetTrack): GrowResult {
+  const pet = loadPet(track);
+  const next: PetState =
+    pet.stage >= MAX_STAGE ? { stage: 1, generation: pet.generation + 1 } : { stage: pet.stage + 1, generation: pet.generation };
+  savePet(next, track);
+  return { pet: next, grew: true, graduated: pet.stage >= MAX_STAGE };
 }
 
-export type EarnResult = GrowResult & { granted: number; capped: boolean; xp: number; total: number };
+export type EarnResult = { granted: number; capped: boolean; total: number };
 
-// 마지막으로 코인을 받은 결과(성장 포함). 게임처럼 코인을 받는 곳과 축하 화면을 보여주는 곳이 다를 때 쓴다.
-let lastGrowth: GrowResult | null = null;
-export function consumeGrowth(): GrowResult | null {
-  const g = lastGrowth;
-  lastGrowth = null;
-  return g;
-}
-
-// 코인을 받는다. milestone(챕터/Lesson 완료 같은 한 번뿐인 보상)은 하루 한도를 적용하지 않는다.
-// 한도를 넘으면 받는 코인이 0이 되어 "오늘은 여기까지!" 상태가 된다.
-export function earnCoins(amount: number, track: PetTrack = "chapter", opts: { milestone?: boolean } = {}): EarnResult {
-  let pet = loadPet(track);
+// 코인을 받는다. milestone(한 세트를 마친 보너스)은 하루 한도를 적용하지 않는다.
+// 한도를 넘으면 받는 코인이 0이 되어 "오늘은 여기까지!" 상태가 된다. 성장에는 영향이 없다.
+export function earnCoins(amount: number, _track: PetTrack = "chapter", opts: { milestone?: boolean } = {}): EarnResult {
+  void _track;
   const before = coinsEarnedToday();
   let granted = Math.max(0, Math.floor(amount));
   let capped = false;
@@ -671,38 +682,35 @@ export function earnCoins(amount: number, track: PetTrack = "chapter", opts: { m
       capped = true;
     }
   }
-
-  let xp = loadPetXp(track) + granted;
-  let grew = false;
-  let graduated = false;
-  while (xp >= COINS_PER_STAGE) {
-    xp -= COINS_PER_STAGE;
-    const g = growOnce(pet);
-    pet = g.pet;
-    grew = true;
-    graduated = graduated || g.graduated;
-  }
   const total = loadCoinsTotal() + granted;
   if (typeof window !== "undefined") {
-    if (grew) savePet(pet, track);
-    savePetXp(xp, track);
     saveCoinsTotal(total);
     if (!opts.milestone) {
       localStorage.setItem(COINS_DAY_KEY, JSON.stringify({ day: dayKey(), earned: before + granted }));
     }
     window.dispatchEvent(new CustomEvent("coins-changed", { detail: { granted, capped } }));
   }
-  const result: EarnResult = { pet, grew, graduated, coins: granted, granted, capped, xp, total };
-  if (grew) lastGrowth = result;
-  return result;
+  return { granted, capped, total };
 }
 
-// Lesson을 처음 끝까지 마쳤을 때 한 번만 보너스 코인(같은 Lesson을 다시 해도 중복 없음)
-export function completeLesson(lesson: number): GrowResult {
+// Lesson 한 번을 끝까지 마치면 캐릭터가 바로 자란다. 같은 Lesson은 하루에 한 번만 자라고,
+// 도장(⭐)은 처음 마칠 때 한 번만 찍힌다.
+export function completeLesson(lesson: number): GrowResult & { firstStamp: boolean } {
   const pet = loadPet("chapter");
+  let lastDays: Record<string, string> = {};
+  try {
+    lastDays = JSON.parse(localStorage.getItem(LESSON_DAY_KEY) ?? "{}") as Record<string, string>;
+  } catch {
+    lastDays = {};
+  }
+  const today = dayKey();
   const done = getDoneLessons();
-  if (done.includes(lesson)) return { pet, grew: false, graduated: false, coins: 0 };
-  setDoneLessons([...done, lesson]);
+  const firstStamp = !done.includes(lesson);
+  if (firstStamp) setDoneLessons([...done, lesson]);
+  if (lastDays[String(lesson)] === today) return { pet, grew: false, graduated: false, coins: 0, firstStamp };
+  lastDays[String(lesson)] = today;
+  localStorage.setItem(LESSON_DAY_KEY, JSON.stringify(lastDays));
+  const grown = growPet("chapter");
   const r = earnCoins(COINS_LESSON_DONE, "chapter", { milestone: true });
-  return { pet: r.pet, grew: r.grew, graduated: r.graduated, coins: r.granted };
+  return { ...grown, coins: r.granted, firstStamp };
 }

@@ -18,8 +18,8 @@ const A = "/assets/dart-game/v2";
 
 // ---------- 설정값 ----------
 const ROUND_COUNT = 10;
-const COIN_COMPLETE = 5; // 10문제 완료 보상
-const COIN_PER_FIRST_TRY = 1; // 최초 시도 정답당 보상
+const COIN_COMPLETE = 50; // 10문제 완료 보상
+const COIN_PER_FIRST_TRY = 10; // 최초 시도 정답당 보상
 const AIM_OFFSET_KEY = "chunkbook-v2-dartAimOffsetPx";
 const AIM_OFFSET_DEFAULT = 40; // 손가락에 가려지지 않도록 조준점을 포인터보다 위로 띄우는 값(CSS px)
 const AIM_OFFSET_MIN = 0;

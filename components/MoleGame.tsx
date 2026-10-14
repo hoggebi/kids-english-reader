@@ -18,8 +18,8 @@ const M = "/assets/mole-game";
 
 // ---------- 설정값 ----------
 const ROUND_COUNT = 10;
-const COIN_COMPLETE = 5;
-const COIN_PER_FIRST_TRY = 1;
+const COIN_COMPLETE = 50;
+const COIN_PER_FIRST_TRY = 10;
 const EVOLVE_COMBO = 3;
 
 const T_RISE_STAGGER = 120;

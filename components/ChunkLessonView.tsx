@@ -24,15 +24,14 @@ import {
 import { builtinRoles } from "@/lib/chunkbookBuiltin";
 import { clearBookText, loadBookText, saveBookText } from "@/lib/chunkBookText";
 import { autoPush } from "@/lib/sync";
-import { COINS_LISTEN, COINS_SENTENCE, completeLesson, earnCoins, type EarnResult, type GrowResult } from "@/lib/pet";
+import { COINS_LISTEN, COINS_SENTENCE, completeLesson, earnCoins } from "@/lib/pet";
 import PetCompanion from "./PetCompanion";
 
 const CHEERS = ["잘했어, 호야!", "우와, 대단해!", "나도 신나!", "호야 최고야!", "한 번 더 해볼까?"];
-const cheerFor = (r: Pick<GrowResult, "grew" | "graduated" | "coins"> & Partial<Pick<EarnResult, "capped">>, extra = "") => {
-  if (r.graduated) return "다 컸어! 새 친구를 만나러 가자! 도감을 확인해 봐!";
-  if (r.grew) return `와! 나 쑥 자랐어! ${extra}`.trim();
-  if (r.capped && !r.coins) return "오늘 코인을 다 모았어! 내일 또 만나자!";
-  const coin = r.coins ? `🪙 +${r.coins} ` : "";
+// 코인은 맞출 때마다 쌓이고, 캐릭터는 한 세트(Lesson)를 마칠 때 바로 자란다.
+const cheerFor = (r: { granted: number; capped: boolean }, extra = "") => {
+  if (r.capped && !r.granted) return "오늘 코인을 다 모았어! 내일 또 만나자!";
+  const coin = r.granted ? `🪙 +${r.granted} ` : "";
   return `${coin}${CHEERS[Math.floor(Math.random() * CHEERS.length)]} ${extra}`.trim();
 };
 
@@ -324,18 +323,14 @@ function WritingActivity({
     stop();
     setHint(false);
     if (delta > 0) {
-      // 문장을 쓸 때마다 경험치 +1, Lesson을 처음 끝까지 마치면 한 단계 보너스 성장
+      // 문장을 쓸 때마다 코인이 쌓이고, Lesson을 끝까지 마치면 캐릭터가 바로 자란다
       const r = earnCoins(COINS_SENTENCE, "chapter");
       let msg = cheerFor(r);
       if (act.pos + delta >= n) {
         const done = completeLesson(lesson);
-        if (done.coins) {
-          const grown = done.grew || r.grew;
-          const graduated = done.graduated || r.graduated;
-          msg = graduated
-            ? cheerFor({ grew: true, graduated: true })
-            : `Lesson ${lesson} 도장 ⭐ 🪙 +${done.coins}!${grown ? " 나 쑥 자랐어!" : ""}`;
-        }
+        if (done.graduated) msg = "다 컸어! 새 친구를 만나러 가자! 도감을 확인해 봐!";
+        else if (done.grew) msg = `와! Lesson ${lesson} 끝! 나 쑥 자랐어! ${done.firstStamp ? "도장 ⭐ " : ""}🪙 +${done.coins}`;
+        else if (done.firstStamp) msg = `Lesson ${lesson} 도장 ⭐ 잘했어, 호야!`;
       }
       setCheer(msg);
       setPetTick((t) => t + 1);
