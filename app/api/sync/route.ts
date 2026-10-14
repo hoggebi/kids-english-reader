@@ -11,6 +11,26 @@ function keyFor(code: string) {
   return `chunkbook-v2:sync:${code}`; // 기존 운영 앱(sync:*)과 분리된 새 버전 전용 영역
 }
 
+function legacyKeyFor(code: string) {
+  return `sync:${code}`; // 기존 운영 앱(원본)의 저장 영역 — 읽기 전용으로만 쓴다
+}
+
+const isEmpty = (v: unknown) => v === undefined || v === null || (Array.isArray(v) && v.length === 0);
+
+// 새 버전 쪽에 값이 없는 필드(챕터·단어장·완료 기록·펫)는 원본 앱 저장값으로 채워서 돌려준다.
+// 원본 키는 읽기만 하고, 새 버전이 다음에 저장할 때 새 영역으로 옮겨 담긴다.
+function withLegacyFallback(payload: unknown, legacyRaw: unknown): unknown {
+  const legacy = readStored(legacyRaw).payload;
+  if (!legacy || typeof legacy !== "object") return payload;
+  const base = (payload && typeof payload === "object" ? payload : {}) as Record<string, unknown>;
+  const old = legacy as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...base };
+  for (const k of ["chapters", "doneChapterIds", "pet", "vocabPet", "vocabSets"]) {
+    if (isEmpty(out[k]) && !isEmpty(old[k])) out[k] = old[k];
+  }
+  return out;
+}
+
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -37,8 +57,9 @@ export async function GET(req: NextRequest) {
     }
     const raw = await redis.get(keyFor(code));
     const { payload, rev } = readStored(raw);
+    const legacyRaw = await redis.get(legacyKeyFor(code));
     return NextResponse.json(
-      { data: payload, rev },
+      { data: withLegacyFallback(payload, legacyRaw), rev },
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (err) {
