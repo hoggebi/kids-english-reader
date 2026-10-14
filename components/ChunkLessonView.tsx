@@ -228,14 +228,30 @@ function ReadListen({
 
       {firstDone && status === "ended" && (
         <div className="rounded-2xl bg-sky-50 border-2 border-sky-200 p-4 flex flex-col gap-3" data-testid="after-listen">
-          <p className="text-lg font-bold text-sky-800">{endedThisVisit >= 2 ? "두 번 들었어요!" : "한 번 들었어요!"}</p>
+          {/* 기본은 2번 듣기: 한 번 들으면 한 번 더 듣게 안내하고, 두 번 들으면 쓰기로 넘어간다 */}
+          <p className="text-lg font-bold text-sky-800">
+            {endedThisVisit >= 2 ? "두 번 다 들었어요! 이제 써 볼까요?" : "한 번 들었어요! 한 번만 더 들어 봐요 (1/2)"}
+          </p>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => playFrom(0)} className="min-h-[48px] px-5 rounded-full bg-white border-2 border-sky-300 text-sky-700 text-sm font-bold active:scale-95 transition">
-              {endedThisVisit >= 2 ? "다시 듣기" : "한 번 더 듣기"}
-            </button>
-            <button onClick={onWrite} className="min-h-[48px] px-5 rounded-full bg-sky-600 text-white text-sm font-bold active:scale-95 transition">
-              문장 보고 쓰기
-            </button>
+            {endedThisVisit >= 2 ? (
+              <>
+                <button onClick={onWrite} className="min-h-[48px] px-5 rounded-full bg-sky-600 text-white text-sm font-bold active:scale-95 transition">
+                  문장 보고 쓰기
+                </button>
+                <button onClick={() => playFrom(0)} className="min-h-[48px] px-5 rounded-full bg-white border-2 border-sky-300 text-sky-700 text-sm font-bold active:scale-95 transition">
+                  다시 듣기
+                </button>
+              </>
+            ) : (
+              <>
+                <button onClick={() => playFrom(0)} className="min-h-[48px] px-5 rounded-full bg-sky-600 text-white text-sm font-bold active:scale-95 transition">
+                  한 번 더 듣기
+                </button>
+                <button onClick={onWrite} className="min-h-[48px] px-5 rounded-full bg-white border-2 border-sky-300 text-sky-700 text-sm font-bold active:scale-95 transition">
+                  바로 쓰기
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

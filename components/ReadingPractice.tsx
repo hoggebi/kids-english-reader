@@ -6,7 +6,7 @@ import { autoPush } from "@/lib/sync";
 
 const NORMAL_RATE = 0.55;
 const SLOW_RATE = 0.4;
-const REQUIRED_PAGE_ROUNDS = 3;
+const REQUIRED_PAGE_ROUNDS = 2; // 한 페이지를 기본 2번씩 읽는다
 
 // 무음이 이만큼 이어지면 다 읽은 것으로 보고 자동 종료
 const SILENCE_MS = 900;
@@ -69,7 +69,7 @@ export default function ReadingPractice({
     };
   }, []);
 
-  // 한 페이지를 3번 다 읽으면 코인을 받는다.
+  // 한 페이지를 2번 다 읽으면 코인을 받는다.
   useEffect(() => {
     if (!showCompleteModal) return;
     earnCoins(COINS_READ_ROUND, "chapter");
@@ -301,7 +301,7 @@ export default function ReadingPractice({
 
       <div className="flex flex-col items-center gap-1 lg:hidden">
         <p className="text-center text-lg text-gray-700 font-bold">
-          이 페이지를 3번 읽어보세요.
+          이 페이지를 2번 읽어보세요.
         </p>
         <p className="text-sky-600 font-bold text-sm">{roundsDone}번 읽음</p>
       </div>
@@ -338,7 +338,7 @@ export default function ReadingPractice({
         <div className="flex flex-col gap-4">
           <div className="hidden lg:flex flex-col items-center gap-1">
             <p className="text-center text-lg text-gray-700 font-bold">
-              이 페이지를 3번 읽어보세요.
+              이 페이지를 2번 읽어보세요.
             </p>
             <p className="text-sky-600 font-bold text-sm">{roundsDone}번 읽음</p>
           </div>
@@ -424,7 +424,7 @@ export default function ReadingPractice({
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-6">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm flex flex-col items-center gap-4 shadow-xl">
             <p className="text-xl font-bold text-gray-800 text-center">
-              3번 다 읽기 완료!
+              2번 다 읽기 완료!
             </p>
             <p className="text-gray-600 text-center">
               {hasNextPage ? "다음 페이지를 읽어볼까요?" : "이제 퀴즈를 풀어볼까요?"}

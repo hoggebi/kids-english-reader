@@ -317,28 +317,6 @@ export default function Home() {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/character.png" alt="캐릭터" className="w-24 h-24 object-contain" />
         <h1 className="font-title text-black text-4xl text-center">오늘도 호 English</h1>
-        {/* 동기화 상태 표시: 눌러서 동기화 설정을 펼치고 접는다 */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowSyncPanel((v) => !v);
-          }}
-          aria-expanded={showSyncPanel}
-          data-testid="sync-pill"
-          className={`rounded-full text-xs font-bold px-3 py-1 ${
-            syncing
-              ? "bg-sky-100 text-sky-700"
-              : syncCode && syncMessage?.startsWith("⚠️")
-              ? "bg-amber-100 text-amber-800"
-              : syncCode
-              ? "bg-sky-100 text-sky-700"
-              : "bg-gray-100 text-gray-500"
-          }`}
-        >
-          {syncing ? "동기화 중…" : syncCode ? `✓ 동기화됨 · ${syncCode}` : "동기화 꺼짐"} {showSyncPanel ? "▴" : "▾"}
-        </button>
-        {syncMessage && <span className="text-xs text-gray-500">{syncMessage}</span>}
       </header>
 
       <CoinWallet onOpenShop={() => { setShopFriend(null); setShopReturn(section === "shop" ? shopReturn : section); setSection("shop"); }} />
@@ -382,72 +360,6 @@ export default function Home() {
         </button>
       </div>
 
-      {/* 기기 간 자동 동기화 설정 (챕터/단어장 어느 목록 화면에서든 항상 보임) */}
-      {section !== "shop" && showSyncPanel && (
-      <div className="w-full max-w-4xl rounded-2xl bg-gray-50 p-4 flex flex-col gap-3">
-        {syncCode ? (
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs text-gray-400">동기화 코드</p>
-                <p className="font-title text-2xl tracking-widest text-sky-700">{syncCode}</p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleManualSync}
-                  disabled={syncing}
-                  className="px-4 py-2 rounded-full bg-sky-600 text-white text-sm font-bold disabled:opacity-50"
-                >
-                  {syncing ? "동기화 중..." : "지금 동기화"}
-                </button>
-                <button
-                  onClick={handleStopSync}
-                  className="px-4 py-2 rounded-full bg-gray-200 text-gray-600 text-sm font-bold"
-                >
-                  끄기
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <>
-            <p className="text-sm text-gray-600">
-              다른 기기와 자동으로 동기화하려면 코드를 만들고, 다른 기기에서 같은 코드를 입력하세요.
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={handleCreateSyncCode}
-                className="flex-1 py-3 rounded-full bg-sky-600 text-white font-bold"
-              >
-                새 동기화 코드 만들기
-              </button>
-              <button
-                onClick={() => setShowJoinBox((v) => !v)}
-                className="flex-1 py-3 rounded-full bg-gray-100 text-gray-700 font-bold"
-              >
-                코드로 연결하기
-              </button>
-            </div>
-            {showJoinBox && (
-              <div className="flex gap-2">
-                <input
-                  value={joinInput}
-                  onChange={(e) => setJoinInput(e.target.value.toUpperCase())}
-                  placeholder="예: AB12CD"
-                  className="flex-1 rounded-xl border-2 border-gray-200 px-3 py-2 uppercase"
-                />
-                <button
-                  onClick={handleJoinSyncCode}
-                  className="px-4 py-2 rounded-full bg-sky-600 text-white font-bold"
-                >
-                  연결
-                </button>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-      )}
 
       {section === "chunkbook" && (
         <ChunkbookPanel
@@ -557,6 +469,99 @@ export default function Home() {
           }}
         />
       )}
+
+      {/* 동기화 안내와 설정은 페이지 맨 아래에 둔다 */}
+      <div className="w-full max-w-4xl mt-auto flex flex-col items-center gap-3">
+      {section !== "shop" && showSyncPanel && (
+      <div className="w-full max-w-4xl rounded-2xl bg-gray-50 p-4 flex flex-col gap-3">
+        {syncCode ? (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs text-gray-400">동기화 코드</p>
+                <p className="font-title text-2xl tracking-widest text-sky-700">{syncCode}</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleManualSync}
+                  disabled={syncing}
+                  className="px-4 py-2 rounded-full bg-sky-600 text-white text-sm font-bold disabled:opacity-50"
+                >
+                  {syncing ? "동기화 중..." : "지금 동기화"}
+                </button>
+                <button
+                  onClick={handleStopSync}
+                  className="px-4 py-2 rounded-full bg-gray-200 text-gray-600 text-sm font-bold"
+                >
+                  끄기
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            <p className="text-sm text-gray-600">
+              다른 기기와 자동으로 동기화하려면 코드를 만들고, 다른 기기에서 같은 코드를 입력하세요.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={handleCreateSyncCode}
+                className="flex-1 py-3 rounded-full bg-sky-600 text-white font-bold"
+              >
+                새 동기화 코드 만들기
+              </button>
+              <button
+                onClick={() => setShowJoinBox((v) => !v)}
+                className="flex-1 py-3 rounded-full bg-gray-100 text-gray-700 font-bold"
+              >
+                코드로 연결하기
+              </button>
+            </div>
+            {showJoinBox && (
+              <div className="flex gap-2">
+                <input
+                  value={joinInput}
+                  onChange={(e) => setJoinInput(e.target.value.toUpperCase())}
+                  placeholder="예: AB12CD"
+                  className="flex-1 rounded-xl border-2 border-gray-200 px-3 py-2 uppercase"
+                />
+                <button
+                  onClick={handleJoinSyncCode}
+                  className="px-4 py-2 rounded-full bg-sky-600 text-white font-bold"
+                >
+                  연결
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+      )}
+      <footer className="w-full max-w-4xl flex flex-col items-center gap-1 pt-2">
+      {/* 동기화 상태 표시: 눌러서 동기화 설정을 펼치고 접는다 */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setShowSyncPanel((v) => !v);
+        }}
+        aria-expanded={showSyncPanel}
+        data-testid="sync-pill"
+        className={`rounded-full text-xs font-bold px-3 py-1 ${
+          syncing
+            ? "bg-sky-100 text-sky-700"
+            : syncCode && syncMessage?.startsWith("⚠️")
+            ? "bg-amber-100 text-amber-800"
+            : syncCode
+            ? "bg-sky-100 text-sky-700"
+            : "bg-gray-100 text-gray-500"
+        }`}
+      >
+        {syncing ? "동기화 중…" : syncCode ? `✓ 동기화됨 · ${syncCode}` : "동기화 꺼짐"} {showSyncPanel ? "▴" : "▾"}
+      </button>
+      {syncMessage && <span className="text-xs text-gray-500">{syncMessage}</span>}
+      </footer>
+      </div>
     </div>
   );
 }

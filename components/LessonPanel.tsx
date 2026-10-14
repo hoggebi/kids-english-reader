@@ -191,7 +191,6 @@ export default function LessonPanel({
         ) : (
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-xs font-bold text-sky-700">오늘의 Lesson · {plan.cycle}회차</p>
               <p className="text-lg font-bold text-gray-900 leading-tight">
                 Lesson {current}
                 {currentSet && <span className="ml-2 text-xs font-normal text-gray-500">단어 {currentSet.words.length}개</span>}
@@ -218,7 +217,6 @@ export default function LessonPanel({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <p className="text-xs font-bold text-gray-500">Lesson 고르기 <span className="font-normal text-gray-400">(모두 열려 있어요)</span></p>
         <div className="grid grid-cols-4 sm:grid-cols-7 gap-2" data-testid="lesson-chips">
           {LESSON_NUMBERS.map((l) => {
             const st = lessonStatus(plan, l);
@@ -235,10 +233,10 @@ export default function LessonPanel({
                       ? "border-emerald-300 bg-emerald-50 text-emerald-900"
                       : "border-gray-200 bg-white text-gray-800"
                 }`}
-                aria-label={`Lesson ${l}${st === "completed" ? " 완료, 다시 하기" : st === "current" ? " 오늘의 Lesson" : ""}`}
+                aria-label={`Lesson ${l}${st === "completed" ? " 완료, 다시 하기" : st === "current" ? " 지금 Lesson" : ""}`}
               >
                 <span className="block text-sm font-bold">Lesson {l}</span>
-                <span className="block text-[11px] text-gray-500">{st === "completed" ? "완료 ✓" : st === "current" ? "오늘" : "\u00a0"}</span>
+                <span className="block text-[11px] text-gray-500">{st === "completed" ? "완료 ✓" : "\u00a0"}</span>
               </button>
             );
           })}
