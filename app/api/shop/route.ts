@@ -76,7 +76,9 @@ async function runPurchase(code: string, purchaseId: string, itemId: string, ear
   const item = SHOP_BY_ID[itemId];
   if (!item) throw new Error("알 수 없는 상품");
   const out = await redis.eval(PURCHASE_LUA, [shopKey(code)], [purchaseId, itemId, String(item.price), String(earned), force ? "1" : "0"]);
-  return normalize(JSON.parse(String(out)) as Outcome);
+  // Upstash 클라이언트는 JSON 문자열 결과를 객체로 바꿔 돌려주기도 하므로 둘 다 받는다.
+  const parsed = (typeof out === "string" ? JSON.parse(out) : out) as Outcome;
+  return normalize(parsed);
 }
 
 export async function GET(req: NextRequest) {
