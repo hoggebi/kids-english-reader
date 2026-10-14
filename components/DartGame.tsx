@@ -6,6 +6,7 @@ import type { VocabWord } from "@/lib/types";
 import { loadPet, getPetImagePath, earnCoins } from "@/lib/pet";
 import { CoinAmount } from "./Coin";
 import { shuffle } from "./VocabGame";
+import { FeverHud, useFever } from "./FeverKit";
 
 // ---------------------------------------------------------------------------
 // 다트 게임 v2 — 직접 조준해서 던지는 방식
@@ -614,6 +615,7 @@ export default function DartGame({
   const [pet] = useState(() => loadPet("vocab"));
   const [questions] = useState<Question[] | null>(() => buildRounds(words));
   const leave = onExit ?? onDone;
+  const fever = useFever();
 
   const stageRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 1024, h: 768 });
@@ -861,6 +863,7 @@ export default function DartGame({
     } catch {
       /* ignore */
     }
+    fever.reset();
     setStage("play");
     startQuestion(0);
     requestAnimationFrame(() => stageRef.current?.focus({ preventScroll: true }));
@@ -1008,6 +1011,7 @@ export default function DartGame({
     else g.wrong += 1;
 
     if (g.qTimeouts < 2) {
+      fever.retryWrong(); // 같은 문제를 이어가는 중간 실패: FEVER 남은 문제는 줄이지 않는다
       if (q.kind === "spell") g.spell.hint = true;
       else g.hint = true;
       setHintOn(true);
@@ -1025,10 +1029,13 @@ export default function DartGame({
     if (q.kind === "choice") setTstates((prev) => prev.map((st, i) => (i === q.correctSlot ? "correct" : st)));
     else setFilled(q.letters?.length ?? 0);
     const tk = token.current;
+    const fc = fever.complete(`q${qIndex}`, false, qIndex + 1 < ROUND_COUNT); // 시간 초과로 끝난 문제 = 최종 오답
     const spoken = speak(q.reveal.english, "en-US", mutedRef.current);
-    void Promise.all([delay(T_WORD_CONFIRM + 600), spoken]).then(() => {
-      if (token.current === tk && !game.current.finished) nextQuestion();
-    });
+    void Promise.all([delay(T_WORD_CONFIRM + 600), spoken])
+      .then(() => fever.playPost(fc, false))
+      .then(() => {
+        if (token.current === tk && !game.current.finished) nextQuestion();
+      });
   }
 
   // 조준/대기 중에만 시간이 흐른다 (비행·피드백·정답 확인 중에는 멈춤)
@@ -1189,21 +1196,33 @@ export default function DartGame({
     setCombo(g.combo);
     setTstates((prev) => prev.map((s, i) => (i === slot ? "correct" : s)));
     setHintOn(false);
-    igniteRim(slot);
-    setBanner({ text: "명중!", tone: "good", key: nextKey() });
-    setReveal(q.reveal);
     playSfx("correct", mutedRef.current);
     void aimN;
 
+    // FEVER 연출(CORRECT → COMBO)이 끝난 뒤에 기존 보상(불꽃 테두리, 단어 확인)을 이어서 보여준다.
+    const fc = fever.complete(`q${qIndex}`, true, qIndex + 1 < ROUND_COUNT);
     const tk = token.current;
-    const spoken = speak(q.reveal.english, "en-US", mutedRef.current);
-    void Promise.all([delay(T_CELEBRATE + T_WORD_CONFIRM), spoken]).then(() => {
-      if (token.current === tk && !game.current.finished) nextQuestion();
+    void fever.playPre(fc).then(() => {
+      if (token.current !== tk || game.current.finished) return;
+      igniteRim(slot, fc.enhanced);
+      if (fc.enhanced) {
+        const t = setOf(q.targets.length).pos[slot];
+        const pt = toPx(layoutRef.current, t.u, t.v);
+        fever.burst(pt.x, pt.y, true);
+      }
+      setBanner({ text: "명중!", tone: "good", key: nextKey() });
+      setReveal(q.reveal);
+      const spoken = speak(q.reveal.english, "en-US", mutedRef.current);
+      void Promise.all([delay(T_CELEBRATE + T_WORD_CONFIRM), spoken])
+        .then(() => fever.playPost(fc, true))
+        .then(() => {
+          if (token.current === tk && !game.current.finished) nextQuestion();
+        });
     });
   }
 
   // 정답 다트가 실제 도착한 표적의 둘레(나무 테두리)에 불꽃이 번졌다 사라진다. 틀린 표적/빗나감에는 쓰지 않는다.
-  function igniteRim(slot: number) {
+  function igniteRim(slot: number, feverBig = false) {
     const g = game.current;
     const q = g.q!;
     const set = setOf(q.targets.length);
@@ -1211,7 +1230,7 @@ export default function DartGame({
     const fire = g.kind === "fire"; // FIRE 다트는 효과만 1.15배 (판정에는 영향 없음)
     setTstates((prev) => prev.map((s, i) => (i === slot ? "correct" : s)));
     animateTarget(slot, "jolt"); // 표적 아주 짧은 흔들림 → 주황 발광 → 불꽃 프레임
-    addFx({ kind: "rim", u: t.u, v: t.v, big: fire });
+    addFx({ kind: "rim", u: t.u, v: t.v, big: fire || feverBig });
     if (fire && !reducedRef.current) {
       const L = layoutRef.current;
       const p = toPx(L, t.u, t.v);
@@ -1257,6 +1276,7 @@ export default function DartGame({
     g.combo = 0; // 글자 오답 순간 콤보 0 (코인/생명 차감은 없다)
     g.missStreak = 0;
     setCombo(0);
+    fever.retryWrong();
     setTstates((prev) => prev.map((s, i) => (i === slot ? "wrong" : s)));
     addFx({ kind: "wrong", u: aimN.u, v: aimN.v });
     animateTarget(slot, "shake");
@@ -1284,13 +1304,23 @@ export default function DartGame({
       g.bestCombo = Math.max(g.bestCombo, g.combo);
     }
     setCombo(g.combo);
-    addFx({ kind: "word", u: 0, v: 0 });
-    setBanner({ text: "완성!", tone: "good", key: nextKey() });
-    setReveal(q.reveal);
+    const fc = fever.complete(`q${qIndex}`, true, qIndex + 1 < ROUND_COUNT);
     const tk = token.current;
-    const spoken = speak(q.reveal.english, "en-US", mutedRef.current);
-    void Promise.all([delay(T_CELEBRATE + T_WORD_CONFIRM), spoken]).then(() => {
-      if (token.current === tk && !game.current.finished) nextQuestion();
+    void fever.playPre(fc).then(() => {
+      if (token.current !== tk || game.current.finished) return;
+      addFx({ kind: "word", u: 0, v: 0 });
+      if (fc.enhanced) {
+        const pt = toPx(layoutRef.current, 0, 0);
+        fever.burst(pt.x, pt.y, true);
+      }
+      setBanner({ text: "완성!", tone: "good", key: nextKey() });
+      setReveal(q.reveal);
+      const spoken = speak(q.reveal.english, "en-US", mutedRef.current);
+      void Promise.all([delay(T_CELEBRATE + T_WORD_CONFIRM), spoken])
+        .then(() => fever.playPost(fc, true))
+        .then(() => {
+          if (token.current === tk && !game.current.finished) nextQuestion();
+        });
     });
   }
 
@@ -1301,6 +1331,7 @@ export default function DartGame({
     g.combo = 0; // 콤보는 끊지만 생명/점수 감소는 없다
     g.missStreak = 0;
     setCombo(0);
+    fever.retryWrong();
     setTstates((prev) => prev.map((s, i) => (i === slot ? "wrong" : s)));
     addFx({ kind: "wrong", u: aimN.u, v: aimN.v });
     animateTarget(slot, "shake");
@@ -1718,6 +1749,10 @@ export default function DartGame({
           )}
         </div>
       </div>
+
+      {/* FEVER: 작고 정적인 게이지/남은 보상 문제 + 정답 보상 배너 */}
+      {stage === "play" && <FeverHud hud={fever.hud} style={{ position: "absolute", left: 12, top: L.qTop + L.qH + 8, zIndex: 12 }} />}
+      {fever.layer}
 
       {/* 문제 카드 */}
       {stage === "play" && q && (

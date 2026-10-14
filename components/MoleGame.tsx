@@ -7,6 +7,7 @@ import { buildAlternatingQuestions, type Question } from "@/lib/gameQuestions";
 import { cancelSpeech, playSfx, speak, unlockAudio } from "@/lib/gameAudio";
 import { earnCoins } from "@/lib/pet";
 import { CoinAmount } from "./Coin";
+import { FeverHud, useFever } from "./FeverKit";
 
 // ---------------------------------------------------------------------------
 // 두더지 잡기 v2
@@ -200,6 +201,7 @@ export default function MoleGame({
 }) {
   const [questions] = useState<Question[] | null>(() => buildAlternatingQuestions(words, ROUND_COUNT));
   const leave = onExit ?? onDone;
+  const fever = useFever();
 
   const stageRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<HTMLDivElement>(null);
@@ -227,7 +229,7 @@ export default function MoleGame({
   const [combo, setCombo] = useState(0);
   const [banner, setBanner] = useState<Banner | null>(null);
   const [reveal, setReveal] = useState<{ english: string; korean: string } | null>(null);
-  const [coinPop, setCoinPop] = useState<{ x: number; y: number; key: number } | null>(null);
+  const [coinPop, setCoinPop] = useState<{ x: number; y: number; key: number; strong?: boolean } | null>(null);
   const [fxList, setFxList] = useState<FxItem[]>([]);
   const [muted, setMuted] = useState(false);
   const mutedRef = useRef(false);
@@ -503,6 +505,7 @@ export default function MoleGame({
 
   function start() {
     unlockAudio();
+    fever.reset();
     setStage("play");
     setHandsOn(true);
     startQuestion(0);
@@ -550,6 +553,7 @@ export default function MoleGame({
     g.answered = true; // 이 문제는 최초 정답 대상에서 제외
     g.combo = 0;
     setCombo(0);
+    if (g.qTimeouts < 2) fever.retryWrong(); // 같은 문제를 이어가는 중간 실패: FEVER 남은 문제는 줄이지 않는다
     if (g.qTimeouts < 2) {
       g.hint = true;
       setHint(true);
@@ -567,11 +571,14 @@ export default function MoleGame({
     setReveal({ english: cq.target.english, korean: cq.target.korean });
     setHint(true);
     const tk = token.current;
+    const fc = fever.complete(`q${qIndex}`, false, qIndex + 1 < ROUND_COUNT); // 시간 초과로 끝난 문제 = 최종 오답
     const spoken = speak(cq.target.english, "en-US", mutedRef.current);
-    void Promise.all([new Promise<void>((r) => setTimeout(r, T_REVEAL_MIN)), spoken]).then(() => {
-      if (token.current !== tk || game.current.finished) return;
-      goNext();
-    });
+    void Promise.all([new Promise<void>((r) => setTimeout(r, T_REVEAL_MIN)), spoken])
+      .then(() => fever.playPost(fc, false))
+      .then(() => {
+        if (token.current !== tk || game.current.finished) return;
+        goNext();
+      });
   }
 
   // 올라온 두더지를 누를 수 있는 동안(ready)만 시간이 흐른다
@@ -650,41 +657,50 @@ export default function MoleGame({
     setCombo(g.combo);
     if (g.combo >= EVOLVE_COMBO) g.evolveReached = true;
 
+    const fc = fever.complete(`q${qIndex}`, true, qIndex + 1 < ROUND_COUNT);
     playSfx("pop", mutedRef.current);
     setPoseAt(slot, "squash");
     setHoleAt(slot, "correct");
     shakeBoard();
     // 납작해졌다가
     play(spriteEls.current[slot], [{ transform: "scale(1,1)" }, { transform: "scale(1.16,0.8)" }, { transform: "scale(1.06,0.92)" }], { duration: 150, easing: "ease-out" });
-    addFx({ sheet: "correct", frames: reducedRef.current ? [CORRECT_FRAMES[2]] : CORRECT_FRAMES, x: T.x, y: T.y - L.moleH * 0.12, size: L.ringW * 0.78, duration: reducedRef.current ? 500 : 700 });
-    setBanner({ text: "정답!", tone: "good", key: nextKey() });
-    setCoinPop({ x: T.x, y: T.y - L.moleH * 0.1, key: nextKey() });
-    if (g.combo === 5) setBanner({ text: "SUPER COMBO", tone: "combo", key: nextKey() });
-    if (g.combo === 7) setBanner({ text: "MEGA COMBO", tone: "combo", key: nextKey() });
     later(150, retractHammer);
-    // 통통 튀어 오르고
-    later(170, () => {
-      setPoseAt(slot, "bounce");
-      playSfx("boing", mutedRef.current);
-      play(spriteEls.current[slot], [{ transform: "scale(0.92,1.12)" }, { transform: "scale(1.0,1.0)", offset: 0.5 }, { transform: "scale(1.08,0.9)", offset: 0.85 }, { transform: "scale(1,1)" }], { duration: 420, easing: "ease-in-out" });
-      playBoth(slot, [ty(0), { ...ty(-L.moleH * 0.42), offset: 0.45 }, ty(0)], { duration: 420, easing: "ease-in-out" });
-    });
-    // 다시 idle로 착지
-    later(620, () => {
-      setPoseAt(slot, "idle");
-      setHoleAt(slot, "base");
-    });
-    setReveal({ english: cq.target.english, korean: cq.target.korean });
-    setHint(false);
 
-    // 정답 단어 확인 + 영어 발음 → 다음 문제
+    // FEVER 연출(CORRECT → COMBO)이 끝난 뒤에 기존 보상(통통, 별, 코인, 단어 확인)을 이어서 보여준다.
     const tk = token.current;
-    const spoken = speak(cq.target.english, "en-US", mutedRef.current);
-    void Promise.all([new Promise<void>((r) => setTimeout(r, T_REVEAL_MIN)), spoken]).then(() => {
+    void fever.playPre(fc).then(() => {
       if (token.current !== tk || game.current.finished) return;
-      const isLast = qIndex + 1 >= ROUND_COUNT;
-      if (!isLast && game.current.combo >= EVOLVE_COMBO && !game.current.evolvePlayed) evolveAll(goNext);
-      else goNext();
+      addFx({ sheet: "correct", frames: reducedRef.current ? [CORRECT_FRAMES[2]] : CORRECT_FRAMES, x: T.x, y: T.y - L.moleH * 0.12, size: L.ringW * 0.78 * (fc.enhanced ? 1.25 : 1), duration: reducedRef.current ? 500 : 700 });
+      if (fc.enhanced) fever.burst(T.x, T.y - L.moleH * 0.12, true);
+      setBanner({ text: "정답!", tone: "good", key: nextKey() });
+      setCoinPop({ x: T.x, y: T.y - L.moleH * 0.1, key: nextKey(), strong: fc.enhanced });
+      if (g.combo === 5) setBanner({ text: "SUPER COMBO", tone: "combo", key: nextKey() });
+      if (g.combo === 7) setBanner({ text: "MEGA COMBO", tone: "combo", key: nextKey() });
+      // 통통 튀어 오르고
+      later(20, () => {
+        setPoseAt(slot, "bounce");
+        playSfx("boing", mutedRef.current);
+        play(spriteEls.current[slot], [{ transform: "scale(0.92,1.12)" }, { transform: "scale(1.0,1.0)", offset: 0.5 }, { transform: "scale(1.08,0.9)", offset: 0.85 }, { transform: "scale(1,1)" }], { duration: 420, easing: "ease-in-out" });
+        playBoth(slot, [ty(0), { ...ty(-L.moleH * 0.42), offset: 0.45 }, ty(0)], { duration: 420, easing: "ease-in-out" });
+      });
+      // 다시 idle로 착지
+      later(470, () => {
+        setPoseAt(slot, "idle");
+        setHoleAt(slot, "base");
+      });
+      setReveal({ english: cq.target.english, korean: cq.target.korean });
+      setHint(false);
+
+      // 정답 단어 확인 + 영어 발음 → (FEVER 결과 확인/READY/START/END) → 다음 문제
+      const spoken = speak(cq.target.english, "en-US", mutedRef.current);
+      void Promise.all([new Promise<void>((r) => setTimeout(r, T_REVEAL_MIN)), spoken])
+        .then(() => fever.playPost(fc, true))
+        .then(() => {
+          if (token.current !== tk || game.current.finished) return;
+          const isLast = qIndex + 1 >= ROUND_COUNT;
+          if (!isLast && game.current.combo >= EVOLVE_COMBO && !game.current.evolvePlayed) evolveAll(goNext);
+          else goNext();
+        });
     });
   }
 
@@ -695,6 +711,7 @@ export default function MoleGame({
     g.retries += 1;
     g.combo = 0; // 콤보는 끊지만 코인/생명 차감은 없다
     setCombo(0);
+    fever.retryWrong();
     playSfx("plop", mutedRef.current);
     setHoleAt(slot, "wrong");
     shakeBoard();
@@ -1111,9 +1128,9 @@ export default function MoleGame({
           <div
             key={coinPop.key}
             className="mg-coin"
-            style={{ position: "absolute", left: coinPop.x, top: coinPop.y, zIndex: 10, fontWeight: 900, fontSize: 22, color: "#ffe14a", textShadow: "0 2px 4px rgba(0,0,0,.6)" }}
+            style={{ position: "absolute", left: coinPop.x, top: coinPop.y, zIndex: 10, fontWeight: 900, fontSize: coinPop.strong ? 30 : 22, color: "#ffe14a", textShadow: "0 2px 4px rgba(0,0,0,.6)" }}
           >
-            <CoinAmount amount={COIN_PER_FIRST_TRY} prefix="+" size={24} />
+            <CoinAmount amount={COIN_PER_FIRST_TRY} prefix="+" size={coinPop.strong ? 32 : 24} />
           </div>
         )}
       </div>
@@ -1135,6 +1152,10 @@ export default function MoleGame({
           {muted ? "🔇" : "🔊"}
         </button>
       </div>
+
+      {/* FEVER: 작고 정적인 게이지/남은 보상 문제 + 정답 보상 배너 */}
+      {stage === "play" && <FeverHud hud={fever.hud} style={{ position: "absolute", left: 12, top: L.qTop + L.qH + 8, zIndex: 12 }} />}
+      {fever.layer}
 
       {/* 문제 카드 */}
       {stage === "play" && q && (

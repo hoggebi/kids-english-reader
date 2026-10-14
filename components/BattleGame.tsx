@@ -5,6 +5,7 @@ import type { VocabWord } from "@/lib/types";
 import { nextMonster, type Monster } from "@/lib/monsters";
 import { COINS_BATTLE_BOSS, COINS_BATTLE_STAGE, earnCoins } from "@/lib/pet";
 import { CoinAmount } from "./Coin";
+import { FeverHud, useFever } from "./FeverKit";
 import { shuffle, playTone } from "./VocabGame";
 import {
   sfxSlash,
@@ -123,8 +124,10 @@ function lengthBonusSec(wordLength: number): number {
   return 6;
 }
 
+// 직접 조합(입력)형 문제는 FEVER 도입과 상관없이 최소 15초는 보장한다.
+const SPELL_MIN_SEC = 15;
 function timeLimitForWord(stage: number, wordLength: number): number {
-  return timeLimitForStage(stage) + lengthBonusSec(wordLength) + SPELL_BUFFER_SEC;
+  return Math.max(SPELL_MIN_SEC, timeLimitForStage(stage) + lengthBonusSec(wordLength) + SPELL_BUFFER_SEC);
 }
 
 function rollEntrance(isBoss: boolean): EntranceKind {
@@ -195,6 +198,7 @@ function BattleStyles() {
       @keyframes panelPop { 0% { transform: translateY(8px) scale(0.7); opacity: 0; } 40% { transform: translateY(0) scale(1.08); opacity: 1; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
       @keyframes teamJoinPop { 0% { transform: scale(0.7); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
       @keyframes warningShake { 0%, 100% { transform: translateX(0) scale(1); } 25% { transform: translateX(-3px) scale(1.02); } 50% { transform: translateX(3px) scale(1.04); } 75% { transform: translateX(-2px) scale(1.02); } }
+      @keyframes screenShakeFever { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 50% { transform: translateX(8px); } 75% { transform: translateX(-5px); } }
       @keyframes screenShake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 50% { transform: translateX(6px); } 75% { transform: translateX(-4px); } }
       @keyframes cardLunge { 0% { transform: translateY(0) scale(1); } 40% { transform: translateY(-6px) scale(1.04); } 100% { transform: translateY(-6px) scale(1.04); } }
       @keyframes popupFade { 0% { transform: translateY(6px) scale(0.7); opacity: 0; } 20% { transform: translateY(0) scale(1.1); opacity: 1; } 80% { transform: translateY(0) scale(1); opacity: 1; } 100% { transform: translateY(-4px) scale(1); opacity: 0; } }
@@ -212,6 +216,7 @@ function BattleStyles() {
       .anim-teamJoin { animation: teamJoinPop 0.4s ease-out; }
       .anim-warningShake { animation: warningShake 0.5s ease-in-out infinite; }
       .anim-screenShake { animation: screenShake 0.3s ease-out; }
+      .anim-screenShakeFever { animation: screenShakeFever 0.32s ease-out; }
       .anim-cardLunge { animation: cardLunge 0.3s ease-out forwards; }
       .anim-popupFade { animation: popupFade 1.1s ease-out forwards; }
       .anim-fxPopIn { animation: fxPopIn 0.22s ease-out forwards; }
@@ -224,7 +229,7 @@ function BattleStyles() {
       .anim-auraPulse { animation: auraPulse 1.8s ease-in-out infinite; }
       .anim-fireFlash { animation: fireFlash 0.4s ease-out forwards; }
       @media (prefers-reduced-motion: reduce) {
-        .anim-vsPop, .anim-panelPop, .anim-teamJoin, .anim-warningShake, .anim-screenShake, .anim-cardLunge, .anim-popupFade,
+        .anim-vsPop, .anim-panelPop, .anim-teamJoin, .anim-warningShake, .anim-screenShake, .anim-screenShakeFever, .anim-cardLunge, .anim-popupFade,
         .anim-fxPopIn, .anim-monsterHitSm, .anim-monsterHitBig, .anim-monsterHitFire, .anim-monsterHitDash,
         .anim-monsterKO, .anim-playerRecoil, .anim-auraPulse, .anim-fireFlash { animation: none; }
       }
@@ -305,6 +310,9 @@ export default function BattleGame({
   const [bgmOn, setBgmOn] = useState(getBgmPref);
 
   const [fxPos, setFxPos] = useState<{ x: number; y: number } | null>(null);
+  const fever = useFever();
+  const [shakeStrong, setShakeStrong] = useState(false); // FEVER 정답 타격 때만 아주 약간 더 큰 흔들림
+  const feverSerial = useRef(0); // 문제마다 1씩 올라가는 FEVER 완료 id (중복 제출 방어)
   const battleAreaRef = useRef<HTMLDivElement>(null);
   const playerImgRef = useRef<HTMLImageElement>(null);
   const monsterImgRef = useRef<HTMLImageElement>(null);
@@ -333,6 +341,7 @@ export default function BattleGame({
   }
 
   function setUpQuestion(q: Question, stage: number) {
+    feverSerial.current += 1;
     setQuestion(q);
     setLetterPool(shuffledLetters(q.word.english));
     setPlacedLetters([]);
@@ -393,6 +402,7 @@ export default function BattleGame({
     setTeam(["tiger"]);
     setPlayerHp(PLAYER_MAX_HP);
     setCombo(0);
+    fever.reset();
     beginEncounter(defeatedCount);
   }
 
@@ -497,8 +507,33 @@ export default function BattleGame({
     if (!question || feedback) return;
     const capturedWordId = question.word.id;
     const capturedStage = defeatedCount;
+
+    // FEVER 완료 반영(문제당 한 번). 판정/데미지 계산은 아래 기존 규칙 그대로다.
+    const willTeamAttack = ok && combo + 1 === 3;
+    const willLethal = ok && monsterHp - (willTeamAttack ? 2 : 1) <= 0;
+    const hasNext = ok ? !(willLethal && capturedStage + 1 >= BATTLE_STAGE_CAP) : playerHp - 1 > 0;
+    const fc = fever.complete(`b${feverSerial.current}`, ok, hasNext);
+    if (fc.duplicate) return;
+
     setFeedback(ok ? "correct" : "wrong");
     playTone(ok ? "correct" : "wrong");
+
+    // 정답 보상 지점(몬스터 몸 위)에 FEVER 별/금색 링. battle-area 기준 좌표를 전체 카드 기준으로 옮긴다.
+    const feverBurstAtMonster = () => {
+      const area = battleAreaRef.current;
+      const img = monsterImgRef.current;
+      if (!area || !img) return;
+      const pos = computeImpactPos(img, true);
+      if (pos) fever.burst(pos.x + area.offsetLeft, pos.y + area.offsetTop, true);
+    };
+    // 기존 연출이 끝난 뒤 FEVER 결과 확인/READY/START/END를 보여주고 다음으로 진행한다.
+    const afterFever = (correct: boolean, go: () => void) => {
+      const sid = seqRef.current;
+      void fever.playPost(fc, correct).then(() => {
+        if (!isCurrentSeq(sid)) return;
+        go();
+      });
+    };
 
     if (ok) {
       const nextCombo = combo + 1;
@@ -524,50 +559,61 @@ export default function BattleGame({
       setMonsterHp(newMonsterHp);
       const lethal = newMonsterHp <= 0;
 
-      if (joinedId) {
-        const label = `NEW FRIEND! ${TEAM_INFO[joinedId].name}`;
-        setJoinLabel(label);
-        setTimeout(() => setJoinLabel((cur) => (cur === label ? null : cur)), 1400);
-        sfxJoin();
-      }
-      if (teamAttack) setTeamAttackActive(true);
+      // FEVER 연출(CORRECT → COMBO)이 끝난 뒤에 기존 공격 보상을 시작한다. 입력은 feedback으로 잠겨 있다.
+      const sid0 = seqRef.current;
+      void fever.playPre(fc).then(() => {
+        if (!isCurrentSeq(sid0)) return;
+        if (joinedId) {
+          const label = `NEW FRIEND! ${TEAM_INFO[joinedId].name}`;
+          setJoinLabel(label);
+          setTimeout(() => setJoinLabel((cur) => (cur === label ? null : cur)), 1400);
+          sfxJoin();
+        }
+        if (teamAttack) setTeamAttackActive(true);
 
-      // 공격 종류를 한 번만 굴려서 이름표(팝업)와 실제 피격 이펙트가 항상 일치하게 한다.
-      // 팀 공격/보스는 항상 CRITICAL 취급(가장 큰 이펙트+화면 흔들림).
-      const isCriticalHit = teamAttack || monster.isBoss;
-      const rolled = isCriticalHit ? null : rollAttackKind();
-      const resolvedKind: ResolvedFxKind = isCriticalHit ? "critical" : rolled!.kind;
+        // 공격 종류를 한 번만 굴려서 이름표(팝업)와 실제 피격 이펙트가 항상 일치하게 한다.
+        // 팀 공격/보스는 항상 CRITICAL 취급(가장 큰 이펙트+화면 흔들림).
+        const isCriticalHit = teamAttack || monster.isBoss;
+        const rolled = isCriticalHit ? null : rollAttackKind();
+        const resolvedKind: ResolvedFxKind = isCriticalHit ? "critical" : rolled!.kind;
 
-      runAttackSequence({
-        onDash: () => {
-          setFxKind(resolvedKind);
-          setFxKey((k) => k + 1);
-          if (monsterImgRef.current) setFxPos(computeImpactPos(monsterImgRef.current, true));
-          if (rolled) {
-            setAttackPopup(rolled);
-            setPopupKey((k) => k + 1);
-          }
-          if (teamAttack) sfxTeamAttack();
-          else if (monster.isBoss) sfxHitBig();
-          else if (resolvedKind === "fire") sfxHitBig();
-          else sfxSlash();
-        },
-        onImpact: () => {
-          setMonsterHitKey((k) => k + 1);
-          if (resolvedKind === "critical") setScreenShakeKey((k) => k + 1);
-        },
-        onFadeout: () => {
-          setAttackPopup(null);
-        },
-        onComplete: () => {
-          setTeamAttackActive(false);
-          if (lethal) {
-            runKoSequence(capturedStage);
-          } else {
-            setUpQuestion(makeQuestion(words, capturedWordId), capturedStage);
-            setFeedback(null);
-          }
-        },
+        runAttackSequence({
+          onDash: () => {
+            setFxKind(resolvedKind);
+            setFxKey((k) => k + 1);
+            if (monsterImgRef.current) setFxPos(computeImpactPos(monsterImgRef.current, true));
+            if (rolled) {
+              setAttackPopup(rolled);
+              setPopupKey((k) => k + 1);
+            }
+            if (teamAttack) sfxTeamAttack();
+            else if (monster.isBoss) sfxHitBig();
+            else if (resolvedKind === "fire") sfxHitBig();
+            else sfxSlash();
+          },
+          onImpact: () => {
+            setMonsterHitKey((k) => k + 1);
+            if (resolvedKind === "critical" || fc.enhanced) {
+              setShakeStrong(fc.enhanced);
+              setScreenShakeKey((k) => k + 1);
+            }
+            if (fc.enhanced) feverBurstAtMonster();
+          },
+          onFadeout: () => {
+            setAttackPopup(null);
+          },
+          onComplete: () => {
+            setTeamAttackActive(false);
+            afterFever(true, () => {
+              if (lethal) {
+                runKoSequence(capturedStage);
+              } else {
+                setUpQuestion(makeQuestion(words, capturedWordId), capturedStage);
+                setFeedback(null);
+              }
+            });
+          },
+        });
       });
     } else {
       setCombo(0);
@@ -584,6 +630,7 @@ export default function BattleGame({
         },
         onImpact: () => {
           setPlayerHitKey((k) => k + 1);
+          setShakeStrong(false);
           setScreenShakeKey((k) => k + 1);
           setWrongLabelKey((k) => k + 1);
         },
@@ -591,8 +638,10 @@ export default function BattleGame({
           if (gameOver) {
             setPhase("gameover");
           } else {
-            setUpQuestion(makeQuestion(words, capturedWordId), capturedStage);
-            setFeedback(null);
+            afterFever(false, () => {
+              setUpQuestion(makeQuestion(words, capturedWordId), capturedStage);
+              setFeedback(null);
+            });
           }
         },
       });
@@ -754,12 +803,16 @@ export default function BattleGame({
     <div
       key={screenShakeKey}
       className={`relative rounded-3xl overflow-hidden flex flex-col bg-cover bg-center ${
-        screenShakeKey > 0 ? "anim-screenShake" : ""
+        screenShakeKey > 0 ? (shakeStrong ? "anim-screenShakeFever" : "anim-screenShake") : ""
       }`}
       style={{ backgroundImage: `url(${bgFor(!!monster.isBoss)})` }}
     >
       <BattleStyles />
       <div className="absolute inset-0 bg-black/15 pointer-events-none" />
+
+      {/* FEVER: 작고 정적인 게이지/남은 보상 문제 + 정답 보상 배너 */}
+      {phase === "battle" && <FeverHud hud={fever.hud} className="absolute z-20" style={{ left: 12, top: 50 }} />}
+      {fever.layer}
 
       {teamAttackActive ? (
         <div className="absolute inset-x-0 top-1 z-30 flex justify-center pointer-events-none px-4">
