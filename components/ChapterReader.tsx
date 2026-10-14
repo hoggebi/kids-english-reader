@@ -7,6 +7,7 @@ import { autoPush } from "@/lib/sync";
 import ReadingPractice from "./ReadingPractice";
 import QuizSection from "./QuizSection";
 import PetDisplay from "./PetDisplay";
+import { CoinAmount } from "./Coin";
 
 export default function ChapterReader({
   chapter,
@@ -65,7 +66,7 @@ export default function ChapterReader({
         )}
 
         {celebration.coins > 0 && (
-          <p className="text-lg font-bold text-amber-600">🪙 코인 +{celebration.coins}</p>
+          <p className="text-lg font-bold text-amber-600 flex items-center justify-center gap-1">코인 <CoinAmount amount={celebration.coins} prefix="+" size={24} /></p>
         )}
 
         {!celebration.graduated && celebration.grew && (

@@ -6,6 +6,7 @@ import type { VocabWord } from "@/lib/types";
 import { buildAlternatingQuestions, type Question } from "@/lib/gameQuestions";
 import { cancelSpeech, playSfx, speak, unlockAudio } from "@/lib/gameAudio";
 import { earnCoins } from "@/lib/pet";
+import { CoinAmount } from "./Coin";
 
 // ---------------------------------------------------------------------------
 // 두더지 잡기 v2
@@ -949,7 +950,7 @@ export default function MoleGame({
             ))}
             <div className="flex justify-between text-amber-600 text-xl pt-1">
               <span>획득 코인</span>
-              <span>🪙 +{finalStats.coins}</span>
+              <CoinAmount amount={finalStats.coins} prefix="+" size={26} />
             </div>
           </div>
           <div className="flex gap-3 w-full">
@@ -1112,7 +1113,7 @@ export default function MoleGame({
             className="mg-coin"
             style={{ position: "absolute", left: coinPop.x, top: coinPop.y, zIndex: 10, fontWeight: 900, fontSize: 22, color: "#ffe14a", textShadow: "0 2px 4px rgba(0,0,0,.6)" }}
           >
-            🪙 +{COIN_PER_FIRST_TRY}
+            <CoinAmount amount={COIN_PER_FIRST_TRY} prefix="+" size={24} />
           </div>
         )}
       </div>

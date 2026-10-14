@@ -19,6 +19,7 @@ import BattleGame from "./BattleGame";
 import DartGame from "./DartGame";
 import MoleGame from "./MoleGame";
 import PetDisplay from "./PetDisplay";
+import { CoinIcon } from "./Coin";
 
 type GameKind = "hunt" | "feed" | "mole" | "runner" | "battle";
 type Feedback = "correct" | "wrong" | null;
@@ -321,7 +322,7 @@ export default function VocabGame({
               </div>
             ))}
           </div>
-          <p className="text-xs text-amber-600 font-bold">🪙 게임을 할 때마다 코인이 쌓여요. 상점에서 쓸 수 있어요.</p>
+          <p className="text-xs text-amber-600 font-bold flex items-center gap-1"><CoinIcon size={16} /> 게임을 할 때마다 코인이 쌓여요. 상점에서 쓸 수 있어요.</p>
         </div>
 
         <div className="grid grid-cols-2 gap-3">

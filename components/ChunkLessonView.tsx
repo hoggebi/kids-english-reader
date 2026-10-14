@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChunkLesson, ChunkbookMeta } from "@/lib/chunkbook";
 import { renderPageBase64, type PdfDoc as PdfDocLike } from "@/lib/chunkbook";
 import {
-  WORKSHEET_FULL_URL,
   bumpListens,
   isValidOrder,
   loadActivity,
@@ -13,8 +12,6 @@ import {
   saveActivity,
   saveRoleOverride,
   shuffleOrder,
-  worksheetStartPage,
-  worksheetUrl,
   type BodyLine,
   type LessonActivity,
   type LessonText,
@@ -381,9 +378,6 @@ function WritingActivity({
           <button onClick={restart} className="min-h-[48px] px-5 rounded-full bg-sky-600 text-white text-sm font-bold">
             다시 시작
           </button>
-          <a href={worksheetUrl(lesson)} target="_blank" rel="noreferrer" className="min-h-[48px] inline-flex items-center px-5 rounded-full bg-gray-100 text-gray-700 text-sm font-bold">
-            학습지 열기
-          </a>
           <button onClick={onBack} className="min-h-[48px] px-5 rounded-full bg-gray-100 text-gray-700 text-sm font-bold">
             Lesson으로
           </button>
@@ -407,12 +401,10 @@ function WritingActivity({
         <span className="text-sm font-bold text-gray-700" data-testid="write-progress">
           {act.pos + 1} / {n}
         </span>
-        <a href={worksheetUrl(lesson)} target="_blank" rel="noreferrer" className="min-h-[44px] inline-flex items-center text-xs text-sky-700 underline">
-          학습지 열기 / 인쇄
-        </a>
+        <span className="w-16" aria-hidden />
       </div>
 
-      <p className="text-sm text-gray-600 text-center">학습지에서 맞는 한국어 뜻을 찾아, 아래에 세 번 써 보세요.</p>
+      <p className="text-sm text-gray-600 text-center">아래 문장을 세 번 써 보세요.</p>
 
       <div className="w-full max-w-3xl rounded-2xl bg-gray-50 px-5 py-10 flex flex-col items-center gap-4">
         <p className="text-3xl sm:text-4xl font-black text-gray-900 text-center leading-snug" data-testid="write-sentence">
@@ -850,9 +842,6 @@ export default function ChunkLessonView({
       )}
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-        <a href={worksheetUrl(lesson)} target="_blank" rel="noreferrer" className="min-h-[44px] inline-flex items-center font-bold text-sky-700 underline">
-          📄 학습지 열기 / 인쇄
-        </a>
         <button onClick={() => onOpenVocab(lesson)} className="min-h-[44px] font-bold text-sky-700 underline">
           📖 이 Lesson 단어 학습하기
         </button>
@@ -883,13 +872,6 @@ export default function ChunkLessonView({
           </button>
         ) : null}
       </div>
-      <p className="text-[11px] text-gray-400">
-        학습지는 이 Lesson만 2쪽으로 나눈 파일이에요. 전체 학습지는{" "}
-        <a href={`${WORKSHEET_FULL_URL}#page=${worksheetStartPage(lesson)}`} target="_blank" rel="noreferrer" className="underline">
-          {worksheetStartPage(lesson)}쪽부터
-        </a>{" "}
-        열 수 있어요.
-      </p>
     </div>
   );
 }

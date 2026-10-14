@@ -236,7 +236,6 @@ export default function ChunkbookPanel({
   const [fileStateRaw, setFileState] = useState<"checking" | "ok" | "missing">("checking");
   const [selected, setSelected] = useState<number | null>(null);
   const [viewer, setViewer] = useState<number | null>(null);
-  const [storage, setStorage] = useState<{ usage: number; quota: number } | null>(null);
   const [draft, setDraft] = useState<{ lesson: number; start: number; end: number }[] | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
   const docRef = useRef<PdfDoc | null>(null);
@@ -302,16 +301,6 @@ export default function ChunkbookPanel({
       void destroyPdf(docRef.current);
     };
   }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    void storageEstimate().then((s) => {
-      if (!cancelled) setStorage(s);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [bookId, imp.phase]);
 
   const lessonList = book?.lessons ?? [];
   const current = lessonList.find((l) => l.lesson === selected) ?? null;
@@ -448,6 +437,7 @@ export default function ChunkbookPanel({
 
   return (
     <div className="w-full max-w-4xl flex flex-col gap-4">
+      {(!isBuiltin || imp.phase !== "idle") && (
       <div className="rounded-2xl bg-gray-50 p-4 flex flex-col gap-2">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -481,17 +471,8 @@ export default function ChunkbookPanel({
             이 기기에는 가져온 PDF가 없어서 기본 청크북을 보여주고 있어요. 따로 할 일은 없어요.
           </p>
         )}
-        {isBuiltin && (
-          <details className="text-xs text-gray-500">
-            <summary className="min-h-[44px] flex items-center cursor-pointer">다른 PDF로 보고 싶을 때 (선택)</summary>
-            <div className="flex flex-col gap-2 pb-2">
-              <p>PDF는 이 기기 브라우저에만 저장돼요. 다른 기기에서는 기본 청크북이 보여요.</p>
-              {fileInput("PDF 직접 가져오기", false)}
-              {storage && <p>이 기기 저장 공간: 사용 {formatBytes(storage.usage)} / 약 {formatBytes(storage.quota)}</p>}
-            </div>
-          </details>
-        )}
       </div>
+      )}
 
       {(needsConfirm || editing) && (
         <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-4 flex flex-col gap-3" data-testid="range-confirm">
@@ -629,7 +610,6 @@ export default function ChunkbookPanel({
         </div>
       )}
       {current && !isBuiltin && fileState === "checking" && <p className="text-sm text-gray-500">파일을 여는 중…</p>}
-      {!current && <p className="text-sm text-gray-400">Lesson을 눌러 읽고 듣기·문장 보고 쓰기를 시작해요.</p>}
 
       {viewer !== null && (isBuiltin || doc) && current && (
         <PageViewer

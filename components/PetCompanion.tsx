@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CoinText } from "./Coin";
 import { MAX_STAGE, getPetImagePath, getStageInfo, loadPet, type PetState } from "@/lib/pet";
 
 // 청크북 Lesson 화면 위쪽에서 같이 공부하는 캐릭터. tick이 바뀔 때마다 최신 상태를 다시 읽고,
@@ -33,7 +34,7 @@ export default function PetCompanion({ tick, message, popping = false }: { tick:
       />
       <div className="flex-1 min-w-0 flex flex-col gap-1">
         <p className="text-sm font-bold text-gray-700 leading-snug" aria-live="polite">
-          {line}
+          <CoinText text={line} />
         </p>
         <p className="text-xs text-gray-400 font-bold">
           {pet.stage}/{MAX_STAGE}단계 · 이 Lesson을 끝까지 마치면 자라요 🌱

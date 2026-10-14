@@ -13,6 +13,7 @@ import {
   type LessonText,
   type PageRoles,
 } from "./chunkLesson";
+import { applyShopFromSync, exportShopForSync, refreshShopFromServer } from "./shop";
 import type { Chapter, VocabSet } from "./types";
 
 const SYNC_CODE_KEY = "chunkbook-v2-sync-code";
@@ -70,6 +71,7 @@ type SyncPayload = {
   petXp?: number; // 챕터·청크북 캐릭터의 다음 단계까지 쌓인 코인
   vocabXp?: number; // 단어장 캐릭터의 다음 단계까지 쌓인 코인
   coins?: number; // 지금까지 모은 코인 합계
+  shop?: { equipped: Record<string, Partial<Record<"background" | "prop" | "effect", string>>>; goal: string | null }; // 친구별 장착과 목표 아이템(보유·잔액은 서버 /api/shop이 기준)
   doneLessons?: number[]; // 끝까지 마친 청크북 Lesson(도장)
 };
 
@@ -87,6 +89,7 @@ function currentPayload(): SyncPayload {
     petXp: loadPetXp("chapter"),
     vocabXp: loadPetXp("vocab"),
     coins: loadCoinsTotal(),
+    shop: exportShopForSync(),
     doneLessons: getDoneLessons(),
   };
 }
@@ -107,8 +110,11 @@ function applyServerPayload(data: Partial<SyncPayload> | null) {
   if (data.pageRoles) saveRoleOverrides({ ...loadRoleOverrides(), ...data.pageRoles });
   if (typeof data.petXp === "number") savePetXp(data.petXp, "chapter");
   if (typeof data.vocabXp === "number") savePetXp(data.vocabXp, "vocab");
+  if (data.shop) applyShopFromSync(data.shop);
   // 코인 합계는 줄어들면 안 되므로 더 큰 쪽을 쓴다.
   if (typeof data.coins === "number") saveCoinsTotal(Math.max(loadCoinsTotal(), data.coins));
+  // 동기화로 코인이 바뀌었을 수 있으니 지갑에 알린다(받은 코인이 아니므로 +N 효과는 없다).
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("coins-changed", { detail: { granted: 0 } }));
   // 도장은 줄어들면 안 되므로 합친다.
   if (Array.isArray(data.doneLessons)) setDoneLessons([...getDoneLessons(), ...data.doneLessons]);
 }
@@ -187,6 +193,8 @@ export async function pullSync(code: string): Promise<{
 // push를 건너뛴다 (그래도 서버가 baseRev로 한 번 더 막아주지만, 애초에 시도하지 않는 게 더 안전하다).
 export async function syncNow(code: string) {
   const pulled = await pullSync(code);
+  // 보유 목록·쓴 코인은 서버가 기준이다. 코드 연결 전에 이 기기에서 산 것도 이때 한 번만 합친다.
+  await refreshShopFromServer();
   if (!pulled.ok) {
     return { ...pulled, pushOk: false, pushError: "네트워크 오류로 최신 정보를 받아오지 못해, 저장은 건너뛰었어요." };
   }

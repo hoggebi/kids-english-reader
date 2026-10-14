@@ -39,6 +39,7 @@ import ChapterReader from "@/components/ChapterReader";
 import PetDisplay from "@/components/PetDisplay";
 import FriendDex from "@/components/FriendDex";
 import CoinWallet from "@/components/CoinWallet";
+import ShopView, { type Friend } from "@/components/ShopView";
 import VocabList from "@/components/VocabList";
 import VocabUpload from "@/components/VocabUpload";
 import VocabStudy from "@/components/VocabStudy";
@@ -46,11 +47,13 @@ import ChunkbookPanel from "@/components/ChunkbookPanel";
 import LessonPanel from "@/components/LessonPanel";
 import { isLessonSet, loadLessonPlan, refreshLessonSets, type LessonPlan } from "@/lib/lessonPlan";
 
-type Section = "chunkbook" | "chapters" | "vocab" | "dex";
+type Section = "chunkbook" | "chapters" | "vocab" | "dex" | "shop";
 type View = "list" | "add" | "read";
 
 export default function Home() {
   const [section, setSection] = useState<Section>("chunkbook");
+  const [shopFriend, setShopFriend] = useState<Friend | null>(null);
+  const [shopReturn, setShopReturn] = useState<Section>("dex");
   const [chunkbooks, setChunkbooks] = useState<ChunkbookMeta[]>([]);
   const [lessonPlan, setLessonPlan] = useState<LessonPlan | null>(null);
   const [view, setView] = useState<View>("list");
@@ -68,6 +71,7 @@ export default function Home() {
   const [joinInput, setJoinInput] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [showJoinBox, setShowJoinBox] = useState(false);
+  const [showSyncPanel, setShowSyncPanel] = useState(false); // 동기화 설정 패널은 필요할 때만 펼친다
 
   useEffect(() => {
     setChapters(loadChapters());
@@ -313,16 +317,31 @@ export default function Home() {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/character.png" alt="캐릭터" className="w-24 h-24 object-contain" />
         <h1 className="font-title text-black text-4xl text-center">오늘도 호 English</h1>
-        <span className="rounded-full bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1">청크북 새 버전 (미리보기)</span>
+        {/* 동기화 상태 표시: 눌러서 동기화 설정을 펼치고 접는다 */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowSyncPanel((v) => !v);
+          }}
+          aria-expanded={showSyncPanel}
+          data-testid="sync-pill"
+          className={`rounded-full text-xs font-bold px-3 py-1 ${
+            syncing
+              ? "bg-sky-100 text-sky-700"
+              : syncCode && syncMessage?.startsWith("⚠️")
+              ? "bg-amber-100 text-amber-800"
+              : syncCode
+              ? "bg-sky-100 text-sky-700"
+              : "bg-gray-100 text-gray-500"
+          }`}
+        >
+          {syncing ? "동기화 중…" : syncCode ? `✓ 동기화됨 · ${syncCode}` : "동기화 꺼짐"} {showSyncPanel ? "▴" : "▾"}
+        </button>
+        {syncMessage && <span className="text-xs text-gray-500">{syncMessage}</span>}
       </header>
 
-      <CoinWallet />
-
-      {syncMessage && (
-        <div className="w-full max-w-4xl rounded-2xl bg-sky-50 border-2 border-sky-200 p-3 text-center">
-          <p className="text-sky-700 font-bold text-sm">{syncMessage}</p>
-        </div>
-      )}
+      <CoinWallet onOpenShop={() => { setShopFriend(null); setShopReturn(section === "shop" ? shopReturn : section); setSection("shop"); }} />
 
       {/* 최상위 탭: 청크북 / 챕터(동화책 읽기) / 단어장 */}
       <div className="w-full max-w-4xl flex rounded-full bg-gray-100 p-1">
@@ -364,6 +383,7 @@ export default function Home() {
       </div>
 
       {/* 기기 간 자동 동기화 설정 (챕터/단어장 어느 목록 화면에서든 항상 보임) */}
+      {section !== "shop" && showSyncPanel && (
       <div className="w-full max-w-4xl rounded-2xl bg-gray-50 p-4 flex flex-col gap-3">
         {syncCode ? (
           <div className="flex flex-col gap-2">
@@ -427,6 +447,7 @@ export default function Home() {
           </>
         )}
       </div>
+      )}
 
       {section === "chunkbook" && (
         <ChunkbookPanel
@@ -447,7 +468,17 @@ export default function Home() {
         />
       )}
 
-      {section === "dex" && <FriendDex />}
+      {section === "dex" && (
+        <FriendDex
+          onDecorate={(track, generation) => {
+            setShopFriend({ track, generation });
+            setShopReturn("dex");
+            setSection("shop");
+          }}
+        />
+      )}
+
+      {section === "shop" && <ShopView initialFriend={shopFriend} onClose={() => setSection(shopReturn)} />}
 
       {section === "chapters" && view === "list" && (
         <>

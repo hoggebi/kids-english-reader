@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, Ref } from "react";
 import type { VocabWord } from "@/lib/types";
 import { loadPet, getPetImagePath, earnCoins } from "@/lib/pet";
+import { CoinAmount } from "./Coin";
 import { shuffle } from "./VocabGame";
 
 // ---------------------------------------------------------------------------
@@ -1437,7 +1438,7 @@ export default function DartGame({
             ))}
             <div className="flex justify-between text-amber-600 text-xl pt-1">
               <span>획득 코인</span>
-              <span>🪙 +{finalStats.coins}</span>
+              <CoinAmount amount={finalStats.coins} prefix="+" size={26} />
             </div>
           </div>
           <div className="flex gap-3 w-full">

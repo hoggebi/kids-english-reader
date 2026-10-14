@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { MAX_STAGE, getStageInfo, getPetImagePath, type PetState, type PetTrack } from "@/lib/pet";
+import { friendKey, getEquipped } from "@/lib/shop";
+import DecoratedPet from "./DecoratedPet";
 export default function PetDisplay({
   pet,
   size = "md",
@@ -14,6 +16,15 @@ export default function PetDisplay({
 }) {
   const info = getStageInfo(pet, track);
   const [talkIndex, setTalkIndex] = useState(0);
+  const [equipped, setEquipped] = useState<ReturnType<typeof getEquipped>>({});
+
+  // 상점에서 꾸민 모습을 첫 화면 캐릭터 카드에도 보여 준다.
+  useEffect(() => {
+    const read = () => setEquipped(getEquipped(friendKey(track, pet.generation)));
+    read();
+    window.addEventListener("shop-changed", read);
+    return () => window.removeEventListener("shop-changed", read);
+  }, [track, pet.generation]);
   const isEagle = track === "vocab" && pet.generation >= 3;
   // 말풍선 문구를 주기적으로 바꿔줌 (항상 보이되 지루하지 않게)
   useEffect(() => {
@@ -56,12 +67,16 @@ export default function PetDisplay({
         </div>
         <div className={`absolute left-1/2 -translate-x-1/2 -bottom-2 w-3 h-3 bg-white border-r-2 border-b-2 ${bubbleBorder} rotate-45`} />
       </div>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={getPetImagePath(pet, track)}
-        alt={info.name}
-        className={`${imgSize} object-contain ${justGrew ? "pet-pop" : "pet-bob"}`}
-      />
+      {equipped.background || equipped.prop || equipped.effect ? (
+        <DecoratedPet pet={pet} track={track} equipped={equipped} alt={info.name} className={size === "lg" ? "w-72" : "w-56"} />
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={getPetImagePath(pet, track)}
+          alt={info.name}
+          className={`${imgSize} object-contain ${justGrew ? "pet-pop" : "pet-bob"}`}
+        />
+      )}
       <div className="text-center">
         <p className="font-bold text-gray-800">{info.name}</p>
         <p className="text-xs text-gray-500 mt-0.5">{info.desc}</p>
