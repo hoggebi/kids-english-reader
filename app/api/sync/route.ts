@@ -25,8 +25,21 @@ function withLegacyFallback(payload: unknown, legacyRaw: unknown): unknown {
   const base = (payload && typeof payload === "object" ? payload : {}) as Record<string, unknown>;
   const old = legacy as Record<string, unknown>;
   const out: Record<string, unknown> = { ...base };
-  for (const k of ["chapters", "doneChapterIds", "pet", "vocabPet", "vocabSets"]) {
+  for (const k of ["chapters", "vocabSets"]) {
     if (isEmpty(out[k]) && !isEmpty(old[k])) out[k] = old[k];
+  }
+  // 펫은 기본값(1단계)도 "값이 있음"이라서, 더 많이 자란 쪽을 쓴다.
+  const rank = (v: unknown) => {
+    const o = v as { stage?: unknown; generation?: unknown } | null | undefined;
+    return typeof o?.stage === "number" ? (typeof o.generation === "number" ? o.generation : 1) * 100 + o.stage : -1;
+  };
+  for (const k of ["pet", "vocabPet"]) {
+    if (rank(old[k]) > rank(out[k])) out[k] = old[k];
+  }
+  // 완료한 챕터 기록은 양쪽을 합친다.
+  if (Array.isArray(old.doneChapterIds)) {
+    const mine = Array.isArray(out.doneChapterIds) ? (out.doneChapterIds as unknown[]) : [];
+    out.doneChapterIds = Array.from(new Set([...mine, ...old.doneChapterIds]));
   }
   return out;
 }
