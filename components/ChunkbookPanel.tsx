@@ -579,7 +579,7 @@ export default function ChunkbookPanel({
             onClick={() => setSelected((cur) => (cur === l.lesson ? null : l.lesson))}
             aria-pressed={selected === l.lesson}
             className={`min-h-[56px] rounded-2xl border-2 px-3 py-2 text-left transition active:scale-95 ${
-              selected === l.lesson ? "border-sky-500 bg-sky-50" : "border-gray-200 bg-white"
+              selected === l.lesson ? "border-sky-500 bg-sky-50" : "border-transparent bg-gray-50"
             }`}
           >
             <p className="text-sm font-bold text-gray-800">Lesson {l.lesson}</p>

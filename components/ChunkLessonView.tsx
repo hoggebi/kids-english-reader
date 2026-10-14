@@ -152,7 +152,7 @@ function ReadListen({
       {listens > 0 && endedThisVisit === 0 && <p className="text-xs text-gray-500">이 Lesson을 {listens}번 들었어요.</p>}
 
       {/* 본문: 한 장의 카드 안에 문장마다 영어 + 바로 아래 작은 한국어. 지금 읽는 문장만 연한 하늘색으로 강조 */}
-      <div className="rounded-2xl border-2 border-gray-200 bg-white p-4 flex flex-col gap-3" data-testid="body-card">
+      <div className="rounded-2xl bg-gray-50 p-5 flex flex-col gap-3" data-testid="body-card">
         {lines.map((l, i) =>
           l.section === "passage" ? (
             <div key={i} className="flex flex-col">
@@ -181,7 +181,7 @@ function ReadListen({
       </div>
 
       {lines.some((l) => l.section === "dialogue") && (
-        <div className="rounded-2xl border-2 border-gray-200 bg-white p-4 flex flex-col gap-3">
+        <div className="rounded-2xl bg-gray-50 p-5 flex flex-col gap-3">
           <p className="text-xs font-bold text-gray-400">대화 연습</p>
           {lines.map((l, i) =>
             l.section === "dialogue" ? (
@@ -212,13 +212,13 @@ function ReadListen({
       )}
 
       {firstDone && status === "ended" && (
-        <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-3 flex flex-col gap-2" data-testid="after-listen">
-          <p className="text-sm font-bold text-emerald-800">{endedThisVisit >= 2 ? "두 번 들었어요!" : "한 번 들었어요!"}</p>
+        <div className="rounded-2xl bg-sky-50 border-2 border-sky-200 p-4 flex flex-col gap-3" data-testid="after-listen">
+          <p className="text-lg font-bold text-sky-800">{endedThisVisit >= 2 ? "두 번 들었어요!" : "한 번 들었어요!"}</p>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => playFrom(0)} className="min-h-[44px] px-4 rounded-full bg-white border border-emerald-300 text-emerald-800 text-sm font-bold">
+            <button onClick={() => playFrom(0)} className="min-h-[48px] px-5 rounded-full bg-white border-2 border-sky-300 text-sky-700 text-sm font-bold active:scale-95 transition">
               {endedThisVisit >= 2 ? "다시 듣기" : "한 번 더 듣기"}
             </button>
-            <button onClick={onWrite} className="min-h-[44px] px-4 rounded-full bg-emerald-600 text-white text-sm font-bold">
+            <button onClick={onWrite} className="min-h-[48px] px-5 rounded-full bg-sky-600 text-white text-sm font-bold active:scale-95 transition">
               문장 보고 쓰기
             </button>
           </div>
@@ -226,16 +226,16 @@ function ReadListen({
       )}
 
       {/* 재생 컨트롤 */}
-      <div className="sticky bottom-3 z-10 flex items-center justify-center gap-2 rounded-full bg-gray-900/90 p-2 shadow-lg self-center">
+      <div className="sticky bottom-3 z-10 flex items-center justify-center gap-2 rounded-full bg-white/95 border border-gray-200 p-2 shadow-lg self-center">
         {status === "playing" ? (
-          <button onClick={pause} className="min-h-[44px] px-5 rounded-full bg-white text-gray-900 text-sm font-bold">
+          <button onClick={pause} className="min-h-[44px] px-5 rounded-full bg-gray-700 text-white text-sm font-bold active:scale-95 transition">
             ⏸ 일시정지
           </button>
         ) : (
           <button
             onClick={() => playFrom(status === "paused" && idx >= 0 ? idx : 0)}
             disabled={!supported}
-            className="min-h-[44px] px-5 rounded-full bg-sky-500 text-white text-sm font-bold disabled:opacity-50"
+            className="min-h-[44px] px-5 rounded-full bg-sky-600 text-white text-sm font-bold disabled:opacity-50 active:scale-95 transition"
           >
             ▶ {status === "paused" ? "이어 듣기" : "재생"}
           </button>
@@ -243,13 +243,13 @@ function ReadListen({
         <button
           onClick={() => playFrom(0)}
           disabled={!supported}
-          className="min-h-[44px] px-4 rounded-full bg-white/15 text-white text-sm font-bold disabled:opacity-50"
+          className="min-h-[44px] px-4 rounded-full bg-gray-500 text-white text-sm font-bold disabled:opacity-50 active:scale-95 transition"
         >
           ↺ 다시 듣기
         </button>
         <button
           onClick={() => { stopAll(); onWrite(); }}
-          className="min-h-[44px] px-4 rounded-full bg-emerald-500 text-white text-sm font-bold"
+          className="min-h-[44px] px-4 rounded-full bg-gray-700 text-white text-sm font-bold active:scale-95 transition"
         >
           ✍️ 문장 보고 쓰기
         </button>
@@ -338,7 +338,7 @@ function WritingActivity({
   if (act.completed) {
     return (
       <div className="flex flex-col items-center gap-4 py-6 text-center" data-testid="write-done">
-        <p className="text-2xl font-black text-emerald-600">다 썼어요! 🎉</p>
+        <p className="text-2xl font-bold text-sky-600">다 썼어요! 🎉</p>
         <p className="text-sm text-gray-500">Lesson {lesson}의 문장 {n}개를 모두 마쳤어요.</p>
         <div className="flex flex-wrap justify-center gap-2">
           <button onClick={restart} className="min-h-[48px] px-5 rounded-full bg-sky-600 text-white text-sm font-bold">
@@ -374,7 +374,7 @@ function WritingActivity({
 
       <p className="text-sm text-gray-600 text-center">학습지에서 맞는 한국어 뜻을 찾아, 아래에 세 번 써 보세요.</p>
 
-      <div className="w-full max-w-3xl rounded-3xl bg-white border-2 border-gray-200 px-5 py-10 flex flex-col items-center gap-4">
+      <div className="w-full max-w-3xl rounded-2xl bg-gray-50 px-5 py-10 flex flex-col items-center gap-4">
         <p className="text-3xl sm:text-4xl font-black text-gray-900 text-center leading-snug" data-testid="write-sentence">
           {item.en}
         </p>
@@ -385,7 +385,7 @@ function WritingActivity({
         <button onClick={() => speak(item.en)} disabled={!speakSupported()} className="min-h-[48px] px-5 rounded-full bg-gray-700 text-white text-sm font-bold disabled:opacity-50">
           🔈 문장 듣기
         </button>
-        <button onClick={() => setHint((h) => !h)} className="min-h-[48px] px-5 rounded-full bg-amber-100 text-amber-900 text-sm font-bold">
+        <button onClick={() => setHint((h) => !h)} className="min-h-[48px] px-5 rounded-full bg-gray-100 text-gray-700 text-sm font-bold">
           💡 뜻 힌트 {hint ? "숨기기" : "보기"}
         </button>
       </div>
@@ -398,7 +398,7 @@ function WritingActivity({
         >
           ◀ 이전
         </button>
-        <button onClick={() => go(1)} className={`min-h-[52px] px-6 rounded-full text-white font-bold ${isLast ? "bg-emerald-600" : "bg-sky-600"}`}>
+        <button onClick={() => go(1)} className={`min-h-[52px] px-6 rounded-full text-white font-bold bg-sky-600`}>
           {isLast ? "마치기" : "다음 ▶"}
         </button>
       </div>
@@ -755,7 +755,7 @@ export default function ChunkLessonView({
   const label = (p: number) => lessonDef.labels[lessonDef.pages.indexOf(p)] ?? `p.${p}`;
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border-2 border-sky-200 bg-sky-50 p-4" data-testid="lesson-home">
+    <div className="flex flex-col gap-3 rounded-2xl bg-gray-50 p-4" data-testid="lesson-home">
       <div className="flex items-baseline justify-between gap-2">
         <p className="text-lg font-bold text-gray-900">Lesson {lesson}</p>
         <p className="text-xs text-gray-500">
@@ -766,10 +766,10 @@ export default function ChunkLessonView({
 
       {confirmed ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <button onClick={() => setMode("read")} className="min-h-[56px] rounded-2xl bg-sky-600 text-white font-bold text-base">
+          <button onClick={() => setMode("read")} className="min-h-[56px] rounded-full bg-sky-600 text-white font-bold text-base active:scale-95 transition">
             🔊 읽고 듣기
           </button>
-          <button onClick={() => setMode("write")} className="min-h-[56px] rounded-2xl bg-emerald-600 text-white font-bold text-base">
+          <button onClick={() => setMode("write")} className="min-h-[56px] rounded-full bg-gray-700 text-white font-bold text-base active:scale-95 transition">
             ✍️ 문장 보고 쓰기
           </button>
         </div>
