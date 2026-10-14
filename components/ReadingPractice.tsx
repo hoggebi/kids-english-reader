@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { COINS_READ_ROUND, earnCoins } from "@/lib/pet";
+import { autoPush } from "@/lib/sync";
 
 const NORMAL_RATE = 0.55;
 const SLOW_RATE = 0.4;
@@ -66,6 +68,13 @@ export default function ReadingPractice({
       window.speechSynthesis?.cancel();
     };
   }, []);
+
+  // 한 페이지를 3번 다 읽으면 코인을 받는다.
+  useEffect(() => {
+    if (!showCompleteModal) return;
+    earnCoins(COINS_READ_ROUND, "chapter");
+    autoPush();
+  }, [showCompleteModal]);
 
   useEffect(() => {
     if (!showRoundBanner) return;

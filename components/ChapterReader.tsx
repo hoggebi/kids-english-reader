@@ -21,6 +21,7 @@ export default function ChapterReader({
     pet: PetState;
     grew: boolean;
     graduated: boolean;
+    coins: number;
     score: number;
     total: number;
   } | null>(null);
@@ -34,6 +35,7 @@ export default function ChapterReader({
       pet: grow.pet,
       grew: grow.grew,
       graduated: grow.graduated,
+      coins: grow.coins ?? 0,
       score: result.score,
       total: result.total,
     });
@@ -60,6 +62,10 @@ export default function ChapterReader({
               새로운 친구가 찾아왔어요.
             </p>
           </div>
+        )}
+
+        {celebration.coins > 0 && (
+          <p className="text-lg font-bold text-amber-600">🪙 코인 +{celebration.coins}</p>
         )}
 
         {!celebration.graduated && celebration.grew && (

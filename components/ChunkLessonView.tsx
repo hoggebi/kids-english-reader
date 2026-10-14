@@ -24,12 +24,17 @@ import {
 import { builtinRoles } from "@/lib/chunkbookBuiltin";
 import { clearBookText, loadBookText, saveBookText } from "@/lib/chunkBookText";
 import { autoPush } from "@/lib/sync";
-import { awardXp, completeLesson, type GrowResult } from "@/lib/pet";
+import { COINS_LISTEN, COINS_SENTENCE, completeLesson, earnCoins, type EarnResult, type GrowResult } from "@/lib/pet";
 import PetCompanion from "./PetCompanion";
 
 const CHEERS = ["잘했어, 호야!", "우와, 대단해!", "나도 신나!", "호야 최고야!", "한 번 더 해볼까?"];
-const cheerFor = (r: Pick<GrowResult, "grew" | "graduated">, extra = "") =>
-  r.graduated ? "다 컸어! 새 친구를 만나러 가자! 도감을 확인해 봐!" : r.grew ? `와! 나 쑥 자랐어! ${extra}`.trim() : CHEERS[Math.floor(Math.random() * CHEERS.length)];
+const cheerFor = (r: Pick<GrowResult, "grew" | "graduated" | "coins"> & Partial<Pick<EarnResult, "capped">>, extra = "") => {
+  if (r.graduated) return "다 컸어! 새 친구를 만나러 가자! 도감을 확인해 봐!";
+  if (r.grew) return `와! 나 쑥 자랐어! ${extra}`.trim();
+  if (r.capped && !r.coins) return "오늘 코인을 다 모았어! 내일 또 만나자!";
+  const coin = r.coins ? `🪙 +${r.coins} ` : "";
+  return `${coin}${CHEERS[Math.floor(Math.random() * CHEERS.length)]} ${extra}`.trim();
+};
 
 type Mode = "home" | "read" | "write" | "review" | "roles";
 
@@ -92,7 +97,7 @@ function ReadListen({
           setEndedThisVisit((n) => n + 1);
           setListens(bumpListens(lesson));
           // 끝까지 한 바퀴 들을 때마다 경험치 +2
-          const r = awardXp(2);
+          const r = earnCoins(COINS_LISTEN, "chapter");
           setCheer(cheerFor(r, "(듣기 한 바퀴!)"));
           setPetTick((n) => n + 1);
           autoPush();
@@ -320,13 +325,16 @@ function WritingActivity({
     setHint(false);
     if (delta > 0) {
       // 문장을 쓸 때마다 경험치 +1, Lesson을 처음 끝까지 마치면 한 단계 보너스 성장
-      let r: Pick<GrowResult, "grew" | "graduated"> = awardXp(1);
+      const r = earnCoins(COINS_SENTENCE, "chapter");
       let msg = cheerFor(r);
       if (act.pos + delta >= n) {
         const done = completeLesson(lesson);
-        if (done.grew) {
-          r = done;
-          msg = cheerFor(done, `Lesson ${lesson} 도장도 받았어! ⭐`);
+        if (done.coins) {
+          const grown = done.grew || r.grew;
+          const graduated = done.graduated || r.graduated;
+          msg = graduated
+            ? cheerFor({ grew: true, graduated: true })
+            : `Lesson ${lesson} 도장 ⭐ 🪙 +${done.coins}!${grown ? " 나 쑥 자랐어!" : ""}`;
         }
       }
       setCheer(msg);

@@ -5,6 +5,7 @@ import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent a
 import type { VocabWord } from "@/lib/types";
 import { buildAlternatingQuestions, type Question } from "@/lib/gameQuestions";
 import { cancelSpeech, playSfx, speak, unlockAudio } from "@/lib/gameAudio";
+import { earnCoins } from "@/lib/pet";
 
 // ---------------------------------------------------------------------------
 // 두더지 잡기 v2
@@ -17,8 +18,8 @@ const M = "/assets/mole-game";
 
 // ---------- 설정값 ----------
 const ROUND_COUNT = 10;
-const COIN_COMPLETE = 10;
-const COIN_PER_FIRST_TRY = 2;
+const COIN_COMPLETE = 5;
+const COIN_PER_FIRST_TRY = 1;
 const EVOLVE_COMBO = 3;
 
 const T_RISE_STAGGER = 120;
@@ -516,7 +517,7 @@ export default function MoleGame({
       retries: g.retries,
       whiffs: g.whiffs,
       evolved: g.evolveReached,
-      coins: COIN_COMPLETE + COIN_PER_FIRST_TRY * g.firstTry, // 한 게임에 한 번만 계산·표시
+      coins: earnCoins(COIN_COMPLETE + COIN_PER_FIRST_TRY * g.firstTry, "vocab").granted, // 한 게임에 한 번만 계산해 코인 지갑에 넣는다
     });
     token.current += 1;
     cancelSpeech();

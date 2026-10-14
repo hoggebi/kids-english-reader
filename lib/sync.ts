@@ -1,7 +1,7 @@
 "use client";
 
 import { loadChapters, saveChapters } from "./storage";
-import { loadPet, savePet, setDoneChapterIds, getAllDoneChapterIds, loadPetXp, savePetXp, getDoneLessons, setDoneLessons, type PetState } from "./pet";
+import { loadPet, savePet, setDoneChapterIds, getAllDoneChapterIds, loadPetXp, savePetXp, getDoneLessons, setDoneLessons, loadCoinsTotal, saveCoinsTotal, type PetState } from "./pet";
 import { loadVocabSets, saveVocabSets } from "./vocabStorage";
 import { loadChunkbooks, saveChunkbooks, type ChunkbookMeta } from "./chunkbook";
 import { loadLessonPlanRaw, saveLessonPlan, type LessonPlan } from "./lessonPlan";
@@ -67,7 +67,9 @@ type SyncPayload = {
   lessonPlan: LessonPlan | null; // Lesson 진행 기록(단어별 기록과 별개)
   lessonTexts?: Record<string, LessonText>; // 부모가 확인한 본문·번역·문장쓰기 정답 (다른 기기에서 다시 가져오지 않도록)
   pageRoles?: Record<string, PageRoles>; // 부모가 고친 페이지 역할
-  petXp?: number; // 챕터 캐릭터의 다음 단계까지 쌓인 경험치
+  petXp?: number; // 챕터·청크북 캐릭터의 다음 단계까지 쌓인 코인
+  vocabXp?: number; // 단어장 캐릭터의 다음 단계까지 쌓인 코인
+  coins?: number; // 지금까지 모은 코인 합계
   doneLessons?: number[]; // 끝까지 마친 청크북 Lesson(도장)
 };
 
@@ -82,7 +84,9 @@ function currentPayload(): SyncPayload {
     lessonPlan: loadLessonPlanRaw(),
     lessonTexts: loadLessonTexts(),
     pageRoles: loadRoleOverrides(),
-    petXp: loadPetXp(),
+    petXp: loadPetXp("chapter"),
+    vocabXp: loadPetXp("vocab"),
+    coins: loadCoinsTotal(),
     doneLessons: getDoneLessons(),
   };
 }
@@ -101,7 +105,10 @@ function applyServerPayload(data: Partial<SyncPayload> | null) {
   // 이 기기에 확인 저장된 본문이 있고 서버에는 없는 Lesson은 지우지 않고 합친다.
   if (data.lessonTexts) saveLessonTexts({ ...loadLessonTexts(), ...data.lessonTexts });
   if (data.pageRoles) saveRoleOverrides({ ...loadRoleOverrides(), ...data.pageRoles });
-  if (typeof data.petXp === "number") savePetXp(data.petXp);
+  if (typeof data.petXp === "number") savePetXp(data.petXp, "chapter");
+  if (typeof data.vocabXp === "number") savePetXp(data.vocabXp, "vocab");
+  // 코인 합계는 줄어들면 안 되므로 더 큰 쪽을 쓴다.
+  if (typeof data.coins === "number") saveCoinsTotal(Math.max(loadCoinsTotal(), data.coins));
   // 도장은 줄어들면 안 되므로 합친다.
   if (Array.isArray(data.doneLessons)) setDoneLessons([...getDoneLessons(), ...data.doneLessons]);
 }

@@ -460,6 +460,7 @@ export type GrowResult = {
   pet: PetState;
   grew: boolean;
   graduated: boolean; // 8단계를 다 채우고 새 동물로 넘어갔는지
+  coins?: number; // 이번에 실제로 받은 코인
 };
 
 // 챕터를 완료했을 때 호출 — 한 단계 성장시키고, 8단계를 넘으면 새 동물로 시작
@@ -467,20 +468,13 @@ export function completeChapter(chapterId: string): GrowResult {
   const current = loadPet("chapter");
 
   if (isChapterDone(chapterId)) {
-    return { pet: current, grew: false, graduated: false };
+    return { pet: current, grew: false, graduated: false, coins: 0 };
   }
 
   markChapterDone(chapterId);
-
-  if (current.stage >= MAX_STAGE) {
-    const next = { stage: 1, generation: current.generation + 1 };
-    savePet(next, "chapter");
-    return { pet: next, grew: true, graduated: true };
-  }
-
-  const next = { stage: current.stage + 1, generation: current.generation };
-  savePet(next, "chapter");
-  return { pet: next, grew: true, graduated: false };
+  // 챕터를 끝까지 마친 보상은 코인으로 준다(하루 한도와 상관없이 항상 받는다).
+  const r = earnCoins(COINS_CHAPTER_DONE, "chapter", { milestone: true });
+  return { pet: r.pet, grew: r.grew, graduated: r.graduated, coins: r.granted };
 }
 
 function isVocabRoundDone(roundId: string): boolean {
@@ -565,38 +559,71 @@ export function completeVocabRound(roundId: string): GrowResult {
   const current = loadPet("vocab");
 
   if (isVocabRoundDone(roundId)) {
-    return { pet: current, grew: false, graduated: false };
+    return { pet: current, grew: false, graduated: false, coins: 0 };
   }
 
   markVocabRoundDone(roundId);
-
-  if (current.stage >= MAX_STAGE) {
-    const next = { stage: 1, generation: current.generation + 1 };
-    savePet(next, "vocab");
-    return { pet: next, grew: true, graduated: true };
-  }
-
-  const next = { stage: current.stage + 1, generation: current.generation };
-  savePet(next, "vocab");
-  return { pet: next, grew: true, graduated: false };
+  const r = earnCoins(COINS_VOCAB_ROUND, "vocab", { milestone: true });
+  return { pet: r.pet, grew: r.grew, graduated: r.graduated, coins: r.granted };
 }
 
-// ---------- 청크북 Lesson 동행: 작은 성취 경험치 + Lesson 완료 성장 ----------
-// 챕터 캐릭터가 청크북 Lesson에도 같이 다닌다. 문장 하나, 듣기 한 바퀴 같은 작은 행동마다 경험치가 쌓이고,
-// 경험치가 가득 차면 한 단계 자란다. Lesson을 처음 끝까지 마치면 보너스로 한 단계 더 자란다.
-const PET_XP_KEY = "chunkbook-v2-pet-xp";
+// ---------- 코인: 앱 전체 공통 경험치 ----------
+// 공부하면 어디서든 코인이 모이고, 코인이 가득 차면 그 활동의 캐릭터가 한 단계 자란다.
+// 하루 10분 공부 기준: 약 20~25코인 → 2~3일에 한 단계, 한 친구(8단계)는 약 3주.
+const COINS_TOTAL_KEY = "chunkbook-v2-coins-total";
+const COINS_DAY_KEY = "chunkbook-v2-coins-day";
+const PET_XP_KEY = "chunkbook-v2-pet-xp"; // 챕터·청크북 캐릭터의 다음 단계까지 쌓인 코인
+const VOCAB_XP_KEY = "chunkbook-v2-vocab-xp"; // 단어장 캐릭터
 const DONE_LESSONS_KEY = "chunkbook-v2-done-lessons";
-export const XP_PER_STAGE = 10;
 
-export function loadPetXp(): number {
+export const COINS_PER_STAGE = 50;
+export const DAILY_COIN_CAP = 60; // 하루 10분 기준의 약 2.5배. 넘으면 "오늘은 여기까지!"
+export const COINS_SENTENCE = 2; // 문장 하나 쓰기
+export const COINS_LISTEN = 3; // 읽고 듣기 한 바퀴
+export const COINS_LESSON_DONE = 10; // Lesson 처음 끝까지 마치기
+export const COINS_READ_ROUND = 3; // 챕터 한 페이지 3번 읽기
+export const COINS_CHAPTER_DONE = 20; // 챕터 끝까지 + 퀴즈
+export const COINS_VOCAB_ROUND = 10; // 단어장 하루 게임 전부 완료
+export const COINS_GAME_SIMPLE = 8; // 바구니·러너·몬스터 배틀 한 판
+
+function numFromStorage(key: string): number {
   if (typeof window === "undefined") return 0;
-  const n = Number(localStorage.getItem(PET_XP_KEY));
+  const n = Number(localStorage.getItem(key));
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
 }
 
-export function savePetXp(xp: number) {
+export function loadCoinsTotal(): number {
+  return numFromStorage(COINS_TOTAL_KEY);
+}
+
+export function saveCoinsTotal(n: number) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(PET_XP_KEY, String(Math.max(0, Math.floor(xp))));
+  localStorage.setItem(COINS_TOTAL_KEY, String(Math.max(0, Math.floor(n))));
+}
+
+export function loadPetXp(track: PetTrack = "chapter"): number {
+  return numFromStorage(track === "vocab" ? VOCAB_XP_KEY : PET_XP_KEY);
+}
+
+export function savePetXp(xp: number, track: PetTrack = "chapter") {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(track === "vocab" ? VOCAB_XP_KEY : PET_XP_KEY, String(Math.max(0, Math.floor(xp))));
+}
+
+function dayKey(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+export function coinsEarnedToday(): number {
+  if (typeof window === "undefined") return 0;
+  try {
+    const raw = localStorage.getItem(COINS_DAY_KEY);
+    const v = raw ? (JSON.parse(raw) as { day?: string; earned?: number }) : null;
+    return v && v.day === dayKey() && typeof v.earned === "number" ? v.earned : 0;
+  } catch {
+    return 0;
+  }
 }
 
 export function getDoneLessons(): number[] {
@@ -620,33 +647,62 @@ function growOnce(pet: PetState): { pet: PetState; graduated: boolean } {
   return { pet: { stage: pet.stage + 1, generation: pet.generation }, graduated: false };
 }
 
-export type XpResult = GrowResult & { xp: number };
+export type EarnResult = GrowResult & { granted: number; capped: boolean; xp: number; total: number };
 
-// 작은 성취마다 경험치를 준다. 가득 차면 한 단계 성장(여러 단계도 가능).
-export function awardXp(amount: number): XpResult {
-  let pet = loadPet("chapter");
-  let xp = loadPetXp() + amount;
+// 마지막으로 코인을 받은 결과(성장 포함). 게임처럼 코인을 받는 곳과 축하 화면을 보여주는 곳이 다를 때 쓴다.
+let lastGrowth: GrowResult | null = null;
+export function consumeGrowth(): GrowResult | null {
+  const g = lastGrowth;
+  lastGrowth = null;
+  return g;
+}
+
+// 코인을 받는다. milestone(챕터/Lesson 완료 같은 한 번뿐인 보상)은 하루 한도를 적용하지 않는다.
+// 한도를 넘으면 받는 코인이 0이 되어 "오늘은 여기까지!" 상태가 된다.
+export function earnCoins(amount: number, track: PetTrack = "chapter", opts: { milestone?: boolean } = {}): EarnResult {
+  let pet = loadPet(track);
+  const before = coinsEarnedToday();
+  let granted = Math.max(0, Math.floor(amount));
+  let capped = false;
+  if (!opts.milestone) {
+    const room = Math.max(0, DAILY_COIN_CAP - before);
+    if (granted > room) {
+      granted = room;
+      capped = true;
+    }
+  }
+
+  let xp = loadPetXp(track) + granted;
   let grew = false;
   let graduated = false;
-  while (xp >= XP_PER_STAGE) {
-    xp -= XP_PER_STAGE;
+  while (xp >= COINS_PER_STAGE) {
+    xp -= COINS_PER_STAGE;
     const g = growOnce(pet);
     pet = g.pet;
     grew = true;
     graduated = graduated || g.graduated;
   }
-  if (grew) savePet(pet, "chapter");
-  savePetXp(xp);
-  return { pet, grew, graduated, xp };
+  const total = loadCoinsTotal() + granted;
+  if (typeof window !== "undefined") {
+    if (grew) savePet(pet, track);
+    savePetXp(xp, track);
+    saveCoinsTotal(total);
+    if (!opts.milestone) {
+      localStorage.setItem(COINS_DAY_KEY, JSON.stringify({ day: dayKey(), earned: before + granted }));
+    }
+    window.dispatchEvent(new CustomEvent("coins-changed", { detail: { granted, capped } }));
+  }
+  const result: EarnResult = { pet, grew, graduated, coins: granted, granted, capped, xp, total };
+  if (grew) lastGrowth = result;
+  return result;
 }
 
-// Lesson을 처음 끝까지 마쳤을 때 한 번만 한 단계 성장(같은 Lesson을 다시 해도 중복 성장 없음)
+// Lesson을 처음 끝까지 마쳤을 때 한 번만 보너스 코인(같은 Lesson을 다시 해도 중복 없음)
 export function completeLesson(lesson: number): GrowResult {
   const pet = loadPet("chapter");
   const done = getDoneLessons();
-  if (done.includes(lesson)) return { pet, grew: false, graduated: false };
+  if (done.includes(lesson)) return { pet, grew: false, graduated: false, coins: 0 };
   setDoneLessons([...done, lesson]);
-  const g = growOnce(pet);
-  savePet(g.pet, "chapter");
-  return { pet: g.pet, grew: true, graduated: g.graduated };
+  const r = earnCoins(COINS_LESSON_DONE, "chapter", { milestone: true });
+  return { pet: r.pet, grew: r.grew, graduated: r.graduated, coins: r.granted };
 }

@@ -38,6 +38,7 @@ import ChapterUpload from "@/components/ChapterUpload";
 import ChapterReader from "@/components/ChapterReader";
 import PetDisplay from "@/components/PetDisplay";
 import FriendDex from "@/components/FriendDex";
+import CoinWallet from "@/components/CoinWallet";
 import VocabList from "@/components/VocabList";
 import VocabUpload from "@/components/VocabUpload";
 import VocabStudy from "@/components/VocabStudy";
@@ -314,6 +315,8 @@ export default function Home() {
         <h1 className="font-title text-black text-4xl text-center">오늘도 호 English</h1>
         <span className="rounded-full bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1">청크북 새 버전 (미리보기)</span>
       </header>
+
+      <CoinWallet />
 
       {syncMessage && (
         <div className="w-full max-w-4xl rounded-2xl bg-sky-50 border-2 border-sky-200 p-3 text-center">

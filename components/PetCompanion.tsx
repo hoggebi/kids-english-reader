@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MAX_STAGE, XP_PER_STAGE, getPetImagePath, getStageInfo, loadPet, loadPetXp, type PetState } from "@/lib/pet";
+import { COINS_PER_STAGE, MAX_STAGE, getPetImagePath, getStageInfo, loadPet, loadPetXp, type PetState } from "@/lib/pet";
 
 // 청크북 Lesson 화면 위쪽에서 같이 공부하는 캐릭터. tick이 바뀔 때마다 최신 상태를 다시 읽고,
 // message가 있으면 말풍선으로 반응한다.
@@ -39,10 +39,10 @@ export default function PetCompanion({ tick, message, popping = false }: { tick:
         </p>
         <div className="flex items-center gap-2">
           <div className="flex-1 h-2 rounded-full bg-gray-200 overflow-hidden">
-            <div className="h-full bg-sky-500 transition-all duration-500" style={{ width: `${(xp / XP_PER_STAGE) * 100}%` }} />
+            <div className="h-full bg-sky-500 transition-all duration-500" style={{ width: `${(xp / COINS_PER_STAGE) * 100}%` }} />
           </div>
           <span className="text-xs text-gray-400 font-bold shrink-0">
-            {pet.stage}/{MAX_STAGE}단계
+            🪙 {xp}/{COINS_PER_STAGE} · {pet.stage}/{MAX_STAGE}단계
           </span>
         </div>
       </div>
