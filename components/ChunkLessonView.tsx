@@ -24,6 +24,12 @@ import {
 import { builtinRoles } from "@/lib/chunkbookBuiltin";
 import { clearBookText, loadBookText, saveBookText } from "@/lib/chunkBookText";
 import { autoPush } from "@/lib/sync";
+import { awardXp, completeLesson, type GrowResult } from "@/lib/pet";
+import PetCompanion from "./PetCompanion";
+
+const CHEERS = ["잘했어, 호야!", "우와, 대단해!", "나도 신나!", "호야 최고야!", "한 번 더 해볼까?"];
+const cheerFor = (r: Pick<GrowResult, "grew" | "graduated">, extra = "") =>
+  r.graduated ? "다 컸어! 새 친구를 만나러 가자! 도감을 확인해 봐!" : r.grew ? `와! 나 쑥 자랐어! ${extra}`.trim() : CHEERS[Math.floor(Math.random() * CHEERS.length)];
 
 type Mode = "home" | "read" | "write" | "review" | "roles";
 
@@ -57,6 +63,8 @@ function ReadListen({
   const watchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rowRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const supported = speakSupported();
+  const [petTick, setPetTick] = useState(0);
+  const [cheer, setCheer] = useState<string | null>(null);
 
   const stopAll = useCallback(() => {
     token.current += 1;
@@ -83,6 +91,10 @@ function ReadListen({
           setStatus("ended");
           setEndedThisVisit((n) => n + 1);
           setListens(bumpListens(lesson));
+          // 끝까지 한 바퀴 들을 때마다 경험치 +2
+          const r = awardXp(2);
+          setCheer(cheerFor(r, "(듣기 한 바퀴!)"));
+          setPetTick((n) => n + 1);
           autoPush();
           return;
         }
@@ -147,6 +159,8 @@ function ReadListen({
           원본 페이지 보기
         </button>
       </div>
+
+      <PetCompanion tick={petTick} message={cheer} popping={cheer !== null && status === "ended"} />
 
       {!supported && <p className="text-sm text-amber-700">이 기기에서는 음성을 쓸 수 없어요. 화면의 문장을 읽어 보세요.</p>}
       {listens > 0 && endedThisVisit === 0 && <p className="text-xs text-gray-500">이 Lesson을 {listens}번 들었어요.</p>}
@@ -285,6 +299,8 @@ function WritingActivity({
     return fresh;
   });
   const [hint, setHint] = useState(false);
+  const [petTick, setPetTick] = useState(0);
+  const [cheer, setCheer] = useState<string | null>(null);
 
   useEffect(() => {
     saveActivity(lesson, act);
@@ -302,6 +318,21 @@ function WritingActivity({
   function go(delta: number) {
     stop();
     setHint(false);
+    if (delta > 0) {
+      // 문장을 쓸 때마다 경험치 +1, Lesson을 처음 끝까지 마치면 한 단계 보너스 성장
+      let r: Pick<GrowResult, "grew" | "graduated"> = awardXp(1);
+      let msg = cheerFor(r);
+      if (act.pos + delta >= n) {
+        const done = completeLesson(lesson);
+        if (done.grew) {
+          r = done;
+          msg = cheerFor(done, `Lesson ${lesson} 도장도 받았어! ⭐`);
+        }
+      }
+      setCheer(msg);
+      setPetTick((t) => t + 1);
+      autoPush();
+    }
     setAct((a) => {
       const pos = a.pos + delta;
       if (pos >= n) return { ...a, pos: n - 1, completed: true };
@@ -338,6 +369,9 @@ function WritingActivity({
   if (act.completed) {
     return (
       <div className="flex flex-col items-center gap-4 py-6 text-center" data-testid="write-done">
+        <div className="w-full text-left">
+          <PetCompanion tick={petTick} message={cheer} popping />
+        </div>
         <p className="text-2xl font-bold text-sky-600">다 썼어요! 🎉</p>
         <p className="text-sm text-gray-500">Lesson {lesson}의 문장 {n}개를 모두 마쳤어요.</p>
         <div className="flex flex-wrap justify-center gap-2">
@@ -360,6 +394,9 @@ function WritingActivity({
 
   return (
     <div className="flex flex-col items-center gap-4" data-testid="write-activity">
+      <div className="w-full">
+        <PetCompanion tick={petTick} message={cheer} popping={cheer !== null} />
+      </div>
       <div className="w-full flex items-center justify-between">
         <button onClick={() => { stop(); onBack(); }} className="min-h-[44px] text-sm text-gray-500 underline">
           ← Lesson {lesson}

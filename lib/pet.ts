@@ -580,3 +580,73 @@ export function completeVocabRound(roundId: string): GrowResult {
   savePet(next, "vocab");
   return { pet: next, grew: true, graduated: false };
 }
+
+// ---------- 청크북 Lesson 동행: 작은 성취 경험치 + Lesson 완료 성장 ----------
+// 챕터 캐릭터가 청크북 Lesson에도 같이 다닌다. 문장 하나, 듣기 한 바퀴 같은 작은 행동마다 경험치가 쌓이고,
+// 경험치가 가득 차면 한 단계 자란다. Lesson을 처음 끝까지 마치면 보너스로 한 단계 더 자란다.
+const PET_XP_KEY = "chunkbook-v2-pet-xp";
+const DONE_LESSONS_KEY = "chunkbook-v2-done-lessons";
+export const XP_PER_STAGE = 10;
+
+export function loadPetXp(): number {
+  if (typeof window === "undefined") return 0;
+  const n = Number(localStorage.getItem(PET_XP_KEY));
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+}
+
+export function savePetXp(xp: number) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(PET_XP_KEY, String(Math.max(0, Math.floor(xp))));
+}
+
+export function getDoneLessons(): number[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(DONE_LESSONS_KEY);
+    const list = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(list) ? list.filter((n): n is number => typeof n === "number") : [];
+  } catch {
+    return [];
+  }
+}
+
+export function setDoneLessons(lessons: number[]) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(DONE_LESSONS_KEY, JSON.stringify(Array.from(new Set(lessons))));
+}
+
+function growOnce(pet: PetState): { pet: PetState; graduated: boolean } {
+  if (pet.stage >= MAX_STAGE) return { pet: { stage: 1, generation: pet.generation + 1 }, graduated: true };
+  return { pet: { stage: pet.stage + 1, generation: pet.generation }, graduated: false };
+}
+
+export type XpResult = GrowResult & { xp: number };
+
+// 작은 성취마다 경험치를 준다. 가득 차면 한 단계 성장(여러 단계도 가능).
+export function awardXp(amount: number): XpResult {
+  let pet = loadPet("chapter");
+  let xp = loadPetXp() + amount;
+  let grew = false;
+  let graduated = false;
+  while (xp >= XP_PER_STAGE) {
+    xp -= XP_PER_STAGE;
+    const g = growOnce(pet);
+    pet = g.pet;
+    grew = true;
+    graduated = graduated || g.graduated;
+  }
+  if (grew) savePet(pet, "chapter");
+  savePetXp(xp);
+  return { pet, grew, graduated, xp };
+}
+
+// Lesson을 처음 끝까지 마쳤을 때 한 번만 한 단계 성장(같은 Lesson을 다시 해도 중복 성장 없음)
+export function completeLesson(lesson: number): GrowResult {
+  const pet = loadPet("chapter");
+  const done = getDoneLessons();
+  if (done.includes(lesson)) return { pet, grew: false, graduated: false };
+  setDoneLessons([...done, lesson]);
+  const g = growOnce(pet);
+  savePet(g.pet, "chapter");
+  return { pet: g.pet, grew: true, graduated: g.graduated };
+}

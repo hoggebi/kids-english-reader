@@ -37,6 +37,7 @@ import ChapterList from "@/components/ChapterList";
 import ChapterUpload from "@/components/ChapterUpload";
 import ChapterReader from "@/components/ChapterReader";
 import PetDisplay from "@/components/PetDisplay";
+import FriendDex from "@/components/FriendDex";
 import VocabList from "@/components/VocabList";
 import VocabUpload from "@/components/VocabUpload";
 import VocabStudy from "@/components/VocabStudy";
@@ -44,7 +45,7 @@ import ChunkbookPanel from "@/components/ChunkbookPanel";
 import LessonPanel from "@/components/LessonPanel";
 import { isLessonSet, loadLessonPlan, refreshLessonSets, type LessonPlan } from "@/lib/lessonPlan";
 
-type Section = "chunkbook" | "chapters" | "vocab";
+type Section = "chunkbook" | "chapters" | "vocab" | "dex";
 type View = "list" | "add" | "read";
 
 export default function Home() {
@@ -349,6 +350,14 @@ export default function Home() {
         >
           단어장
         </button>
+        <button
+          onClick={() => setSection("dex")}
+          className={`flex-1 py-2 rounded-full font-bold transition ${
+            section === "dex" ? "bg-sky-600 text-white" : "text-gray-500"
+          }`}
+        >
+          도감
+        </button>
       </div>
 
       {/* 기기 간 자동 동기화 설정 (챕터/단어장 어느 목록 화면에서든 항상 보임) */}
@@ -434,6 +443,8 @@ export default function Home() {
           }}
         />
       )}
+
+      {section === "dex" && <FriendDex />}
 
       {section === "chapters" && view === "list" && (
         <>
