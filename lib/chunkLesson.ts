@@ -21,6 +21,7 @@ export type LessonText = {
   confirmedAt: number | null;
   bodyPages: number[];
   writingPage: number | null;
+  bookId?: string; // 이 본문을 확인·저장한 교재(내장 교재는 BUILTIN_BOOK_ID)
 };
 
 export type PageRoles = { body: number[]; writing: number | null };

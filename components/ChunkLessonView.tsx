@@ -6,14 +6,11 @@ import { renderPageBase64, type PdfDoc as PdfDocLike } from "@/lib/chunkbook";
 import {
   WORKSHEET_FULL_URL,
   bumpListens,
-  clearLessonText,
   isValidOrder,
   loadActivity,
-  loadLessonText,
   resetRoleOverride,
   resolveRoles,
   saveActivity,
-  saveLessonText,
   saveRoleOverride,
   shuffleOrder,
   worksheetStartPage,
@@ -24,6 +21,8 @@ import {
   type PageRoles,
   type WritingItem,
 } from "@/lib/chunkLesson";
+import { builtinRoles } from "@/lib/chunkbookBuiltin";
+import { clearBookText, loadBookText, saveBookText } from "@/lib/chunkBookText";
 import { autoPush } from "@/lib/sync";
 
 type Mode = "home" | "read" | "write" | "review" | "roles";
@@ -144,11 +143,7 @@ function ReadListen({
       </div>
 
       {!supported && <p className="text-sm text-amber-700">이 기기에서는 음성을 쓸 수 없어요. 화면의 문장을 읽어 보세요.</p>}
-      {listens > 0 && endedThisVisit === 0 && (
-        <button onClick={() => { stopAll(); onWrite(); }} className="self-start min-h-[44px] px-4 rounded-full bg-emerald-600 text-white text-sm font-bold">
-          바로 문장 보고 쓰기
-        </button>
-      )}
+      {listens > 0 && endedThisVisit === 0 && <p className="text-xs text-gray-500">이 Lesson을 {listens}번 들었어요.</p>}
 
       <ul className="flex flex-col gap-2">
         {lines.map((l, i) => {
@@ -215,6 +210,12 @@ function ReadListen({
         >
           ↺ 다시 듣기
         </button>
+        <button
+          onClick={() => { stopAll(); onWrite(); }}
+          className="min-h-[44px] px-4 rounded-full bg-emerald-500 text-white text-sm font-bold"
+        >
+          ✍️ 문장 보고 쓰기
+        </button>
       </div>
     </div>
   );
@@ -236,7 +237,7 @@ function WritingActivity({
   // 저장된 순서가 유효하면 복원, 아니면 새로 섞는다
   const [act, setAct] = useState<LessonActivity>(() => {
     const saved = loadActivity(lesson);
-    if (saved && isValidOrder(saved.order, n) && !saved.completed && saved.startedAt > 0) return saved;
+    if (saved && isValidOrder(saved.order, n) && !saved.completed && saved.startedAt > 0 && Number.isInteger(saved.pos) && saved.pos >= 0 && saved.pos < n) return saved;
     const fresh: LessonActivity = {
       listens: saved?.listens ?? 0,
       order: shuffleOrder(n),
@@ -574,8 +575,11 @@ export default function ChunkLessonView({
 }) {
   const lesson = lessonDef.lesson;
   const [mode, setMode] = useState<Mode>("home");
-  const [text, setText] = useState<LessonText | null>(() => loadLessonText(lesson));
-  const [roleState, setRoleState] = useState(() => resolveRoles(lesson, lessonDef.pages, book.pageCount));
+  const builtin = !!book.builtin;
+  const [text, setText] = useState<LessonText | null>(() => loadBookText(book, lesson));
+  const [roleState, setRoleState] = useState(() =>
+    builtin ? { roles: builtinRoles(lesson), custom: false } : resolveRoles(lesson, lessonDef.pages, book.pageCount),
+  );
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<LessonText | null>(null);
@@ -675,8 +679,8 @@ export default function ChunkLessonView({
   }
 
   function confirmText(t: LessonText) {
-    saveLessonText(t);
-    setText(t);
+    saveBookText(book, t);
+    setText(builtin ? loadBookText(book, lesson) : t);
     setDraft(null);
     setMode("home");
     autoPush();
@@ -780,22 +784,27 @@ export default function ChunkLessonView({
             본문·문장쓰기 확인/수정
           </button>
         )}
-        <button onClick={() => setMode("roles")} className="min-h-[44px] text-gray-600 underline">
-          페이지 역할 수정
-        </button>
-        {text && (
+        {!builtin && (
+          <button onClick={() => setMode("roles")} className="min-h-[44px] text-gray-600 underline">
+            페이지 역할 수정
+          </button>
+        )}
+        {text && (!builtin || text.status === "confirmed" && text.confirmedAt) ? (
           <button
             onClick={() => {
-              if (!confirm("저장된 본문과 확인한 내용을 지울까요? (다시 가져와야 해요)")) return;
-              clearLessonText(lesson);
-              setText(null);
+              const msg = builtin
+                ? "고쳐서 저장한 내용을 지우고 처음 확인해 둔 본문으로 되돌릴까요?"
+                : "저장된 본문과 확인한 내용을 지울까요? (다시 가져와야 해요)";
+              if (!confirm(msg)) return;
+              clearBookText(book, lesson);
+              setText(loadBookText(book, lesson));
               autoPush();
             }}
             className="min-h-[44px] text-gray-400 underline"
           >
-            저장된 본문 지우기
+            {builtin ? "처음 본문으로 되돌리기" : "저장된 본문 지우기"}
           </button>
-        )}
+        ) : null}
       </div>
       <p className="text-[11px] text-gray-400">
         학습지는 이 Lesson만 2쪽으로 나눈 파일이에요. 전체 학습지는{" "}

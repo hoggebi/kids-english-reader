@@ -18,6 +18,7 @@ import {
   requestPersistence,
   storageEstimate,
 } from "@/lib/chunkbook";
+import { BUILTIN_BOOK, builtinPageUrl } from "@/lib/chunkbookBuiltin";
 
 type PdfDoc = Awaited<ReturnType<typeof openPdf>>;
 
@@ -92,15 +93,33 @@ function PageThumb({ doc, docKey, page, label, onOpen }: { doc: PdfDoc; docKey: 
   );
 }
 
+function BuiltinThumb({ page, label, onOpen }: { page: number; label: string; onOpen: () => void }) {
+  return (
+    <button
+      onClick={onOpen}
+      className="flex flex-col items-center gap-1 rounded-xl border-2 border-gray-200 bg-white p-2 active:scale-95 transition min-h-[44px]"
+      aria-label={`${label} 미리보기 열기`}
+    >
+      <div className="w-full aspect-[3/4] bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={builtinPageUrl(page)} alt={`${label} 미리보기`} loading="lazy" className="w-full h-full object-contain" />
+      </div>
+      <span className="text-xs font-bold text-gray-700">{label}</span>
+    </button>
+  );
+}
+
 function PageViewer({
   doc,
+  directUrl,
   items,
   index,
   total,
   onIndex,
   onClose,
 }: {
-  doc: PdfDoc;
+  doc: PdfDoc | null;
+  directUrl?: (page: number) => string;
   items: { page: number; label: string }[];
   index: number;
   total: number;
@@ -110,8 +129,13 @@ function PageViewer({
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const item = items[index];
+  const [badUrl, setBadUrl] = useState<string | null>(null);
+  const directSrc = directUrl ? directUrl(item.page) : null;
+  const shownUrl = directSrc ?? url;
+  const shownFailed = directSrc ? badUrl === directSrc : failed;
 
   useEffect(() => {
+    if (directUrl || !doc) return;
     let cancelled = false;
     let created: string | null = null;
     // 화면 폭에 맞춘 큰 미리보기 (너무 크지 않게 상한)
@@ -133,7 +157,7 @@ function PageViewer({
       cancelled = true;
       if (created) URL.revokeObjectURL(created);
     };
-  }, [doc, item.page]);
+  }, [doc, directUrl, item.page]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -156,11 +180,16 @@ function PageViewer({
         </button>
       </div>
       <div className="flex-1 min-h-0 flex items-center justify-center px-2">
-        {url && !failed ? (
+        {shownUrl && !shownFailed ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={url} alt={`${item.label} 페이지`} className="max-w-full max-h-full object-contain bg-white" />
+          <img
+            src={shownUrl}
+            alt={`${item.label} 페이지`}
+            onError={() => setBadUrl(shownUrl)}
+            className="max-w-full max-h-full object-contain bg-white"
+          />
         ) : (
-          <p className="text-white/80">{failed ? "페이지를 불러오지 못했어요." : "불러오는 중…"}</p>
+          <p className="text-white/80">{shownFailed ? "페이지를 불러오지 못했어요." : "불러오는 중…"}</p>
         )}
       </div>
       <div className="flex items-center justify-center gap-3 p-3">
@@ -197,10 +226,14 @@ export default function ChunkbookPanel({
   onChange: (books: ChunkbookMeta[]) => void;
   onOpenVocab?: (lesson: number) => void;
 }) {
-  const book = books[0] ?? null;
+  // 앱에 내장된 청크북이 기본이다. 이 기기에 직접 가져온 PDF가 실제로 있을 때만 그 교재를 대신 보여준다.
+  const custom = books.find((b) => !b.builtin) ?? null;
+  const [customCheck, setCustomCheck] = useState<{ id: string; ok: boolean } | null>(null);
+  const customReady: "checking" | "yes" | "no" = !custom ? "no" : customCheck?.id === custom.id ? (customCheck.ok ? "yes" : "no") : "checking";
+  const book: ChunkbookMeta = custom && customReady === "yes" ? custom : BUILTIN_BOOK;
   const [imp, setImp] = useState<ImportState>({ phase: "idle" });
-  const [doc, setDoc] = useState<PdfDoc | null>(null);
-  const [fileState, setFileState] = useState<"checking" | "ok" | "missing">("checking");
+  const [docState, setDoc] = useState<PdfDoc | null>(null);
+  const [fileStateRaw, setFileState] = useState<"checking" | "ok" | "missing">("checking");
   const [selected, setSelected] = useState<number | null>(null);
   const [viewer, setViewer] = useState<number | null>(null);
   const [storage, setStorage] = useState<{ usage: number; quota: number } | null>(null);
@@ -209,11 +242,33 @@ export default function ChunkbookPanel({
   const docRef = useRef<PdfDoc | null>(null);
   const importingRef = useRef(false);
 
-  const bookId = book?.id ?? null;
+  const bookId = book.id;
+  const isBuiltin = !!book.builtin;
+  // 내장 교재는 PDF 없이 정적 이미지로 보여 주므로 항상 열려 있는 상태다.
+  const doc = isBuiltin ? null : docState;
+  const fileState: "checking" | "ok" | "missing" = isBuiltin ? "ok" : fileStateRaw;
+
+  // 직접 가져온 교재의 PDF가 이 기기에 있는지 확인한다(없으면 내장 교재를 보여준다).
+  useEffect(() => {
+    if (!custom) return;
+    let cancelled = false;
+    const id = custom.id;
+    hasPdf(id)
+      .then((ok) => !cancelled && setCustomCheck({ id, ok }))
+      .catch(() => !cancelled && setCustomCheck({ id, ok: false }));
+    return () => {
+      cancelled = true;
+    };
+  }, [custom?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 새로고침 후에도 저장된 PDF를 다시 열 수 있는지 확인하고 문서를 연다.
   useEffect(() => {
-    if (!bookId) return;
+    if (isBuiltin) {
+      // 내장 교재는 정적 이미지라 PDF를 열 필요가 없다.
+      destroyPdf(docRef.current);
+      docRef.current = null;
+      return;
+    }
     let cancelled = false;
     void (async () => {
       if (importingRef.current) return; // 방금 가져온 문서는 가져오기 쪽에서 이미 연다
@@ -240,7 +295,7 @@ export default function ChunkbookPanel({
     return () => {
       cancelled = true;
     };
-  }, [bookId]);
+  }, [bookId, isBuiltin]);
 
   useEffect(() => {
     return () => {
@@ -311,6 +366,7 @@ export default function ChunkbookPanel({
       setFileState("ok");
       setSelected(lessons[0]?.lesson ?? null);
       setDraft(null);
+      setCustomCheck({ id, ok: true });
       onChange([meta]);
       setImp({ phase: "idle" });
     } catch (e) {
@@ -321,10 +377,10 @@ export default function ChunkbookPanel({
   }
 
   async function handleDelete() {
-    if (!book) return;
-    if (!confirm("이 기기에서 청크북 PDF와 분류 정보를 지울까요?")) return;
+    if (!custom || isBuiltin) return;
+    if (!confirm("이 기기에 가져온 PDF를 지우고 기본 청크북으로 돌아갈까요?")) return;
     try {
-      await deletePdf(book.id);
+      await deletePdf(custom.id);
     } catch {
       /* ignore */
     }
@@ -333,11 +389,12 @@ export default function ChunkbookPanel({
     setDoc(null);
     setSelected(null);
     setViewer(null);
+    setCustomCheck(null);
     onChange([]);
   }
 
   function startEditRanges() {
-    if (!book) return;
+    if (isBuiltin) return;
     setDraft(
       book.lessons.map((l) => ({ lesson: l.lesson, start: Math.min(...l.pages), end: Math.max(...l.pages) })),
     );
@@ -345,7 +402,7 @@ export default function ChunkbookPanel({
   }
 
   function confirmRanges() {
-    if (!book || !draft) return;
+    if (isBuiltin || !draft) return;
     let prevEnd = 0;
     for (const r of draft) {
       if (!(r.start >= 1 && r.end >= r.start && r.end <= book.pageCount)) {
@@ -385,28 +442,6 @@ export default function ChunkbookPanel({
     </label>
   );
 
-  // ---------- 가져오기 전 ----------
-  if (!book) {
-    return (
-      <div className="w-full max-w-4xl flex flex-col gap-4">
-        <div className="rounded-2xl bg-gray-50 p-5 flex flex-col gap-3 items-start">
-          <p className="text-lg font-bold text-gray-800">청크북 PDF를 가져와요</p>
-          <p className="text-sm text-gray-600">
-            PDF 한 파일을 그대로 보관하고, 페이지 레이블의 Lesson 번호로 Lesson 별로 나눠서 보여줘요.
-          </p>
-          {fileInput("PDF 파일 선택")}
-          {imp.phase === "working" && <p className="text-sm text-sky-700 font-bold">{imp.message}</p>}
-          {imp.phase === "error" && <p className="text-sm text-red-600 font-bold">⚠️ {imp.message}</p>}
-          <ul className="text-xs text-gray-500 list-disc pl-5 flex flex-col gap-1">
-            <li>파일은 서버로 올리지 않고 이 기기 브라우저에만 저장돼요. (큰 스캔 PDF는 서버 업로드 제한이 있어요)</li>
-            <li>다른 기기에서 보려면 그 기기에서도 같은 PDF를 한 번 가져와야 해요. 레슨 분류 정보는 동기화돼요.</li>
-            {storage && <li>이 기기 저장 공간: 사용 {formatBytes(storage.usage)} / 약 {formatBytes(storage.quota)}</li>}
-          </ul>
-        </div>
-      </div>
-    );
-  }
-
   // ---------- 가져온 뒤 ----------
   const needsConfirm = !book.confirmed;
   const editing = draft !== null;
@@ -418,23 +453,43 @@ export default function ChunkbookPanel({
           <div className="min-w-0">
             <p className="text-lg font-bold text-gray-800 truncate">{book.title}</p>
             <p className="text-xs text-gray-500">
-              {book.pageCount}쪽 · {formatBytes(book.size)} · {new Date(book.importedAt).toLocaleDateString("ko-KR")} 가져옴 ·{" "}
-              {book.labelSource === "pdf-labels" ? "페이지 레이블로 분류" : "기본 범위로 분류"}
+              {isBuiltin ? (
+                <>
+                  Lesson 2~8 · {book.pageCount}쪽 · 앱에 들어 있어서 바로 볼 수 있어요
+                </>
+              ) : (
+                <>
+                  {book.pageCount}쪽 · {formatBytes(book.size)} · {new Date(book.importedAt).toLocaleDateString("ko-KR")} 가져옴 ·{" "}
+                  {book.labelSource === "pdf-labels" ? "페이지 레이블로 분류" : "기본 범위로 분류"}
+                </>
+              )}
             </p>
           </div>
-          <div className="flex gap-2 shrink-0">
-            {fileInput("다시 가져오기", false)}
-            <button onClick={handleDelete} className="min-h-[48px] px-4 rounded-full bg-gray-100 text-gray-600 font-bold">
-              지우기
-            </button>
-          </div>
+          {!isBuiltin && (
+            <div className="flex gap-2 shrink-0">
+              {fileInput("다시 가져오기", false)}
+              <button onClick={handleDelete} className="min-h-[48px] px-4 rounded-full bg-gray-100 text-gray-600 font-bold">
+                지우고 기본 청크북으로
+              </button>
+            </div>
+          )}
         </div>
         {imp.phase === "working" && <p className="text-sm text-sky-700 font-bold">{imp.message}</p>}
         {imp.phase === "error" && <p className="text-sm text-red-600 font-bold">⚠️ {imp.message}</p>}
-        {fileState === "missing" && (
-          <p className="text-sm text-amber-700 font-bold">
-            이 기기에는 PDF 파일이 없어요. 위의 &quot;다시 가져오기&quot;로 같은 PDF를 선택해 주세요.
+        {custom && customReady === "no" && isBuiltin && (
+          <p className="text-xs text-gray-500">
+            이 기기에는 가져온 PDF가 없어서 기본 청크북을 보여주고 있어요. 따로 할 일은 없어요.
           </p>
+        )}
+        {isBuiltin && (
+          <details className="text-xs text-gray-500">
+            <summary className="min-h-[44px] flex items-center cursor-pointer">다른 PDF로 보고 싶을 때 (선택)</summary>
+            <div className="flex flex-col gap-2 pb-2">
+              <p>PDF는 이 기기 브라우저에만 저장돼요. 다른 기기에서는 기본 청크북이 보여요.</p>
+              {fileInput("PDF 직접 가져오기", false)}
+              {storage && <p>이 기기 저장 공간: 사용 {formatBytes(storage.usage)} / 약 {formatBytes(storage.quota)}</p>}
+            </div>
+          </details>
         )}
       </div>
 
@@ -550,29 +605,36 @@ export default function ChunkbookPanel({
       )}
 
       {/* 원본 페이지 보기 */}
-      {current && doc && fileState === "ok" && (
+      {current && (isBuiltin || (doc && fileState === "ok")) && (
         <div className="flex flex-col gap-2">
           <p className="text-sm font-bold text-gray-700">Lesson {current.lesson} 원본 페이지</p>
           <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2" data-testid="page-grid">
             {current.pages.map((p, i) => (
-              <PageThumb
-                key={`${book.id}-${p}`}
-                doc={doc}
-                docKey={book.id}
-                page={p}
-                label={current.labels[i] ?? `p.${p}`}
-                onOpen={() => setViewer(i)}
-              />
+              isBuiltin ? (
+                <BuiltinThumb key={`${book.id}-${p}`} page={p} label={current.labels[i] ?? `p.${p}`} onOpen={() => setViewer(i)} />
+              ) : (
+                doc && (
+                  <PageThumb
+                    key={`${book.id}-${p}`}
+                    doc={doc}
+                    docKey={book.id}
+                    page={p}
+                    label={current.labels[i] ?? `p.${p}`}
+                    onOpen={() => setViewer(i)}
+                  />
+                )
+              )
             ))}
           </div>
         </div>
       )}
-      {current && fileState === "checking" && <p className="text-sm text-gray-500">파일을 여는 중…</p>}
+      {current && !isBuiltin && fileState === "checking" && <p className="text-sm text-gray-500">파일을 여는 중…</p>}
       {!current && <p className="text-sm text-gray-400">Lesson을 눌러 읽고 듣기·문장 보고 쓰기를 시작해요.</p>}
 
-      {viewer !== null && doc && current && (
+      {viewer !== null && (isBuiltin || doc) && current && (
         <PageViewer
           doc={doc}
+          directUrl={isBuiltin ? builtinPageUrl : undefined}
           items={viewerItems}
           index={viewer}
           total={book.pageCount}

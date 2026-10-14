@@ -22,6 +22,7 @@ export type ChunkbookMeta = {
   lessons: ChunkLesson[];
   labelSource: "pdf-labels" | "fallback";
   confirmed: boolean; // fallback 범위는 사용자가 확인해야 true
+  builtin?: boolean; // 앱에 내장된 청크북(저장소·동기화 대상이 아니다)
 };
 
 const META_KEY = "chunkbook-v2-chunkbooks";
