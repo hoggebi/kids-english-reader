@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { VocabWord } from "@/lib/types";
-import { nextMonster, type Monster } from "@/lib/monsters";
+import { isBossRound, nextMonster, type Monster } from "@/lib/monsters";
 import { COINS_BATTLE_BOSS, COINS_BATTLE_STAGE, COINS_BATTLE_WORD, earnCoins } from "@/lib/pet";
 import { CoinAmount } from "./Coin";
 import { FeverHud, useFever } from "./FeverKit";
@@ -26,7 +26,7 @@ import { loadBattleProgress, saveBattleProgress, BATTLE_STAGE_CAP } from "@/lib/
 type Feedback = "correct" | "wrong" | null;
 type AttackStyle = "dash" | "swoop" | "lowdash";
 type EntranceKind = "normal" | "warning" | "boss";
-type Phase = "intro" | "battle" | "gameover" | "setCleared";
+type Phase = "resume" | "intro" | "battle" | "gameover" | "setCleared";
 type IntroStage = "enter" | "hold" | "vs" | "vsOut" | "warning" | "warningOut";
 type AttackStage = "windup" | "dash" | "impact" | "fadeout" | "recover" | null;
 type KoStage = "hold" | "defeat" | "panel" | null;
@@ -305,7 +305,9 @@ export default function BattleGame({
   const [fxKey, setFxKey] = useState(0);
   const [entranceKind, setEntranceKind] = useState<EntranceKind>("normal");
   const [screenShakeKey, setScreenShakeKey] = useState(0);
-  const [phase, setPhase] = useState<Phase>(initialDefeatedCount >= BATTLE_STAGE_CAP ? "setCleared" : "intro");
+  const [phase, setPhase] = useState<Phase>(
+    initialDefeatedCount >= BATTLE_STAGE_CAP ? "setCleared" : initialDefeatedCount > 0 ? "resume" : "intro",
+  );
   const [introStage, setIntroStage] = useState<IntroStage>("enter");
   const [slidIn, setSlidIn] = useState(false);
   const [introKey, setIntroKey] = useState(0);
@@ -408,7 +410,31 @@ export default function BattleGame({
     setPlayerHp(PLAYER_MAX_HP);
     setCombo(0);
     fever.reset();
-    beginEncounter(defeatedCount);
+    // 보스에게 졌다면 보스가 아닌 직전 일반 스테이지부터 다시 도전한다(바로 다시 보스를 만나지 않게).
+    const start = isBossRound(defeatedCount) ? Math.max(0, defeatedCount - 1) : defeatedCount;
+    if (start !== defeatedCount) {
+      setDefeatedCount(start);
+      setDefeatedTotal(start);
+      saveBattleProgress(setId, { defeatedCount: start, wordIds });
+    }
+    beginEncounter(start);
+  }
+
+  // 저장된 스테이지에서 이어서 시작
+  function handleResume() {
+    beginEncounter(initialDefeatedCount);
+  }
+
+  // 처음(스테이지 1)부터 다시 시작
+  function handleRestartFromFirst() {
+    setDefeatedCount(0);
+    setDefeatedTotal(0);
+    saveBattleProgress(setId, { defeatedCount: 0, wordIds });
+    setTeam(["tiger"]);
+    setPlayerHp(PLAYER_MAX_HP);
+    setCombo(0);
+    fever.reset();
+    beginEncounter(0);
   }
 
   // 글자 타일을 눌러 스펠링을 완성하면(다 채워지면) 자동으로 정답 여부를 판정한다.
@@ -662,7 +688,8 @@ export default function BattleGame({
   // 첫 몬스터도 HP 랜덤 타수/등장 연출이 제대로 적용되도록 마운트 시 한 번 다시 굴린다.
   // 이미 10스테이지를 다 깬 단어 묶음이면(phase가 이미 setCleared로 시작) 전투를 시작하지 않는다.
   useEffect(() => {
-    if (initialDefeatedCount < BATTLE_STAGE_CAP) {
+    // 이어하기(저장된 스테이지가 있음)이면 시작 화면에서 고른 뒤에 시작한다.
+    if (initialDefeatedCount === 0) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- 최초 스테이지 진입 자체가 이 컴포넌트의 목적이라 마운트 시 곧바로 시작한다.
       beginEncounter(initialDefeatedCount);
     }
@@ -708,6 +735,10 @@ export default function BattleGame({
   // 한 판이 끝나면(10스테이지 클리어 또는 게임 오버) 자동 성장 기록을 한 번 남긴다.
   const completedRef = useRef(false);
   useEffect(() => {
+    // 보스에게 져서 끝난 경우, 다음에 들어올 때도 바로 보스가 아니라 직전 일반 스테이지에서 시작하도록 저장한다.
+    if (phase === "gameover" && isBossRound(defeatedCount) && defeatedCount > 0) {
+      saveBattleProgress(setId, { defeatedCount: defeatedCount - 1, wordIds });
+    }
     if ((phase === "setCleared" || phase === "gameover") && !completedRef.current) {
       completedRef.current = true;
       onComplete?.();
@@ -728,6 +759,39 @@ export default function BattleGame({
         <button onClick={onDone} className="px-6 py-2 rounded-full bg-sky-600 text-white font-bold">
           확인
         </button>
+      </div>
+    );
+  }
+
+  if (phase === "resume") {
+    return (
+      <div className="relative rounded-3xl bg-white flex flex-col items-center gap-4 px-6 py-10">
+        <BattleStyles />
+        <span className="text-4xl">⚔️</span>
+        <p className="text-xl font-bold text-sky-600 text-center leading-relaxed">
+          STAGE {initialDefeatedCount + 1}부터 이어서 해요
+        </p>
+        <p className="text-gray-600 text-sm text-center leading-relaxed">
+          지난번에 몬스터 {initialDefeatedCount}마리를 물리쳤어요.
+          {isBossRound(initialDefeatedCount) ? " 다음은 보스예요!" : ""}
+        </p>
+        <div className="flex flex-col gap-2 w-full max-w-xs">
+          <button
+            onClick={handleResume}
+            className="w-full py-3 rounded-full bg-sky-600 text-white font-bold active:scale-95 transition"
+          >
+            STAGE {initialDefeatedCount + 1}부터 이어하기
+          </button>
+          <button
+            onClick={handleRestartFromFirst}
+            className="w-full py-3 rounded-full bg-gray-100 text-gray-700 font-bold active:scale-95 transition"
+          >
+            처음부터 하기
+          </button>
+          <button onClick={onDone} className="text-sm text-gray-400 underline self-center mt-1">
+            그만하기
+          </button>
+        </div>
       </div>
     );
   }
