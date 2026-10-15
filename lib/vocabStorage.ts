@@ -255,6 +255,19 @@ export function extendDailySession(set: VocabSet, session: VocabDailySession): V
 // ---------- 오늘 이 단어장으로 어떤 게임을 마쳤는지 기록 ----------
 // 게임별 성장은 다트·두더지·몬스터 3종 사이클(lib/pet.ts recordGameCycleProgress)이 맡는다.
 
+export const LESSON_GAME_KINDS = ["hunt", "mole", "battle"] as const;
+
+// 오늘 이 단어장으로 마친 게임 종류(hunt=다트, mole=두더지, battle=몬스터).
+export function loadGamesPlayedToday(setId: string): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(`${GAMES_PLAYED_PREFIX}${setId}-${todayKey()}`);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 export function recordVocabGamePlayed(
   setId: string,
   kind: string
@@ -270,7 +283,9 @@ export function recordVocabGamePlayed(
   }
   if (!played.includes(kind)) played.push(kind);
   localStorage.setItem(key, JSON.stringify(played));
-  recordLessonGameDone(setId); // Lesson 진행 기록(게임 1회). 단어별 기록과는 별개
+  // Lesson의 "게임 완료"는 다트·두더지·몬스터 3가지를 모두 마쳤을 때만 기록한다. (단어별 기록과는 별개)
+  const all = LESSON_GAME_KINDS.every((k) => played.includes(k));
+  if (all) recordLessonGameDone(setId);
 
-  return { allGamesDoneToday: false };
+  return { allGamesDoneToday: all };
 }

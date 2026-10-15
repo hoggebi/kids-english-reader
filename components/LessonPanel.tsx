@@ -5,6 +5,7 @@ import type { VocabSet } from "@/lib/types";
 import { LESSON_DEFS, LESSON_NUMBERS, lessonSetId } from "@/lib/lessonData";
 import { confirmLessons, draftKey, restartLessonPlan, type LessonPlan, type MeaningDraft } from "@/lib/lessonPlan";
 import { lessonStatus } from "@/lib/lessonPlanCore";
+import { LESSON_GAME_KINDS, loadGamesPlayedToday } from "@/lib/vocabStorage";
 
 // 저장 전에 부모가 새 단어(교재 뜻)를 확인·수정하는 화면
 function LessonReview({
@@ -167,8 +168,12 @@ export default function LessonPanel({
   const doneToday = plan.completedOn !== null;
   const progress = plan.progress && plan.progress.lesson === current ? plan.progress : null;
   const studyDone = !!progress?.studyDone || doneToday;
-  const gameDone = !!progress?.gameDone || doneToday;
-  const actionLabel = doneToday ? "다시 하기" : progress?.studyDone ? "이어서 하기" : "학습 시작";
+  // 게임 완료는 다트·두더지·몬스터 3가지를 모두 마쳤을 때만. 하나라도 남았으면 "진행 중"으로 보여 준다.
+  const gamesPlayed = currentSet ? loadGamesPlayedToday(currentSet.id).filter((k) => (LESSON_GAME_KINDS as readonly string[]).includes(k)) : [];
+  const allGamesPlayed = gamesPlayed.length >= LESSON_GAME_KINDS.length;
+  const gameDone = (!!progress?.gameDone || doneToday) && allGamesPlayed;
+  const gameStarted = gamesPlayed.length > 0;
+  const actionLabel = doneToday && allGamesPlayed ? "다시 하기" : progress?.studyDone || studyDone ? "이어서 하기" : "학습 시작";
 
   return (
     <div className="w-full max-w-4xl flex flex-col gap-3" data-testid="lesson-panel">
@@ -198,9 +203,11 @@ export default function LessonPanel({
               <p className="mt-0.5 text-xs text-gray-500">
                 <span className={studyDone ? "font-bold text-sky-700" : ""}>학습 {studyDone ? "완료 ✓" : "전"}</span>
                 <span className="mx-1.5 text-gray-300">·</span>
-                <span className={gameDone ? "font-bold text-sky-700" : ""}>게임 {gameDone ? "완료 ✓" : "전"}</span>
+                <span className={gameDone ? "font-bold text-sky-700" : gameStarted ? "font-bold text-amber-700" : ""}>
+                  게임 {gameDone ? "완료 ✓" : gameStarted ? `진행 중 ${gamesPlayed.length}/${LESSON_GAME_KINDS.length}` : "전"}
+                </span>
               </p>
-              {doneToday && (
+              {doneToday && allGamesPlayed && (
                 <p className="mt-1 text-xs text-sky-800">오늘 Lesson {current}을 마쳤어요. 다음 학습일에 Lesson {Math.min(8, current + 1)}로 넘어가요.</p>
               )}
             </div>
