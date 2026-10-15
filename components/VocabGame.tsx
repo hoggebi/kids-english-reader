@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { VocabWord } from "@/lib/types";
 import {
   loadGameCycle,
@@ -164,6 +164,7 @@ export default function VocabGame({
   const [playKey, setPlayKey] = useState(0);
   const [cycle, setCycle] = useState<GameCycleState>(() => loadGameCycle());
   const [levelUp, setLevelUp] = useState<PetState | null>(null);
+  const recordedRef = useRef<string | null>(null);
 
   if (words.length === 0) {
     return (
@@ -262,22 +263,37 @@ export default function VocabGame({
 
   const handleRetry = () => setPlayKey((k) => k + 1);
 
-  // 게임을 완료(onDone)하면 오늘 이 게임 종류를 마쳤다고 기록하고(기존 방식 유지),
-  // 코인은 게임을 할 때마다 쌓이고, 3종을 모두 마치면 캐릭터가 자란다.
-  function handleGameDone() {
+  // 게임이 끝나 결과 화면이 뜨는 순간(onComplete) 자동으로 기록한다: 오늘 이 게임 종류를 마쳤다고 남기고,
+  // 코인은 게임 중에 쌓이며, 다트/두더지/몬스터 3종을 모두 마치면 캐릭터가 바로 한 단계 자란다.
+  // 같은 판(playKey)은 한 번만 기록해서, 나가기를 눌러도 두 번 세지 않는다.
+  function recordGameOnce(): boolean {
+    const id = `${kind}-${playKey}`;
+    if (recordedRef.current === id) return false;
+    recordedRef.current = id;
     if (kind) recordVocabGamePlayed(setId, kind);
-
-    autoPush();
-
     const cycleKind = kind ? CYCLE_KIND_BY_GAME[kind] : undefined;
     if (cycleKind) {
       const result = recordGameCycleProgress(cycleKind);
       setCycle(result.cycle);
+      // 성장/코인이 저장된 "뒤에" 서버로 올린다. (먼저 올리면 서버에는 자라기 전 값이 남고,
+      // 다음 동기화 때 그 값으로 되돌아가 캐릭터가 계속 같은 단계에 머문다.)
+      autoPush();
       if (result.leveledUp && result.grow) {
-        setLevelUp(result.grow.pet);
-        return; // 축하 화면을 먼저 보여주고, 확인을 누르면 onDone()이 호출된다.
+        setLevelUp(result.grow.pet); // 축하 화면. 확인을 누르면 onDone()이 호출된다.
+        return true;
       }
     }
+    autoPush();
+    return false;
+  }
+
+  function handleGameComplete() {
+    recordGameOnce();
+  }
+
+  // 결과 화면의 나가기/그만하기 등. 이미 기록된 판이면 다시 세지 않는다.
+  function handleGameDone() {
+    if (recordGameOnce()) return;
     onDone();
   }
 
@@ -288,16 +304,17 @@ export default function VocabGame({
         게임 다시 고르기
       </button>
       {kind === "hunt" && (
-        <DartGame key={playKey} words={words} onDone={handleGameDone} onRetry={handleRetry} onExit={() => setKind(null)} />
+        <DartGame key={playKey} words={words} onDone={handleGameDone} onComplete={handleGameComplete} onRetry={handleRetry} onExit={() => setKind(null)} />
       )}
       {kind === "mole" && (
-        <MoleGame key={playKey} words={words} onDone={handleGameDone} onRetry={handleRetry} onExit={() => setKind(null)} />
+        <MoleGame key={playKey} words={words} onDone={handleGameDone} onComplete={handleGameComplete} onRetry={handleRetry} onExit={() => setKind(null)} />
       )}
       {kind === "battle" && (
         <BattleGame
           key={playKey}
           words={words}
           onDone={handleGameDone}
+          onComplete={handleGameComplete}
           onRetry={handleRetry}
           setId={setId}
           onStudyMore={onStudyMore}

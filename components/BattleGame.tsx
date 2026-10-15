@@ -257,12 +257,14 @@ export default function BattleGame({
   onDone,
   setId,
   onStudyMore,
+  onComplete,
 }: {
   words: VocabWord[];
   onDone: () => void;
   onRetry: () => void;
   setId: string;
   onStudyMore?: () => void;
+  onComplete?: () => void; // 한 판이 끝나(10스테이지 클리어/게임 오버) 결과 화면이 뜰 때 한 번 호출
 }) {
   // 이 단어 묶음 기준 10스테이지 진행 상태. 학습한 단어가 바뀌면(=wordIds가 달라지면) 자동으로
   // 새 스테이지 1부터 다시 시작한다. 컴포넌트가 재마운트되기 전까진 값이 바뀌지 않으므로
@@ -693,6 +695,16 @@ export default function BattleGame({
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, feedback, question?.word.id]);
+
+  // 한 판이 끝나면(10스테이지 클리어 또는 게임 오버) 자동 성장 기록을 한 번 남긴다.
+  const completedRef = useRef(false);
+  useEffect(() => {
+    if ((phase === "setCleared" || phase === "gameover") && !completedRef.current) {
+      completedRef.current = true;
+      onComplete?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
 
   function toggleBgm() {
     const next = !bgmOn;

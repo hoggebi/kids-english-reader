@@ -606,11 +606,13 @@ export default function DartGame({
   onDone,
   onRetry,
   onExit,
+  onComplete,
 }: {
   words: VocabWord[];
   onDone: () => void;
   onRetry: () => void;
   onExit?: () => void;
+  onComplete?: () => void; // 10라운드를 끝내 결과 화면이 뜰 때 한 번 호출(자동 성장 기록)
 }) {
   const [pet] = useState(() => loadPet("vocab"));
   const [questions] = useState<Question[] | null>(() => buildRounds(words));
@@ -883,6 +885,7 @@ export default function DartGame({
       });
       token.current += 1;
       setStage("result");
+      onComplete?.();
       return;
     }
     startQuestion(i);

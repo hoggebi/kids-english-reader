@@ -4,7 +4,8 @@ const CHAPTER_PET_KEY = "chunkbook-v2-pet";
 const VOCAB_PET_KEY = "chunkbook-v2-vocab-pet";
 const DONE_CHAPTERS_KEY = "chunkbook-v2-done-chapters";
 const DONE_VOCAB_ROUNDS_KEY = "chunkbook-v2-done-vocab-rounds";
-const VOCAB_STAGE_BOOST_FLAG = "chunkbook-v2-vocab-stage-boost-v1";
+const VOCAB_STAGE_BOOST_FLAG = "chunkbook-v2-vocab-stage-boost-v2";
+const VOCAB_BOOST_STAGE = 4; // 어제 한 단계 자란 것을 반영해 단어장 캐릭터를 최소 4단계로 맞춘다(한 번만).
 
 export const MAX_STAGE = 8;
 
@@ -379,13 +380,16 @@ export function loadPet(track: PetTrack = "chapter"): PetState {
   }
 }
 
-// 단어장 여우는 처음 한 번만 3단계로 맞춰줌 (예전에 같이 쓰던 진행 단계를 단어장 쪽으로 옮김)
+// 단어장 캐릭터를 처음 한 번만 4단계로 맞춰줌. 이미 그 이상이면 아무것도 하지 않는다(절대 낮추지 않음).
 export function boostVocabStageOnce(): PetState | null {
   if (typeof window === "undefined") return null;
   if (localStorage.getItem(VOCAB_STAGE_BOOST_FLAG) === "1") return null;
-  const fresh: PetState = { stage: 3, generation: 1 };
-  savePet(fresh, "vocab");
   localStorage.setItem(VOCAB_STAGE_BOOST_FLAG, "1");
+  // 이미 더 많이 자랐다면(다른 기기에서 동기화된 값 등) 절대 낮추지 않는다.
+  const current = loadPet("vocab");
+  if (current.generation > 1 || current.stage >= VOCAB_BOOST_STAGE) return null;
+  const fresh: PetState = { stage: VOCAB_BOOST_STAGE, generation: 1 };
+  savePet(fresh, "vocab");
   return fresh;
 }
 

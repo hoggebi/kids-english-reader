@@ -193,11 +193,13 @@ export default function MoleGame({
   onDone,
   onRetry,
   onExit,
+  onComplete,
 }: {
   words: VocabWord[];
   onDone: () => void;
   onRetry: () => void;
   onExit?: () => void;
+  onComplete?: () => void; // 10문제를 끝내 결과 화면이 뜰 때 한 번 호출(자동 성장 기록)
 }) {
   const [questions] = useState<Question[] | null>(() => buildAlternatingQuestions(words, ROUND_COUNT));
   const leave = onExit ?? onDone;
@@ -526,6 +528,7 @@ export default function MoleGame({
     token.current += 1;
     cancelSpeech();
     setStage("result");
+    onComplete?.();
   }
 
   // 다음 문제로: 두더지가 내려갔다가 다음 문제의 세 마리가 올라온다.

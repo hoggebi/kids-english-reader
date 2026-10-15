@@ -1,7 +1,7 @@
 "use client";
 
 import { loadChapters, saveChapters } from "./storage";
-import { loadPet, savePet, setDoneChapterIds, getAllDoneChapterIds, loadPetXp, savePetXp, getDoneLessons, setDoneLessons, loadCoinsTotal, saveCoinsTotal, type PetState } from "./pet";
+import { loadPet, mergePetState, setDoneChapterIds, getAllDoneChapterIds, loadPetXp, savePetXp, getDoneLessons, setDoneLessons, loadCoinsTotal, saveCoinsTotal, type PetState } from "./pet";
 import { loadVocabSets, saveVocabSets } from "./vocabStorage";
 import { loadChunkbooks, saveChunkbooks, type ChunkbookMeta } from "./chunkbook";
 import { loadLessonPlanRaw, saveLessonPlan, type LessonPlan } from "./lessonPlan";
@@ -100,8 +100,10 @@ function applyServerPayload(data: Partial<SyncPayload> | null) {
   if (!data) return;
   if (data.chapters) saveChapters(data.chapters);
   if (data.doneChapterIds) setDoneChapterIds(data.doneChapterIds);
-  if (data.pet) savePet(data.pet, "chapter");
-  if (data.vocabPet) savePet(data.vocabPet, "vocab");
+  // 캐릭터 단계는 줄어들면 안 되므로 더 많이 자란 쪽을 쓴다. (서버에 오래된 값이 남아 있어도
+  // 이 기기에서 이미 자란 단계가 되돌아가지 않는다.)
+  if (data.pet) mergePetState(data.pet, "chapter");
+  if (data.vocabPet) mergePetState(data.vocabPet, "vocab");
   if (data.vocabSets) saveVocabSets(data.vocabSets);
   if (data.chunkbooks) saveChunkbooks(data.chunkbooks);
   if (data.lessonPlan) saveLessonPlan(data.lessonPlan);
