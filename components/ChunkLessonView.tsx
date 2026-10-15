@@ -23,6 +23,7 @@ import { clearBookText, loadBookText, saveBookText } from "@/lib/chunkBookText";
 import { autoPush } from "@/lib/sync";
 import { COINS_LISTEN, COINS_SENTENCE, completeLesson, earnCoins } from "@/lib/pet";
 import PetCompanion from "./PetCompanion";
+import { loadVoicePack, playVoiceIds, stopVoice, voiceIdsFor, type VoicePack } from "@/lib/voicePack";
 
 const CHEERS = ["잘했어, 호야!", "우와, 대단해!", "나도 신나!", "호야 최고야!", "한 번 더 해볼까?"];
 // 코인은 맞출 때마다 쌓이고, 캐릭터는 한 세트(Lesson)를 마칠 때 바로 자란다.
@@ -80,9 +81,22 @@ function ReadListen({
   const [petTick, setPetTick] = useState(0);
   const [cheer, setCheer] = useState<string | null>(null);
 
+  // 녹음 음성(MP3). 아직 못 불러왔거나 문장이 다르면 기기 음성으로 읽는다.
+  const packRef = useRef<VoicePack | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void loadVoicePack().then((p) => {
+      if (alive) packRef.current = p;
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const stopAll = useCallback(() => {
     token.current += 1;
     if (watchdog.current) clearTimeout(watchdog.current);
+    stopVoice();
     try {
       window.speechSynthesis?.cancel();
     } catch {
@@ -95,7 +109,7 @@ function ReadListen({
   // 영어만 읽는다. 한국어는 화면으로만 보여준다. 끝나면 다음 문장으로 강조가 이동한다.
   const playFrom = useCallback(
     (start: number) => {
-      if (!speakSupported() || lines.length === 0) return;
+      if ((!speakSupported() && !packRef.current) || lines.length === 0) return;
       stopAll();
       const tk = token.current;
       setStatus("playing");
@@ -113,6 +127,11 @@ function ReadListen({
           return;
         }
         setIdx(i);
+        const speakTts = () => {
+          if (!speakSupported()) {
+            say(i + 1);
+            return;
+          }
         const u = new SpeechSynthesisUtterance(lines[i].en);
         u.lang = "en-US";
         u.rate = READ_RATE;
@@ -128,6 +147,20 @@ function ReadListen({
         // 일부 기기에서 end 이벤트가 오지 않는 경우를 대비한 안전장치
         watchdog.current = setTimeout(next, 2500 + lines[i].en.length * 160); // 느리게 읽는 만큼 여유를 둔다
         window.speechSynthesis.speak(u);
+        };
+        const pack = packRef.current;
+        const section = lines[i].section;
+        const ordinal = lines.slice(0, i).filter((l) => l.section === section).length;
+        const ids = pack ? voiceIdsFor(pack, lesson, section, ordinal, lines[i].en) : null;
+        if (pack && ids) {
+          void playVoiceIds(pack, ids).then((ok) => {
+            if (tk !== token.current) return;
+            if (ok) say(i + 1);
+            else speakTts(); // 녹음 재생이 안 되면 기기 음성으로 이어서 읽는다
+          });
+          return;
+        }
+        speakTts();
       };
       say(start);
     },

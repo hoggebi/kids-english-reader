@@ -1,0 +1,664 @@
+{
+  "byId": {
+    "L2_body_01": "/audio/L2_body_01.mp3",
+    "L2_body_02": "/audio/L2_body_02.mp3",
+    "L2_body_03_1": "/audio/L2_body_03_1.mp3",
+    "L2_body_03_2": "/audio/L2_body_03_2.mp3",
+    "L2_body_04_1": "/audio/L2_body_04_1.mp3",
+    "L2_body_04_2": "/audio/L2_body_04_2.mp3",
+    "L2_body_04_3": "/audio/L2_body_04_3.mp3",
+    "L2_body_05_1": "/audio/L2_body_05_1.mp3",
+    "L2_body_05_2": "/audio/L2_body_05_2.mp3",
+    "L2_body_06": "/audio/L2_body_06.mp3",
+    "L2_body_07_1": "/audio/L2_body_07_1.mp3",
+    "L2_body_07_2": "/audio/L2_body_07_2.mp3",
+    "L2_body_08": "/audio/L2_body_08.mp3",
+    "L2_body_09_1": "/audio/L2_body_09_1.mp3",
+    "L2_body_09_2": "/audio/L2_body_09_2.mp3",
+    "L2_body_10": "/audio/L2_body_10.mp3",
+    "L2_dialogue_01": "/audio/L2_dialogue_01.mp3",
+    "L2_dialogue_02": "/audio/L2_dialogue_02.mp3",
+    "L2_dialogue_03": "/audio/L2_dialogue_03.mp3",
+    "L2_dialogue_04": "/audio/L2_dialogue_04.mp3",
+    "L3_body_01_1": "/audio/L3_body_01_1.mp3",
+    "L3_body_01_2": "/audio/L3_body_01_2.mp3",
+    "L3_body_02_1": "/audio/L3_body_02_1.mp3",
+    "L3_body_02_2": "/audio/L3_body_02_2.mp3",
+    "L3_body_03": "/audio/L3_body_03.mp3",
+    "L3_body_04": "/audio/L3_body_04.mp3",
+    "L3_body_05_1": "/audio/L3_body_05_1.mp3",
+    "L3_body_05_2": "/audio/L3_body_05_2.mp3",
+    "L3_body_05_3": "/audio/L3_body_05_3.mp3",
+    "L3_body_06_1": "/audio/L3_body_06_1.mp3",
+    "L3_body_06_2": "/audio/L3_body_06_2.mp3",
+    "L3_body_06_3": "/audio/L3_body_06_3.mp3",
+    "L3_body_07": "/audio/L3_body_07.mp3",
+    "L3_body_08_1": "/audio/L3_body_08_1.mp3",
+    "L3_body_08_2": "/audio/L3_body_08_2.mp3",
+    "L3_body_09": "/audio/L3_body_09.mp3",
+    "L3_body_10": "/audio/L3_body_10.mp3",
+    "L3_dialogue_01": "/audio/L3_dialogue_01.mp3",
+    "L3_dialogue_02": "/audio/L3_dialogue_02.mp3",
+    "L3_dialogue_03": "/audio/L3_dialogue_03.mp3",
+    "L3_dialogue_04": "/audio/L3_dialogue_04.mp3",
+    "L4_body_01": "/audio/L4_body_01.mp3",
+    "L4_body_02": "/audio/L4_body_02.mp3",
+    "L4_body_03": "/audio/L4_body_03.mp3",
+    "L4_body_04": "/audio/L4_body_04.mp3",
+    "L4_body_05": "/audio/L4_body_05.mp3",
+    "L4_body_06": "/audio/L4_body_06.mp3",
+    "L4_body_07": "/audio/L4_body_07.mp3",
+    "L4_body_08": "/audio/L4_body_08.mp3",
+    "L4_body_09": "/audio/L4_body_09.mp3",
+    "L4_body_10": "/audio/L4_body_10.mp3",
+    "L4_body_11": "/audio/L4_body_11.mp3",
+    "L4_dialogue_01": "/audio/L4_dialogue_01.mp3",
+    "L4_dialogue_02": "/audio/L4_dialogue_02.mp3",
+    "L4_dialogue_03": "/audio/L4_dialogue_03.mp3",
+    "L4_dialogue_04": "/audio/L4_dialogue_04.mp3",
+    "L5_body_01": "/audio/L5_body_01.mp3",
+    "L5_body_02_1": "/audio/L5_body_02_1.mp3",
+    "L5_body_02_2": "/audio/L5_body_02_2.mp3",
+    "L5_body_03_1": "/audio/L5_body_03_1.mp3",
+    "L5_body_03_2": "/audio/L5_body_03_2.mp3",
+    "L5_body_04": "/audio/L5_body_04.mp3",
+    "L5_body_05": "/audio/L5_body_05.mp3",
+    "L5_body_06_1": "/audio/L5_body_06_1.mp3",
+    "L5_body_06_2": "/audio/L5_body_06_2.mp3",
+    "L5_body_07": "/audio/L5_body_07.mp3",
+    "L5_body_08": "/audio/L5_body_08.mp3",
+    "L5_body_09": "/audio/L5_body_09.mp3",
+    "L5_body_10_1": "/audio/L5_body_10_1.mp3",
+    "L5_body_10_2": "/audio/L5_body_10_2.mp3",
+    "L5_dialogue_01": "/audio/L5_dialogue_01.mp3",
+    "L5_dialogue_02": "/audio/L5_dialogue_02.mp3",
+    "L5_dialogue_03": "/audio/L5_dialogue_03.mp3",
+    "L5_dialogue_04": "/audio/L5_dialogue_04.mp3",
+    "L6_body_01": "/audio/L6_body_01.mp3",
+    "L6_body_02": "/audio/L6_body_02.mp3",
+    "L6_body_03": "/audio/L6_body_03.mp3",
+    "L6_body_04": "/audio/L6_body_04.mp3",
+    "L6_body_05": "/audio/L6_body_05.mp3",
+    "L6_body_06": "/audio/L6_body_06.mp3",
+    "L6_body_07": "/audio/L6_body_07.mp3",
+    "L6_body_08": "/audio/L6_body_08.mp3",
+    "L6_body_09": "/audio/L6_body_09.mp3",
+    "L6_body_10": "/audio/L6_body_10.mp3",
+    "L6_body_11": "/audio/L6_body_11.mp3",
+    "L6_body_12": "/audio/L6_body_12.mp3",
+    "L6_body_13": "/audio/L6_body_13.mp3",
+    "L6_body_14": "/audio/L6_body_14.mp3",
+    "L6_dialogue_01": "/audio/L6_dialogue_01.mp3",
+    "L6_dialogue_02": "/audio/L6_dialogue_02.mp3",
+    "L6_dialogue_03": "/audio/L6_dialogue_03.mp3",
+    "L6_dialogue_04": "/audio/L6_dialogue_04.mp3",
+    "L7_body_01": "/audio/L7_body_01.mp3",
+    "L7_body_02_1": "/audio/L7_body_02_1.mp3",
+    "L7_body_02_2": "/audio/L7_body_02_2.mp3",
+    "L7_body_03_1": "/audio/L7_body_03_1.mp3",
+    "L7_body_03_2": "/audio/L7_body_03_2.mp3",
+    "L7_body_04": "/audio/L7_body_04.mp3",
+    "L7_body_05": "/audio/L7_body_05.mp3",
+    "L7_body_06_1": "/audio/L7_body_06_1.mp3",
+    "L7_body_06_2": "/audio/L7_body_06_2.mp3",
+    "L7_body_07": "/audio/L7_body_07.mp3",
+    "L7_body_08": "/audio/L7_body_08.mp3",
+    "L7_body_09": "/audio/L7_body_09.mp3",
+    "L7_body_10": "/audio/L7_body_10.mp3",
+    "L7_body_11_1": "/audio/L7_body_11_1.mp3",
+    "L7_body_11_2": "/audio/L7_body_11_2.mp3",
+    "L7_body_12": "/audio/L7_body_12.mp3",
+    "L7_body_13_1": "/audio/L7_body_13_1.mp3",
+    "L7_body_13_2": "/audio/L7_body_13_2.mp3",
+    "L7_body_13_3": "/audio/L7_body_13_3.mp3",
+    "L7_dialogue_01": "/audio/L7_dialogue_01.mp3",
+    "L7_dialogue_02": "/audio/L7_dialogue_02.mp3",
+    "L7_dialogue_03": "/audio/L7_dialogue_03.mp3",
+    "L7_dialogue_04": "/audio/L7_dialogue_04.mp3",
+    "L8_body_01": "/audio/L8_body_01.mp3",
+    "L8_body_02": "/audio/L8_body_02.mp3",
+    "L8_body_03": "/audio/L8_body_03.mp3",
+    "L8_body_04": "/audio/L8_body_04.mp3",
+    "L8_body_05": "/audio/L8_body_05.mp3",
+    "L8_body_06": "/audio/L8_body_06.mp3",
+    "L8_body_07": "/audio/L8_body_07.mp3",
+    "L8_body_08": "/audio/L8_body_08.mp3",
+    "L8_body_09": "/audio/L8_body_09.mp3",
+    "L8_body_10": "/audio/L8_body_10.mp3",
+    "L8_body_11": "/audio/L8_body_11.mp3",
+    "L8_body_12": "/audio/L8_body_12.mp3",
+    "L8_body_13": "/audio/L8_body_13.mp3",
+    "L8_dialogue_01": "/audio/L8_dialogue_01.mp3",
+    "L8_dialogue_02": "/audio/L8_dialogue_02.mp3",
+    "L8_dialogue_03": "/audio/L8_dialogue_03.mp3",
+    "L8_dialogue_04": "/audio/L8_dialogue_04.mp3"
+  },
+  "sentences": {
+    "L2_body_01": [
+      "L2_body_01"
+    ],
+    "L2_body_02": [
+      "L2_body_02"
+    ],
+    "L2_body_03": [
+      "L2_body_03_1",
+      "L2_body_03_2"
+    ],
+    "L2_body_04": [
+      "L2_body_04_1",
+      "L2_body_04_2",
+      "L2_body_04_3"
+    ],
+    "L2_body_05": [
+      "L2_body_05_1",
+      "L2_body_05_2"
+    ],
+    "L2_body_06": [
+      "L2_body_06"
+    ],
+    "L2_body_07": [
+      "L2_body_07_1",
+      "L2_body_07_2"
+    ],
+    "L2_body_08": [
+      "L2_body_08"
+    ],
+    "L2_body_09": [
+      "L2_body_09_1",
+      "L2_body_09_2"
+    ],
+    "L2_body_10": [
+      "L2_body_10"
+    ],
+    "L2_dialogue_01": [
+      "L2_dialogue_01"
+    ],
+    "L2_dialogue_02": [
+      "L2_dialogue_02"
+    ],
+    "L2_dialogue_03": [
+      "L2_dialogue_03"
+    ],
+    "L2_dialogue_04": [
+      "L2_dialogue_04"
+    ],
+    "L3_body_01": [
+      "L3_body_01_1",
+      "L3_body_01_2"
+    ],
+    "L3_body_02": [
+      "L3_body_02_1",
+      "L3_body_02_2"
+    ],
+    "L3_body_03": [
+      "L3_body_03"
+    ],
+    "L3_body_04": [
+      "L3_body_04"
+    ],
+    "L3_body_05": [
+      "L3_body_05_1",
+      "L3_body_05_2",
+      "L3_body_05_3"
+    ],
+    "L3_body_06": [
+      "L3_body_06_1",
+      "L3_body_06_2",
+      "L3_body_06_3"
+    ],
+    "L3_body_07": [
+      "L3_body_07"
+    ],
+    "L3_body_08": [
+      "L3_body_08_1",
+      "L3_body_08_2"
+    ],
+    "L3_body_09": [
+      "L3_body_09"
+    ],
+    "L3_body_10": [
+      "L3_body_10"
+    ],
+    "L3_dialogue_01": [
+      "L3_dialogue_01"
+    ],
+    "L3_dialogue_02": [
+      "L3_dialogue_02"
+    ],
+    "L3_dialogue_03": [
+      "L3_dialogue_03"
+    ],
+    "L3_dialogue_04": [
+      "L3_dialogue_04"
+    ],
+    "L4_body_01": [
+      "L4_body_01"
+    ],
+    "L4_body_02": [
+      "L4_body_02"
+    ],
+    "L4_body_03": [
+      "L4_body_03"
+    ],
+    "L4_body_04": [
+      "L4_body_04"
+    ],
+    "L4_body_05": [
+      "L4_body_05"
+    ],
+    "L4_body_06": [
+      "L4_body_06"
+    ],
+    "L4_body_07": [
+      "L4_body_07"
+    ],
+    "L4_body_08": [
+      "L4_body_08"
+    ],
+    "L4_body_09": [
+      "L4_body_09"
+    ],
+    "L4_body_10": [
+      "L4_body_10"
+    ],
+    "L4_body_11": [
+      "L4_body_11"
+    ],
+    "L4_dialogue_01": [
+      "L4_dialogue_01"
+    ],
+    "L4_dialogue_02": [
+      "L4_dialogue_02"
+    ],
+    "L4_dialogue_03": [
+      "L4_dialogue_03"
+    ],
+    "L4_dialogue_04": [
+      "L4_dialogue_04"
+    ],
+    "L5_body_01": [
+      "L5_body_01"
+    ],
+    "L5_body_02": [
+      "L5_body_02_1",
+      "L5_body_02_2"
+    ],
+    "L5_body_03": [
+      "L5_body_03_1",
+      "L5_body_03_2"
+    ],
+    "L5_body_04": [
+      "L5_body_04"
+    ],
+    "L5_body_05": [
+      "L5_body_05"
+    ],
+    "L5_body_06": [
+      "L5_body_06_1",
+      "L5_body_06_2"
+    ],
+    "L5_body_07": [
+      "L5_body_07"
+    ],
+    "L5_body_08": [
+      "L5_body_08"
+    ],
+    "L5_body_09": [
+      "L5_body_09"
+    ],
+    "L5_body_10": [
+      "L5_body_10_1",
+      "L5_body_10_2"
+    ],
+    "L5_dialogue_01": [
+      "L5_dialogue_01"
+    ],
+    "L5_dialogue_02": [
+      "L5_dialogue_02"
+    ],
+    "L5_dialogue_03": [
+      "L5_dialogue_03"
+    ],
+    "L5_dialogue_04": [
+      "L5_dialogue_04"
+    ],
+    "L6_body_01": [
+      "L6_body_01"
+    ],
+    "L6_body_02": [
+      "L6_body_02"
+    ],
+    "L6_body_03": [
+      "L6_body_03"
+    ],
+    "L6_body_04": [
+      "L6_body_04"
+    ],
+    "L6_body_05": [
+      "L6_body_05"
+    ],
+    "L6_body_06": [
+      "L6_body_06"
+    ],
+    "L6_body_07": [
+      "L6_body_07"
+    ],
+    "L6_body_08": [
+      "L6_body_08"
+    ],
+    "L6_body_09": [
+      "L6_body_09"
+    ],
+    "L6_body_10": [
+      "L6_body_10"
+    ],
+    "L6_body_11": [
+      "L6_body_11"
+    ],
+    "L6_body_12": [
+      "L6_body_12"
+    ],
+    "L6_body_13": [
+      "L6_body_13"
+    ],
+    "L6_body_14": [
+      "L6_body_14"
+    ],
+    "L6_dialogue_01": [
+      "L6_dialogue_01"
+    ],
+    "L6_dialogue_02": [
+      "L6_dialogue_02"
+    ],
+    "L6_dialogue_03": [
+      "L6_dialogue_03"
+    ],
+    "L6_dialogue_04": [
+      "L6_dialogue_04"
+    ],
+    "L7_body_01": [
+      "L7_body_01"
+    ],
+    "L7_body_02": [
+      "L7_body_02_1",
+      "L7_body_02_2"
+    ],
+    "L7_body_03": [
+      "L7_body_03_1",
+      "L7_body_03_2"
+    ],
+    "L7_body_04": [
+      "L7_body_04"
+    ],
+    "L7_body_05": [
+      "L7_body_05"
+    ],
+    "L7_body_06": [
+      "L7_body_06_1",
+      "L7_body_06_2"
+    ],
+    "L7_body_07": [
+      "L7_body_07"
+    ],
+    "L7_body_08": [
+      "L7_body_08"
+    ],
+    "L7_body_09": [
+      "L7_body_09"
+    ],
+    "L7_body_10": [
+      "L7_body_10"
+    ],
+    "L7_body_11": [
+      "L7_body_11_1",
+      "L7_body_11_2"
+    ],
+    "L7_body_12": [
+      "L7_body_12"
+    ],
+    "L7_body_13": [
+      "L7_body_13_1",
+      "L7_body_13_2",
+      "L7_body_13_3"
+    ],
+    "L7_dialogue_01": [
+      "L7_dialogue_01"
+    ],
+    "L7_dialogue_02": [
+      "L7_dialogue_02"
+    ],
+    "L7_dialogue_03": [
+      "L7_dialogue_03"
+    ],
+    "L7_dialogue_04": [
+      "L7_dialogue_04"
+    ],
+    "L8_body_01": [
+      "L8_body_01"
+    ],
+    "L8_body_02": [
+      "L8_body_02"
+    ],
+    "L8_body_03": [
+      "L8_body_03"
+    ],
+    "L8_body_04": [
+      "L8_body_04"
+    ],
+    "L8_body_05": [
+      "L8_body_05"
+    ],
+    "L8_body_06": [
+      "L8_body_06"
+    ],
+    "L8_body_07": [
+      "L8_body_07"
+    ],
+    "L8_body_08": [
+      "L8_body_08"
+    ],
+    "L8_body_09": [
+      "L8_body_09"
+    ],
+    "L8_body_10": [
+      "L8_body_10"
+    ],
+    "L8_body_11": [
+      "L8_body_11"
+    ],
+    "L8_body_12": [
+      "L8_body_12"
+    ],
+    "L8_body_13": [
+      "L8_body_13"
+    ],
+    "L8_dialogue_01": [
+      "L8_dialogue_01"
+    ],
+    "L8_dialogue_02": [
+      "L8_dialogue_02"
+    ],
+    "L8_dialogue_03": [
+      "L8_dialogue_03"
+    ],
+    "L8_dialogue_04": [
+      "L8_dialogue_04"
+    ]
+  },
+  "lessons": {
+    "2": {
+      "body": [
+        "L2_body_01",
+        "L2_body_02",
+        "L2_body_03_1",
+        "L2_body_03_2",
+        "L2_body_04_1",
+        "L2_body_04_2",
+        "L2_body_04_3",
+        "L2_body_05_1",
+        "L2_body_05_2",
+        "L2_body_06",
+        "L2_body_07_1",
+        "L2_body_07_2",
+        "L2_body_08",
+        "L2_body_09_1",
+        "L2_body_09_2",
+        "L2_body_10"
+      ],
+      "dialogue": [
+        "L2_dialogue_01",
+        "L2_dialogue_02",
+        "L2_dialogue_03",
+        "L2_dialogue_04"
+      ]
+    },
+    "3": {
+      "body": [
+        "L3_body_01_1",
+        "L3_body_01_2",
+        "L3_body_02_1",
+        "L3_body_02_2",
+        "L3_body_03",
+        "L3_body_04",
+        "L3_body_05_1",
+        "L3_body_05_2",
+        "L3_body_05_3",
+        "L3_body_06_1",
+        "L3_body_06_2",
+        "L3_body_06_3",
+        "L3_body_07",
+        "L3_body_08_1",
+        "L3_body_08_2",
+        "L3_body_09",
+        "L3_body_10"
+      ],
+      "dialogue": [
+        "L3_dialogue_01",
+        "L3_dialogue_02",
+        "L3_dialogue_03",
+        "L3_dialogue_04"
+      ]
+    },
+    "4": {
+      "body": [
+        "L4_body_01",
+        "L4_body_02",
+        "L4_body_03",
+        "L4_body_04",
+        "L4_body_05",
+        "L4_body_06",
+        "L4_body_07",
+        "L4_body_08",
+        "L4_body_09",
+        "L4_body_10",
+        "L4_body_11"
+      ],
+      "dialogue": [
+        "L4_dialogue_01",
+        "L4_dialogue_02",
+        "L4_dialogue_03",
+        "L4_dialogue_04"
+      ]
+    },
+    "5": {
+      "body": [
+        "L5_body_01",
+        "L5_body_02_1",
+        "L5_body_02_2",
+        "L5_body_03_1",
+        "L5_body_03_2",
+        "L5_body_04",
+        "L5_body_05",
+        "L5_body_06_1",
+        "L5_body_06_2",
+        "L5_body_07",
+        "L5_body_08",
+        "L5_body_09",
+        "L5_body_10_1",
+        "L5_body_10_2"
+      ],
+      "dialogue": [
+        "L5_dialogue_01",
+        "L5_dialogue_02",
+        "L5_dialogue_03",
+        "L5_dialogue_04"
+      ]
+    },
+    "6": {
+      "body": [
+        "L6_body_01",
+        "L6_body_02",
+        "L6_body_03",
+        "L6_body_04",
+        "L6_body_05",
+        "L6_body_06",
+        "L6_body_07",
+        "L6_body_08",
+        "L6_body_09",
+        "L6_body_10",
+        "L6_body_11",
+        "L6_body_12",
+        "L6_body_13",
+        "L6_body_14"
+      ],
+      "dialogue": [
+        "L6_dialogue_01",
+        "L6_dialogue_02",
+        "L6_dialogue_03",
+        "L6_dialogue_04"
+      ]
+    },
+    "7": {
+      "body": [
+        "L7_body_01",
+        "L7_body_02_1",
+        "L7_body_02_2",
+        "L7_body_03_1",
+        "L7_body_03_2",
+        "L7_body_04",
+        "L7_body_05",
+        "L7_body_06_1",
+        "L7_body_06_2",
+        "L7_body_07",
+        "L7_body_08",
+        "L7_body_09",
+        "L7_body_10",
+        "L7_body_11_1",
+        "L7_body_11_2",
+        "L7_body_12",
+        "L7_body_13_1",
+        "L7_body_13_2",
+        "L7_body_13_3"
+      ],
+      "dialogue": [
+        "L7_dialogue_01",
+        "L7_dialogue_02",
+        "L7_dialogue_03",
+        "L7_dialogue_04"
+      ]
+    },
+    "8": {
+      "body": [
+        "L8_body_01",
+        "L8_body_02",
+        "L8_body_03",
+        "L8_body_04",
+        "L8_body_05",
+        "L8_body_06",
+        "L8_body_07",
+        "L8_body_08",
+        "L8_body_09",
+        "L8_body_10",
+        "L8_body_11",
+        "L8_body_12",
+        "L8_body_13"
+      ],
+      "dialogue": [
+        "L8_dialogue_01",
+        "L8_dialogue_02",
+        "L8_dialogue_03",
+        "L8_dialogue_04"
+      ]
+    }
+  }
+}
