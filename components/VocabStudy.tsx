@@ -138,7 +138,7 @@ export default function VocabStudy({ set, onBack }: { set: VocabSet; onBack: () 
           disabled={!studyDone}
           className={`w-full py-7 rounded-3xl font-bold text-lg transition flex flex-col items-center gap-1 ${
             studyDone
-              ? "bg-emerald-500 text-white active:scale-[0.98]"
+              ? "bg-sky-600 text-white active:scale-[0.98]"
               : "bg-gray-100 text-gray-400 cursor-not-allowed"
           }`}
         >
@@ -301,7 +301,7 @@ function ExposureCard({
       <button
         onClick={onNext}
         className={`w-full max-w-sm py-3 rounded-full text-white font-bold ${
-          isLast ? "bg-emerald-600" : "bg-sky-600"
+          isLast ? "bg-gray-800" : "bg-sky-600"
         }`}
       >
         {isLast ? "완료!" : "다음"}
@@ -370,7 +370,7 @@ function MeaningCard({
         <button
           onClick={() => onAnswer(selected === word.korean)}
           className={`w-full max-w-sm py-3 rounded-full text-white font-bold ${
-            isLast ? "bg-emerald-600" : "bg-sky-600"
+            isLast ? "bg-gray-800" : "bg-sky-600"
           }`}
         >
           {isLast ? "완료!" : "다음"}
@@ -427,7 +427,7 @@ function ToEnglishCard({
         <button
           onClick={() => onAnswer(selected === word.english)}
           className={`w-full max-w-sm py-3 rounded-full text-white font-bold ${
-            isLast ? "bg-emerald-600" : "bg-sky-600"
+            isLast ? "bg-gray-800" : "bg-sky-600"
           }`}
         >
           {isLast ? "완료!" : "다음"}
@@ -532,7 +532,7 @@ function SpellArrange({
           <p className="text-red-500 font-bold">아쉬워요! 정답: {target}</p>
           <button
             onClick={() => onAnswer(false)}
-            className={`w-full py-3 rounded-full text-white font-bold ${isLast ? "bg-emerald-600" : "bg-sky-600"}`}
+            className={`w-full py-3 rounded-full text-white font-bold ${isLast ? "bg-gray-800" : "bg-sky-600"}`}
           >
             {isLast ? "완료!" : "다음"}
           </button>
@@ -543,7 +543,7 @@ function SpellArrange({
           <p className="text-sky-600 font-bold">정답이에요!</p>
           <button
             onClick={() => onAnswer(true)}
-            className={`w-full py-3 rounded-full text-white font-bold ${isLast ? "bg-emerald-600" : "bg-sky-600"}`}
+            className={`w-full py-3 rounded-full text-white font-bold ${isLast ? "bg-gray-800" : "bg-sky-600"}`}
           >
             {isLast ? "완료!" : "다음"}
           </button>
@@ -642,7 +642,7 @@ function SpellFill({
           </p>
           <button
             onClick={() => onAnswer(feedback === "correct")}
-            className={`w-full py-3 rounded-full text-white font-bold ${isLast ? "bg-emerald-600" : "bg-sky-600"}`}
+            className={`w-full py-3 rounded-full text-white font-bold ${isLast ? "bg-gray-800" : "bg-sky-600"}`}
           >
             {isLast ? "완료!" : "다음"}
           </button>

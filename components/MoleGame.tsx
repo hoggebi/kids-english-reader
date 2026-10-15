@@ -1191,7 +1191,7 @@ export default function MoleGame({
             style={{ position: "absolute", left: 16, right: 16, bottom: 5, height: 5, borderRadius: 999, background: "rgba(0,0,0,0.12)", overflow: "hidden" }}
           >
             <div
-              className={`h-full ${timePct > 50 ? "bg-emerald-400" : timePct > 20 ? "bg-yellow-400" : "bg-red-500"}`}
+              className={`h-full ${timePct > 50 ? "bg-sky-400" : timePct > 20 ? "bg-yellow-400" : "bg-red-500"}`}
               style={{ width: `${timePct}%`, transition: "width 100ms linear" }}
             />
           </div>

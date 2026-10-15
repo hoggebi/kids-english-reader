@@ -800,7 +800,7 @@ export default function BattleGame({
   const promptText = question.word.korean;
   const isFlying = monster.id === "bat" && !monster.isBoss;
   const timePct = Math.max(0, Math.min(100, (timeLeftMs / timeLimitMs) * 100));
-  const timeBarColor = timePct > 50 ? "bg-emerald-400" : timePct > 20 ? "bg-yellow-400" : "bg-red-500";
+  const timeBarColor = timePct > 50 ? "bg-sky-400" : timePct > 20 ? "bg-yellow-400" : "bg-red-500";
 
   const playerAttacking = feedback === "correct" && attackStage !== null;
   const monsterAttacking = feedback === "wrong" && attackStage !== null;

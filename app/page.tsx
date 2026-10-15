@@ -46,8 +46,28 @@ import ChunkbookPanel from "@/components/ChunkbookPanel";
 import LessonPanel from "@/components/LessonPanel";
 import { isLessonSet, loadLessonPlan, refreshLessonSets, type LessonPlan } from "@/lib/lessonPlan";
 
+// 챕터 탭은 일단 숨긴다. 다시 켜려면 true로 바꾸면 된다(데이터와 코드는 그대로 있다).
+const SHOW_CHAPTERS_TAB = false;
+
 type Section = "chunkbook" | "chapters" | "vocab" | "dex" | "shop";
 type View = "list" | "add" | "read";
+
+// 청크북 탭 위의 캐릭터: 챕터 탭에서 보이던 큰 캐릭터 카드와 같다(진화 단계·장착 아이템 포함).
+// Lesson을 마쳐 성장하면(코인 이벤트) 바로 최신 상태로 다시 읽는다.
+function ChunkbookPet() {
+  const [pet, setPet] = useState<PetState | null>(null);
+  useEffect(() => {
+    const read = () => setPet(loadPet("chapter"));
+    read();
+    window.addEventListener("coins-changed", read);
+    window.addEventListener("focus", read);
+    return () => {
+      window.removeEventListener("coins-changed", read);
+      window.removeEventListener("focus", read);
+    };
+  }, []);
+  return pet ? <PetDisplay pet={pet} /> : null;
+}
 
 export default function Home() {
   const [section, setSection] = useState<Section>("chunkbook");
@@ -309,14 +329,16 @@ export default function Home() {
         >
           청크북
         </button>
-        <button
-          onClick={() => setSection("chapters")}
-          className={`flex-1 py-2 rounded-full font-bold transition ${
-            section === "chapters" ? "bg-sky-600 text-white" : "text-gray-500"
-          }`}
-        >
-          챕터
-        </button>
+        {SHOW_CHAPTERS_TAB && (
+          <button
+            onClick={() => setSection("chapters")}
+            className={`flex-1 py-2 rounded-full font-bold transition ${
+              section === "chapters" ? "bg-sky-600 text-white" : "text-gray-500"
+            }`}
+          >
+            챕터
+          </button>
+        )}
         <button
           onClick={() => {
             setSection("vocab");
@@ -338,6 +360,8 @@ export default function Home() {
         </button>
       </div>
 
+
+      {section === "chunkbook" && <ChunkbookPet />}
 
       {section === "chunkbook" && (
         <ChunkbookPanel

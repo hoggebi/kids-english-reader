@@ -230,7 +230,7 @@ export default function LessonPanel({
                   st === "current"
                     ? "border-sky-500 bg-sky-50 text-sky-900"
                     : st === "completed"
-                      ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+                      ? "border-gray-300 bg-gray-100 text-gray-700"
                       : "border-gray-200 bg-white text-gray-800"
                 }`}
                 aria-label={`Lesson ${l}${st === "completed" ? " 완료, 다시 하기" : st === "current" ? " 지금 Lesson" : ""}`}

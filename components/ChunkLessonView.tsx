@@ -817,7 +817,6 @@ export default function ChunkLessonView({
 
   return (
     <div className="flex flex-col gap-3 rounded-2xl bg-gray-50 p-4" data-testid="lesson-home">
-      <PetCompanion tick={0} track="chapter" />
       <div className="flex items-baseline justify-between gap-2">
         <p className="text-lg font-bold text-gray-900">Lesson {lesson}</p>
         <p className="text-xs text-gray-500">

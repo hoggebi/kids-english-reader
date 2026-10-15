@@ -1587,6 +1587,8 @@ export default function DartGame({
                   backgroundRepeat: "no-repeat",
                   backgroundSize: `${TARGET_SHEET.w * ts}px ${TARGET_SHEET.h * ts}px`,
                   backgroundPosition: `${-cell.x * ts}px ${-cell.y * ts}px`,
+                  // 정답 표적의 초록 링은 앱 색 체계(금색)로 바꿔 보여 준다.
+                  filter: st === "correct" ? "hue-rotate(-60deg)" : undefined,
                 }}
               />
               {st === "hint" && (
@@ -1796,7 +1798,7 @@ export default function DartGame({
             style={{ position: "absolute", left: 16, right: 16, bottom: 5, height: 5, borderRadius: 999, background: "rgba(0,0,0,0.12)", overflow: "hidden" }}
           >
             <div
-              className={`h-full ${timePct > 50 ? "bg-emerald-400" : timePct > 20 ? "bg-yellow-400" : "bg-red-500"}`}
+              className={`h-full ${timePct > 50 ? "bg-sky-400" : timePct > 20 ? "bg-yellow-400" : "bg-red-500"}`}
               style={{ width: `${timePct}%`, transition: "width 100ms linear" }}
             />
           </div>
@@ -1876,7 +1878,7 @@ export default function DartGame({
           <div className="dg-pop flex flex-col items-center gap-1">
           <span
             className={`rounded-full px-7 py-2 font-black text-3xl shadow-lg ${
-              banner.tone === "good" ? "bg-amber-300 text-amber-900" : banner.tone === "try" ? "bg-rose-400 text-white" : banner.tone === "info" ? "bg-emerald-500 text-white" : "bg-sky-400 text-white"
+              banner.tone === "good" ? "bg-amber-300 text-amber-900" : banner.tone === "try" ? "bg-rose-400 text-white" : banner.tone === "info" ? "bg-gray-700 text-white" : "bg-sky-400 text-white"
             }`}
           >
             {banner.text}
