@@ -37,7 +37,7 @@ export type FeverController = {
   /** 문제의 최종 완료를 한 번만 반영. 반환값의 enhanced = 이 문제가 FEVER 강화 대상이었는지. */
   complete: (questionId: string, correct: boolean, hasNext: boolean) => FeverCompletion;
   /** 정답: 400ms 멈춤 → CORRECT → COMBO(+게이지). 끝나면 resolve. 화면 이탈 시 resolve되지 않는다. */
-  playPre: (c: FeverCompletion) => Promise<void>;
+  playPre: (c: FeverCompletion, o?: { skipPause?: boolean }) => Promise<void>;
   /** 기존 보상이 끝난 뒤: 결과 확인 → READY/START 또는 END. HUD를 최종 상태로 갱신. */
   playPost: (c: FeverCompletion, correct: boolean) => Promise<void>;
   /** 보상 지점에 금색 링 + 별. */
@@ -118,10 +118,11 @@ export function useFever(): FeverController {
   );
 
   const playPre = useCallback(
-    async (c: FeverCompletion) => {
+    async (c: FeverCompletion, o?: { skipPause?: boolean }) => {
       if (c.duplicate) return;
       const ep = epoch.current;
-      await wait(FEVER_MS.pause);
+      // 완성 단어를 먼저 보여 준 경우(skipPause)에는 그 시간이 이미 정답 확인 구간이므로 멈춤을 또 넣지 않는다.
+      if (!o?.skipPause) await wait(FEVER_MS.pause);
       if (epoch.current !== ep) return new Promise<void>(() => {});
       await show("correct", FEVER_MS.correct);
       if (epoch.current !== ep) return new Promise<void>(() => {});

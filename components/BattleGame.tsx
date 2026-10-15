@@ -21,6 +21,7 @@ import {
   getBgmPref,
   setBgmPref,
 } from "@/lib/battleAudio";
+import { cancelSpeech, speak, unlockAudio } from "@/lib/gameAudio";
 import { loadBattleProgress, saveBattleProgress, BATTLE_STAGE_CAP } from "@/lib/battleProgress";
 
 type Feedback = "correct" | "wrong" | null;
@@ -29,7 +30,7 @@ type EntranceKind = "normal" | "warning" | "boss";
 type Phase = "resume" | "intro" | "battle" | "gameover" | "setCleared";
 type IntroStage = "enter" | "hold" | "vs" | "vsOut" | "warning" | "warningOut";
 type AttackStage = "windup" | "dash" | "impact" | "fadeout" | "recover" | null;
-type KoStage = "hold" | "defeat" | "panel" | null;
+type KoStage = "hold" | "defeat" | "panel" | "slimeSquash" | "slimeKo" | "goblinFall" | "goblinKo" | "golemShake" | "golemKo" | "dragonWobble" | "dragonKo" | "batFall" | "batKo" | "koFade" | null;
 type TeamId = "tiger" | "eagle" | "panther";
 type AttackKind = "slash" | "fire" | "dash";
 
@@ -159,10 +160,39 @@ const ATK_IMPACT_MS = 700;
 const ATK_FADEOUT_MS = 500;
 const ATK_RECOVER_MS = 500;
 
+// 단어를 완성해 정답으로 확인된 뒤: 금색으로 밝아짐 → 완성 단어를 또렷하게 보여줌(+발음 한 번) → 한 번 맥동 → 공격
+const WORD_HOLD_MS = 1100;
+const WORD_PULSE_MS = 250;
+
 const KO_HOLD_MS = 500;
 const KO_DEFEAT_MS = 700;
 const KO_PANEL_MS = 900;
 const KO_GAP_MS = 500;
+// 몬스터별 처치 연출(슬라임, 고블린만): 쓰러지는 동작 → KO 그림으로 교체 + 마무리 동작 → KO 패널과 함께 잠깐 보여주기 → 사라짐
+// 고블린은 오른쪽(플레이어 반대편)으로 밀리며 뒤로 넘어지고, 최종 포즈는 머리가 오른쪽이다.
+const KO_SHOW_MS = 1000;
+const KO_FADE_MS = 300;
+const KO_SEQ: Record<string, { img: string; first: KoStage; firstMs: number; second: KoStage; secondMs: number; showMs?: number; shakeAtPanel?: boolean }> = {
+  slime: { img: "/assets/monster-battle/monsters/slime_ko.png", first: "slimeSquash", firstMs: 280, second: "slimeKo", secondMs: 260 },
+  goblin: { img: "/assets/monster-battle/monsters/goblin_ko.png", first: "goblinFall", firstMs: 250, second: "goblinKo", secondMs: 200 },
+  // 돌 골렘: 덜덜 떨다가 제자리에서 와르르 주저앉으며 돌무더기 그림으로 바뀐다(바닥에 작은 충격 효과 한 번)
+  rock_golem: { img: "/assets/monster-battle/monsters/rock_golem_ko.png", first: "golemShake", firstMs: 200, second: "golemKo", secondMs: 250 },
+  // 박쥐: 부유를 멈추고 비틀거리며 바닥으로 떨어진 뒤, KO 그림으로 바뀌며 살짝 한 번 튕기고 안착한다
+  bat: { img: "/assets/monster-battle/monsters/bat_ko.png", first: "batFall", firstMs: 400, second: "batKo", secondMs: 180 },
+  // 드래곤 보스: 비틀거리다 오른쪽으로 밀리며 털썩 주저앉고, 바닥에 닿는 순간 약한 화면 흔들림 한 번, VICTORY 패널과 함께 길게 보여준다
+  dragon_boss: { img: "/assets/monster-battle/monsters/dragon_boss_ko.png", first: "dragonWobble", firstMs: 300, second: "dragonKo", secondMs: 350, showMs: 1400, shakeAtPanel: true },
+};
+const SLIME_SQUASH_MS = KO_SEQ.slime.firstMs;
+const SLIME_TREMBLE_MS = KO_SEQ.slime.secondMs;
+const SLIME_FADE_MS = KO_FADE_MS;
+const GOBLIN_FALL_MS = KO_SEQ.goblin.firstMs;
+const GOBLIN_BOUNCE_MS = KO_SEQ.goblin.secondMs;
+const GOLEM_SHAKE_MS = KO_SEQ.rock_golem.firstMs;
+const GOLEM_DROP_MS = KO_SEQ.rock_golem.secondMs;
+const BAT_FALL_MS = KO_SEQ.bat.firstMs;
+const BAT_BOUNCE_MS = KO_SEQ.bat.secondMs;
+const DRAGON_WOBBLE_MS = KO_SEQ.dragon_boss.firstMs;
+const DRAGON_SETTLE_MS = KO_SEQ.dragon_boss.secondMs;
 
 // 공격자(플레이어/몬스터) 쪽 캐릭터가 단계별로 상대 쪽으로 얼마나 이동하는지.
 // direction: 1 = 오른쪽(플레이어→몬스터), -1 = 왼쪽(몬스터→플레이어)
@@ -207,6 +237,18 @@ function BattleStyles() {
       @keyframes monsterHitBig { 0%, 100% { transform: scaleX(-1) translateX(0) rotate(0deg) scale(1); } 15% { transform: scaleX(-1) translateX(-26px) rotate(-8deg) scale(0.94); } 40% { transform: scaleX(-1) translateX(14px) rotate(7deg) scale(1.05); } 65% { transform: scaleX(-1) translateX(-8px) rotate(-4deg) scale(0.98); } 85% { transform: scaleX(-1) translateX(4px) rotate(2deg) scale(1.01); } }
       @keyframes monsterHitFire { 0%, 100% { transform: scaleX(-1) translateX(0) rotate(0deg); } 20% { transform: scaleX(-1) translateX(-16px) rotate(-5deg); } 50% { transform: scaleX(-1) translateX(8px) rotate(4deg); } 80% { transform: scaleX(-1) translateX(-4px) rotate(-2deg); } }
       @keyframes monsterHitDash { 0%, 100% { transform: scaleX(-1) translateX(0) rotate(0deg); } 20% { transform: scaleX(-1) translateX(-34px) rotate(-9deg); } 50% { transform: scaleX(-1) translateX(10px) rotate(6deg); } 80% { transform: scaleX(-1) translateX(-4px) rotate(-2deg); } }
+      @keyframes slimeSquash { 0% { transform: scaleX(-1) scale(1, 1); } 100% { transform: scaleX(-1) scale(1.18, 0.45); } }
+      @keyframes slimeTremble { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-3px); } 45% { transform: translateX(3px); } 70% { transform: translateX(-2px); } }
+      @keyframes goblinFall { 0% { transform: scaleX(-1) translateX(0) rotate(0deg); } 100% { transform: scaleX(-1) translateX(-16%) rotate(-24deg); } }
+      @keyframes goblinBounce { 0% { transform: scaleX(-1) translateY(0); } 45% { transform: scaleX(-1) translateY(-7%); } 100% { transform: scaleX(-1) translateY(0); } }
+      @keyframes golemShake { 0%, 100% { transform: scaleX(-1) translateX(0); } 20% { transform: scaleX(-1) translateX(-2.5%); } 40% { transform: scaleX(-1) translateX(2.5%); } 60% { transform: scaleX(-1) translateX(-2%); } 80% { transform: scaleX(-1) translateX(2%); } }
+      @keyframes golemDrop { 0% { transform: translateY(-16%) scaleY(1.08); } 70% { transform: translateY(2%) scaleY(0.97); } 100% { transform: translateY(0) scaleY(1); } }
+      @keyframes golemImpact { 0% { transform: translateX(-50%) scale(0.4); opacity: 0.75; } 100% { transform: translateX(-50%) scale(1.35); opacity: 0; } }
+      @keyframes dragonWobble { 0%, 100% { transform: scaleX(-1) translateX(0) rotate(0deg); } 20% { transform: scaleX(-1) translateX(-1.5%) rotate(-1.5deg); } 45% { transform: scaleX(-1) translateX(1.5%) rotate(1.5deg); } 70% { transform: scaleX(-1) translateX(-1%) rotate(-1deg); } }
+      @keyframes dragonSettle { 0% { transform: translate(-11%, -16%); } 75% { transform: translate(-6%, 1.5%); } 100% { transform: translate(-6%, 0); } }
+      @keyframes batFall { 0% { transform: scaleX(-1) translateY(-1.5rem) rotate(0deg); } 25% { transform: scaleX(-1) translateX(-1.5%) translateY(-1.2rem) rotate(-7deg); } 50% { transform: scaleX(-1) translateX(-3%) translateY(-0.5rem) rotate(7deg); } 100% { transform: scaleX(-1) translateX(-4%) translateY(8%) rotate(-3deg); } }
+      @keyframes batBounce { 0% { transform: translateY(0); } 45% { transform: translateY(-9%); } 100% { transform: translateY(0); } }
+      @keyframes slimeFade { 0% { opacity: 1; } 100% { opacity: 0; } }
       @keyframes monsterKO { 0% { transform: scaleX(-1) translateY(0) scale(1) rotate(0deg); opacity: 1; } 100% { transform: scaleX(-1) translateY(60px) scale(0.35) rotate(30deg); opacity: 0; } }
       @keyframes fireFlash { 0% { opacity: 0; } 30% { opacity: 1; } 100% { opacity: 0; } }
       @keyframes playerRecoil { 0%, 100% { transform: translateX(0) rotate(0deg); } 30% { transform: translateX(-14px) rotate(-6deg); } 60% { transform: translateX(4px) rotate(2deg); } }
@@ -225,12 +267,25 @@ function BattleStyles() {
       .anim-monsterHitFire { animation: monsterHitFire 0.55s ease-out; }
       .anim-monsterHitDash { animation: monsterHitDash 0.5s ease-out; }
       .anim-monsterKO { animation: monsterKO 0.7s ease-in forwards; }
+      .anim-slimeSquash { animation: slimeSquash ${SLIME_SQUASH_MS}ms ease-in forwards; transform-origin: 50% 100%; }
+      .anim-slimeTremble { animation: slimeTremble ${SLIME_TREMBLE_MS}ms ease-in-out; }
+      .anim-goblinFall { animation: goblinFall ${GOBLIN_FALL_MS}ms ease-in forwards; transform-origin: 50% 100%; }
+      .anim-goblinBounce { animation: goblinBounce ${GOBLIN_BOUNCE_MS}ms ease-out; }
+      .anim-golemShake { animation: golemShake ${GOLEM_SHAKE_MS}ms linear; }
+      .anim-golemDrop { animation: golemDrop ${GOLEM_DROP_MS}ms ease-in; transform-origin: 50% 100%; }
+      .anim-golemImpact { animation: golemImpact 300ms ease-out forwards; }
+      .anim-dragonWobble { animation: dragonWobble ${DRAGON_WOBBLE_MS}ms linear; transform-origin: 50% 100%; }
+      .anim-dragonSettle { animation: dragonSettle ${DRAGON_SETTLE_MS}ms ease-in; transform-origin: 50% 100%; }
+      .anim-batFall { animation: batFall ${BAT_FALL_MS}ms ease-in forwards; transform-origin: 50% 80%; }
+      .anim-batBounce { animation: batBounce ${BAT_BOUNCE_MS}ms ease-out; }
+      .anim-slimeFade { animation: slimeFade ${SLIME_FADE_MS}ms ease-out forwards; }
       .anim-playerRecoil { animation: playerRecoil 0.4s ease-out; }
       .anim-auraPulse { animation: auraPulse 1.8s ease-in-out infinite; }
       .anim-fireFlash { animation: fireFlash 0.4s ease-out forwards; }
       @media (prefers-reduced-motion: reduce) {
         .anim-vsPop, .anim-panelPop, .anim-teamJoin, .anim-warningShake, .anim-screenShake, .anim-screenShakeFever, .anim-cardLunge, .anim-popupFade,
         .anim-fxPopIn, .anim-monsterHitSm, .anim-monsterHitBig, .anim-monsterHitFire, .anim-monsterHitDash,
+        .anim-slimeSquash, .anim-slimeTremble, .anim-slimeFade, .anim-goblinFall, .anim-goblinBounce, .anim-golemShake, .anim-golemDrop, .anim-golemImpact, .anim-dragonWobble, .anim-dragonSettle, .anim-batFall, .anim-batBounce,
         .anim-monsterKO, .anim-playerRecoil, .anim-auraPulse, .anim-fireFlash { animation: none; }
       }
     `}</style>
@@ -279,6 +334,7 @@ export default function BattleGame({
   const [monster, setMonster] = useState<Monster>(() => nextMonster(0));
   const [monsterMaxHp, setMonsterMaxHp] = useState(3);
   const [stageCoins, setStageCoins] = useState(0); // 이번 스테이지를 깨고 받은 코인(철자 정답 코인 + 클리어 보너스)
+  const [wordGlow, setWordGlow] = useState<"off" | "glow" | "pulse">("off"); // 완성 단어 금색 강조
   const stageWordCoins = useRef(0); // 이번 스테이지에서 철자를 맞혀 받은 코인
   const [wordCoinPop, setWordCoinPop] = useState<{ amount: number; key: number } | null>(null);
   const [monsterHp, setMonsterHp] = useState(3);
@@ -348,6 +404,7 @@ export default function BattleGame({
 
   function setUpQuestion(q: Question, stage: number) {
     feverSerial.current += 1;
+    setWordGlow("off");
     setQuestion(q);
     setLetterPool(shuffledLetters(q.word.english));
     setPlacedLetters([]);
@@ -440,6 +497,7 @@ export default function BattleGame({
   // 글자 타일을 눌러 스펠링을 완성하면(다 채워지면) 자동으로 정답 여부를 판정한다.
   function tapPoolLetter(item: LetterTile) {
     if (!question || feedback) return;
+    unlockAudio();
     const nextPlaced = [...placedLetters, item];
     setLetterPool((p) => p.filter((x) => x.id !== item.id));
     setPlacedLetters(nextPlaced);
@@ -513,15 +571,8 @@ export default function BattleGame({
     const bonus = earnCoins(monster.isBoss ? COINS_BATTLE_BOSS : COINS_BATTLE_STAGE, "vocab").granted;
     setStageCoins(stageWordCoins.current + bonus);
     stageWordCoins.current = 0;
-    at(KO_HOLD_MS, () => {
-      setKoStage("defeat");
-      sfxKO();
-    });
-    at(KO_HOLD_MS + KO_DEFEAT_MS, () => {
-      setKoStage("panel");
-      sfxVictory();
-    });
-    at(KO_HOLD_MS + KO_DEFEAT_MS + KO_PANEL_MS + KO_GAP_MS, () => {
+    // 처치 수 증가·진행 저장·다음 스테이지 처리(한 번만 실행)
+    const finish = () => {
       setKoStage(null);
       const nextCount = stage + 1;
       setDefeatedCount(nextCount);
@@ -533,7 +584,43 @@ export default function BattleGame({
       } else {
         beginEncounter(nextCount);
       }
+    };
+
+    const seq = KO_SEQ[monster.id];
+    if (seq) {
+      // 슬라임/고블린 전용: 같은 자리에서 쓰러지는 동작 → KO 그림으로 교체 → 패널과 함께 보여주기 → 사라짐
+      const tFirst = KO_HOLD_MS;
+      const tSecond = tFirst + seq.firstMs;
+      const tPanel = tSecond + seq.secondMs;
+      const tFade = tPanel + (seq.showMs ?? KO_SHOW_MS);
+      at(tFirst, () => {
+        setKoStage(seq.first);
+        sfxKO();
+      });
+      at(tSecond, () => setKoStage(seq.second));
+      at(tPanel, () => {
+        setKoStage("panel"); // 이 단계에서도 KO 그림이 보인다
+        sfxVictory();
+        if (seq.shakeAtPanel) {
+          // 바닥에 닿는 순간 약한 화면 흔들림 한 번(직전 공격 흔들림은 이미 끝난 뒤)
+          setShakeStrong(false);
+          setScreenShakeKey((k) => k + 1);
+        }
+      });
+      at(tFade, () => setKoStage("koFade"));
+      at(tFade + KO_FADE_MS, finish);
+      return;
+    }
+
+    at(KO_HOLD_MS, () => {
+      setKoStage("defeat");
+      sfxKO();
     });
+    at(KO_HOLD_MS + KO_DEFEAT_MS, () => {
+      setKoStage("panel");
+      sfxVictory();
+    });
+    at(KO_HOLD_MS + KO_DEFEAT_MS + KO_PANEL_MS + KO_GAP_MS, finish);
   }
 
   function resolveAnswer(ok: boolean) {
@@ -597,8 +684,18 @@ export default function BattleGame({
       const lethal = newMonsterHp <= 0;
 
       // FEVER 연출(CORRECT → COMBO)이 끝난 뒤에 기존 공격 보상을 시작한다. 입력은 feedback으로 잠겨 있다.
-      const sid0 = seqRef.current;
-      void fever.playPre(fc).then(() => {
+      // 완성 단어 확인 구간: 이 시간이 기존의 정답 확인(멈춤)을 대신한다. 입력은 feedback으로 잠겨 있다.
+      const sid0 = startSeq();
+      setWordGlow("glow");
+      void speak(question.word.english, "en-US", false).catch(() => {}); // 발음은 한 번만, 기다리지 않는다
+      setTimeout(() => {
+        if (isCurrentSeq(sid0)) setWordGlow("pulse");
+      }, WORD_HOLD_MS - WORD_PULSE_MS);
+      const afterWord = new Promise<void>((resolve) => setTimeout(resolve, WORD_HOLD_MS));
+      void afterWord.then(() => {
+        if (!isCurrentSeq(sid0)) return;
+        return fever.playPre(fc, { skipPause: true });
+      }).then(() => {
         if (!isCurrentSeq(sid0)) return;
         if (joinedId) {
           const label = `NEW FRIEND! ${TEAM_INFO[joinedId].name}`;
@@ -695,6 +792,7 @@ export default function BattleGame({
     }
     return () => {
       stopBgm();
+      cancelSpeech();
       seqRef.current += 1; // 남아있는 예약된 타이머를 전부 무효화
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1109,7 +1207,7 @@ export default function BattleGame({
           className="relative flex items-end"
           style={{ transform: monsterWrapTransform, transition: `transform ${monsterWrapDuration}ms ease-out` }}
         >
-          {monster.isBoss && koStage !== "panel" && (
+          {monster.isBoss && koStage !== "panel" && koStage !== "dragonWobble" && koStage !== "dragonKo" && koStage !== "koFade" && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={`${A}/effects/dark_aura.png`}
@@ -1140,7 +1238,78 @@ export default function BattleGame({
               style={{ width: monster.isBoss ? SIZE.boss : SIZE.monster, height: monster.isBoss ? SIZE.boss : SIZE.monster }}
             />
           )}
-          {koStage === "panel" ? null : (
+          {/* 돌 골렘이 무너져 내리는 순간 바닥에 작은 충격 효과(CSS) 한 번 */}
+          {koStage === "golemKo" && monster.id === "rock_golem" && !monster.isBoss && (
+            <div
+              aria-hidden
+              className="anim-golemImpact absolute pointer-events-none"
+              style={{
+                left: "50%",
+                bottom: `calc(${SIZE.monster} * 0.12)`,
+                width: `calc(${SIZE.monster} * 1.2)`,
+                height: `calc(${SIZE.monster} * 0.2)`,
+                borderRadius: "50%",
+                background: "radial-gradient(ellipse, rgba(255,245,220,0.8) 0%, rgba(230,210,170,0.45) 45%, rgba(230,210,170,0) 72%)",
+              }}
+            />
+          )}
+          {(() => {
+            const koSeq = KO_SEQ[monster.id];
+            const koPose =
+              !!koSeq && (koStage === koSeq.second || koStage === "panel" || koStage === "koFade");
+            if (koStage === "panel" && !koSeq) return null;
+            if (koSeq && koPose) {
+              const goblin = monster.id === "goblin";
+              const golem = monster.id === "rock_golem";
+              const dragon = monster.id === "dragon_boss";
+              const bat = monster.id === "bat";
+              // 쓰러진 모습: 원본 비율 그대로. 몸 바닥선을 기존 그림(바닥 여백 슬라임 약 5.5%, 고블린 약 6.3%)과 맞춘다.
+              // 고블린 원본은 머리가 왼쪽이라 좌우 반전해서 머리가 오른쪽(플레이어 반대편)이 되게 한다.
+              return (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={`${monster.id}-ko`}
+                  src={koSeq.img}
+                  alt={goblin ? "쓰러진 고블린" : golem ? "무너진 돌 골렘" : dragon ? "쓰러진 드래곤" : bat ? "쓰러진 박쥐" : "쓰러진 슬라임"}
+                  className={`relative object-contain ${
+                    koStage === "koFade" ? "anim-slimeFade" : koStage === koSeq.second ? (goblin ? "anim-goblinBounce" : golem ? "anim-golemDrop" : dragon ? "anim-dragonSettle" : bat ? "anim-batBounce" : "anim-slimeTremble") : ""
+                  }`}
+                  style={
+                    bat
+                      ? {
+                          // 뒤집힌 박쥐: 이미 쓰러진 자세라 반전/회전 없이 원본 비율 그대로. 부유 높이(-1.5rem)는 적용하지 않는다.
+                          width: `calc(${SIZE.monster} * 1.05)`,
+                          height: "auto",
+                          marginBottom: `calc(${SIZE.monster} * 0.104)`,
+                        }
+                      : dragon
+                      ? {
+                          // 쓰러진 드래곤: 원본이 이미 머리가 오른쪽이라 반전하지 않는다. 바닥선은 기존 보스 그림(바닥 여백 약 15.8%)에 맞춘다.
+                          width: SIZE.boss,
+                          height: "auto",
+                          marginBottom: `calc(${SIZE.boss} * 0.158)`,
+                          transform: "translateX(-6%)", // 오른쪽 꼬리·뿔이 카드 밖으로 잘리지 않게 살짝 안쪽으로
+                        }
+                      : golem
+                      ? {
+                          // 돌무더기 바닥을 기존 골렘 바닥선(그림 아래 여백 약 15.7%)에 맞춘다. 좌우 반전 없음.
+                          width: `calc(${SIZE.monster} * 1.05)`,
+                          height: "auto",
+                          marginBottom: `calc(${SIZE.monster} * 0.147)`,
+                        }
+                      : goblin
+                      ? {
+                          width: SIZE.monster,
+                          height: "auto",
+                          marginBottom: `calc(${SIZE.monster} * 0.048)`,
+                          transform: "scaleX(-1)",
+                        }
+                      : { width: `calc(${SIZE.monster} * 1.2)`, height: "auto", marginBottom: `calc(${SIZE.monster} * 0.04)` }
+                  }
+                />
+              );
+            }
+            return (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               ref={monsterImgRef}
@@ -1148,7 +1317,17 @@ export default function BattleGame({
               src={monster.img}
               alt={monster.name}
               className={`relative object-contain ${
-                koStage === "defeat"
+                koStage === "slimeSquash"
+                  ? "anim-slimeSquash"
+                  : koStage === "batFall"
+                  ? "anim-batFall"
+                  : koStage === "dragonWobble"
+                  ? "anim-dragonWobble"
+                  : koStage === "golemShake"
+                  ? "anim-golemShake"
+                  : koStage === "goblinFall"
+                  ? "anim-goblinFall"
+                  : koStage === "defeat"
                   ? "anim-monsterKO"
                   : feedback === "correct" && fxKind && (attackStage === "impact" || attackStage === "fadeout")
                   ? FX_MONSTER_ANIM[fxKind]
@@ -1161,7 +1340,8 @@ export default function BattleGame({
                 transform: `scaleX(-1)${isFlying ? " translateY(-1.5rem)" : ""}`,
               }}
             />
-          )}
+            );
+          })()}
         </div>
       </div>
 
@@ -1198,13 +1378,24 @@ export default function BattleGame({
           </p>
 
           {/* 완성 중인 스펠링 (탭하면 다시 뺄 수 있음) */}
-          <div className="flex flex-wrap justify-center gap-1.5 min-h-[2.6rem] mx-4 border-b-2 border-dashed border-white/40 pb-1.5">
+          <div
+            className={`flex flex-wrap justify-center gap-1.5 min-h-[2.6rem] mx-4 border-b-2 border-dashed pb-1.5 rounded-xl transition-all duration-200 ${
+              wordGlow === "off" ? "border-white/40" : "border-amber-300 bg-amber-100/15"
+            }`}
+            style={{
+              transform: wordGlow === "pulse" ? "scale(1.06)" : wordGlow === "glow" ? "scale(1.03)" : "scale(1)",
+              boxShadow: wordGlow === "off" ? "none" : wordGlow === "pulse" ? "0 0 18px rgba(251,191,36,0.75)" : "0 0 10px rgba(251,191,36,0.5)",
+            }}
+            data-testid="spell-row"
+          >
             {placedLetters.map((item) => (
               <button
                 key={item.id}
                 onClick={() => tapPlacedLetter(item)}
                 disabled={!showQuestionInputs || !!feedback}
-                className="w-9 h-9 rounded-lg bg-white/90 border-2 border-sky-300 font-black text-base text-sky-700 uppercase leading-normal"
+                className={`w-9 h-9 rounded-lg border-2 font-black text-base uppercase leading-normal transition-colors duration-200 ${
+                  wordGlow === "off" ? "bg-white/90 border-sky-300 text-sky-700" : "bg-amber-50 border-amber-400 text-amber-900"
+                }`}
               >
                 {item.ch}
               </button>
