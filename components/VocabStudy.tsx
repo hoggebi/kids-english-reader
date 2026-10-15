@@ -12,7 +12,7 @@ import {
   getMoreStudyCandidates,
 } from "@/lib/vocabStorage";
 import { autoPush } from "@/lib/sync";
-import { lessonStudyDoneByPlan, recordLessonStudyDone } from "@/lib/lessonPlan";
+import { isLessonSet, lessonStudyDoneByPlan, recordLessonStudyDone } from "@/lib/lessonPlan";
 import VocabGame from "./VocabGame";
 import SpellTeachCard from "./SpellTeachCard";
 
@@ -182,6 +182,7 @@ export default function VocabStudy({ set, onBack }: { set: VocabSet; onBack: () 
     return (
       <VocabGame
         words={gameWords}
+        moleWords={isLessonSet(set) ? set.words : undefined}
         setId={set.id}
         onDone={() => setMode("hub")}
         onStudyMore={handleStudyMoreFromBattle}

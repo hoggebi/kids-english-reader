@@ -151,11 +151,13 @@ export function buildOptions(words: VocabWord[], target: VocabWord, count = 3) {
 
 export default function VocabGame({
   words,
+  moleWords,
   onDone,
   setId,
   onStudyMore,
 }: {
   words: VocabWord[];
+  moleWords?: VocabWord[]; // 두더지 게임에만 쓰는 선택한 레슨 전체 단어(없으면 words)
   onDone: () => void;
   setId: string;
   onStudyMore?: () => void;
@@ -307,7 +309,7 @@ export default function VocabGame({
         <DartGame key={playKey} words={words} onDone={handleGameDone} onComplete={handleGameComplete} onRetry={handleRetry} onExit={() => setKind(null)} />
       )}
       {kind === "mole" && (
-        <MoleGame key={playKey} words={words} onDone={handleGameDone} onComplete={handleGameComplete} onRetry={handleRetry} onExit={() => setKind(null)} />
+        <MoleGame key={playKey} words={moleWords && moleWords.length >= 3 ? moleWords : words} onDone={handleGameDone} onComplete={handleGameComplete} onRetry={handleRetry} onExit={() => setKind(null)} />
       )}
       {kind === "battle" && (
         <BattleGame

@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import type { VocabWord } from "@/lib/types";
-import { buildAlternatingQuestions, type Question } from "@/lib/gameQuestions";
+import type { Question } from "@/lib/gameQuestions";
 import { cancelSpeech, playSfx, speak, unlockAudio } from "@/lib/gameAudio";
 import { COINS_MOLE_COMPLETE, COINS_MOLE_WORD, earnCoins } from "@/lib/pet";
 import { CoinAmount } from "./Coin";
@@ -19,7 +19,8 @@ import { FeverHud, useFever } from "./FeverKit";
 const M = "/assets/mole-game";
 
 // ---------- 설정값 ----------
-const ROUND_COUNT = 10;
+const FINAL_EVOLVE_AT = 8; // 기본 문제를 이만큼 완료하면 최종형으로 진화(재도전은 세지 않는다)
+const T_FINAL_EVOLVE = 1300;
 const COIN_COMPLETE = COINS_MOLE_COMPLETE; // 10문제 완료 보너스
 const COIN_PER_FIRST_TRY = COINS_MOLE_WORD; // 첫 시도 정답마다 바로 지급
 const EVOLVE_COMBO = 3;
@@ -64,6 +65,17 @@ const MOLE_BODY_H = 352; // idle 세로(머리~발)
 // 라벨 중심(발 기준 위쪽 오프셋, 원본 단위)
 const LABEL_UP: Record<Pose, number> = { idle: 112, squash: 48, bounce: 104, duck: 52 };
 
+// moles_final_red.png 2x2 (1254x1254): 포즈마다 실제 그림 영역(연결 성분)의 외곽을 재서 프레임을 만들었다.
+// cx = 몸 중심 x, fy = 발/바닥선 y(프레임 안), up = 배 중앙(팻말 위치)까지의 높이. 모두 원본 시트 px.
+const FINAL_SHEET = { w: 1254, h: 1254 };
+const FINAL_FRAMES: Record<Pose, { x: number; y: number; w: number; h: number; cx: number; fy: number; up: number }> = {
+  idle: { x: 72, y: 30, w: 508, h: 574, cx: 254, fy: 568, up: 150 },
+  squash: { x: 646, y: 204, w: 580, h: 382, cx: 290, fy: 376, up: 80 },
+  bounce: { x: 44, y: 612, w: 586, h: 570, cx: 293, fy: 564, up: 235 },
+  duck: { x: 694, y: 704, w: 540, h: 484, cx: 270, fy: 478, up: 100 },
+};
+const FINAL_SCALE = (MOLE_BODY_H / 562) * 1.12; // 기존 두더지보다 작아 보이지 않게 약간 크게
+
 // holes.png 2x2: 기본 / 정답 강조 / 오답 먼지 / 진화. (ax, ay) = 구멍 입구 중심
 const HOLE_SHEET = { w: 1536, h: 1024, cw: 768, ch: 512, ring: 636 };
 const HOLE_CELLS = [
@@ -82,7 +94,7 @@ const HAM = {
   strike: { px: 60, py: 295, L: 470, heading: 0 },
 };
 
-const IMAGES = ["background", "moles", "holes", "hammers", "correct_fx", "wrong_fx", "evolution_fx"].map((n) => `${M}/${n}.png`);
+const IMAGES = ["background", "moles", "moles_final_red", "holes", "hammers", "correct_fx", "wrong_fx", "evolution_fx"].map((n) => `${M}/${n}.png`);
 
 // ---------- 레이아웃 ----------
 type Layout = {
@@ -94,7 +106,7 @@ const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n
 
 // ---------- 철자 문제: 단어의 마지막 두 글자를 두더지 4마리 중에서 골라 채운다 ----------
 // 일반 3문제 다음에 철자 1문제(4번째, 8번째…). 문제 수는 그대로이고, 적합한 단어가 없으면 일반 문제로 둔다.
-type MoleQuestion = Question & { spell?: { word: string } };
+type MoleQuestion = Question & { spell?: { word: string }; retry?: boolean };
 const SPELL_RE = /^[A-Za-z]{3,}$/;
 const ALPHABET = "abcdefghijklmnopqrstuvwxyz";
 const shuffleList = <T,>(arr: T[]): T[] => {
@@ -112,13 +124,51 @@ function buildSpellQuestion(w: VocabWord): MoleQuestion {
   const options = shuffleList([...need, ...bad]).map((ch) => ({ word: w, label: ch.toUpperCase() })); // 위치는 한 번만 섞는다
   return { target: w, dir: "toEng", prompt: w.korean, options, correctSlot: -1, spell: { word } };
 }
-function injectSpellQuestions(base: Question[], words: VocabWord[]): MoleQuestion[] {
-  const eligible = words.filter((w) => SPELL_RE.test(w.english.trim()) && w.korean?.trim());
-  return base.map((q, i) => {
-    if (i % 4 !== 3 || eligible.length === 0) return q;
-    const own = eligible.find((w) => w.id === q.target.id);
-    return buildSpellQuestion(own ?? eligible[Math.floor(Math.random() * eligible.length)]);
+const normLabel = (s: string) => s.trim().toLowerCase();
+function validWords(words: VocabWord[]): VocabWord[] {
+  const ids = new Set<string>();
+  return words.filter((w) => {
+    if (ids.has(w.id) || !w.english?.trim() || !w.korean?.trim()) return false;
+    ids.add(w.id);
+    return true;
   });
+}
+function buildChoiceQuestion(target: VocabWord, pool: VocabWord[], dir: "toEng" | "toKor"): MoleQuestion {
+  const label = (w: VocabWord) => (dir === "toEng" ? w.english : w.korean);
+  const seen = new Set([normLabel(label(target))]);
+  const others = shuffleList(pool.filter((x) => x.id !== target.id));
+  const d: VocabWord[] = [];
+  for (const w of others) {
+    const l = normLabel(label(w));
+    if (!l || seen.has(l)) continue; // 같은 라벨이 두 번 보이지 않게
+    seen.add(l);
+    d.push(w);
+    if (d.length === 2) break;
+  }
+  for (const w of others) {
+    if (d.length >= 2) break;
+    if (!d.includes(w)) d.push(w);
+  }
+  const options = shuffleList([target, ...d]).map((word) => ({ word, label: label(word) }));
+  return { target, dir, prompt: dir === "toEng" ? target.korean : target.english, options, correctSlot: options.findIndex((o) => o.word.id === target.id) };
+}
+// 레슨 전체 단어를 한 번씩, 섞은 순서로. 일반 3문제 → 철자 1문제 패턴(4번째, 8번째…).
+// 철자 슬롯의 단어가 철자에 부적합하면 아직 안 나온 적합한 단어와 순서를 바꾼다(없으면 일반 문제로 둔다).
+function buildBaseQuestions(words: VocabWord[]): MoleQuestion[] | null {
+  const valid = validWords(words);
+  if (valid.length < 3) return null;
+  const order = shuffleList(valid);
+  const ok = (w: VocabWord) => SPELL_RE.test(w.english.trim());
+  for (let i = 3; i < order.length; i += 4) {
+    if (ok(order[i])) continue;
+    for (let k = i + 1; k < order.length; k++) {
+      if (k % 4 !== 3 && ok(order[k])) {
+        [order[i], order[k]] = [order[k], order[i]];
+        break;
+      }
+    }
+  }
+  return order.map((w, i) => (i % 4 === 3 && ok(w) ? buildSpellQuestion(w) : buildChoiceQuestion(w, valid, i % 2 === 0 ? "toEng" : "toKor")));
 }
 const slotIdx = (n: number) => Array.from({ length: n }, (_, i) => i);
 
@@ -157,7 +207,7 @@ function computeLayout(w: number, h: number, n = 3): Layout {
 
 type Banner = { text: string; tone: "good" | "try" | "combo"; key: number };
 type FxItem = { id: number; sheet: "correct" | "wrong" | "evolution"; frames: Frame[]; x: number; y: number; size: number; duration: number };
-type Stats = { firstTry: number; bestCombo: number; retries: number; whiffs: number; evolved: boolean; coins: number };
+type Stats = { firstTry: number; bestCombo: number; retries: number; whiffs: number; evolved: boolean; level: number; baseCount: number; retryCount: number; coins: number };
 
 function SpriteFx({ item, onEnd }: { item: FxItem; onEnd: (id: number) => void }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -219,10 +269,12 @@ function MoleStyles() {
       .mg-pop { animation: mgPop 0.35s ease-out both; }
       .mg-coin { animation: mgCoin 0.9s ease-out forwards; }
       .mg-hint { animation: mgHint 1s ease-in-out infinite; }
+      @keyframes mgGold { 0% { opacity: 0; } 35% { opacity: 1; } 100% { opacity: 0; } }
+      .mg-gold { animation: mgGold 1.2s ease-out forwards; }
       .mg-stage:focus-visible { outline: 4px solid #ffd84a; outline-offset: -4px; }
       .mg-btn:focus-visible { outline: 4px solid #ffd84a; outline-offset: 2px; border-radius: 24px; }
       @media (prefers-reduced-motion: reduce) {
-        .mg-breathe, .mg-pop, .mg-coin, .mg-hint { animation: none; }
+        .mg-breathe, .mg-pop, .mg-coin, .mg-hint, .mg-gold { animation: none; }
       }
     `}</style>
   );
@@ -241,10 +293,12 @@ export default function MoleGame({
   onExit?: () => void;
   onComplete?: () => void; // 10문제를 끝내 결과 화면이 뜰 때 한 번 호출(자동 성장 기록)
 }) {
-  const [questions] = useState<MoleQuestion[] | null>(() => {
-    const base = buildAlternatingQuestions(words, ROUND_COUNT);
-    return base ? injectSpellQuestions(base, words) : null;
-  });
+  const [questions] = useState<MoleQuestion[] | null>(() => buildBaseQuestions(words));
+  // 진행 큐: 기본 문제 + (틀린 단어의) 재도전. 재도전은 진행 중에 한 번만 끼워 넣는다.
+  const queueRef = useRef<MoleQuestion[]>(questions ? [...questions] : []);
+  const retryRegistered = useRef(new Set<string>());
+  const wordPool = useMemo(() => validWords(words), [words]);
+  const [prog, setProg] = useState({ base: 0, total: questions?.length ?? 0, retryLeft: 0 });
   const leave = onExit ?? onDone;
   const fever = useFever();
 
@@ -271,8 +325,10 @@ export default function MoleGame({
   const [holes, setHoles] = useState<HoleState[]>(["base", "base", "base", "base"]);
   // 철자 문제 화면 상태: cur = 지금 채울 빈칸(0/1, 2면 완성), filled = 채운 글자, used = 쓴 두더지, bad = 틀려서 비활성화된 두더지
   const [spellUi, setSpellUi] = useState<{ cur: number; filled: (string | null)[]; used: number[]; bad: number[]; glow: boolean } | null>(null);
-  const [evolved, setEvolved] = useState(false);
-  const evolvedRef = useRef(false);
+  const [level, setLevel] = useState<0 | 1 | 2>(0); // 0 기본형 / 1 중간형(보라 뿔) / 2 최종형(레드)
+  const levelRef = useRef<0 | 1 | 2>(0);
+  const evolved = level >= 1;
+  const [goldKey, setGoldKey] = useState(0); // 최종 진화 때 은은한 금색 빛
   const [hint, setHint] = useState(false);
   const [combo, setCombo] = useState(0);
   const [banner, setBanner] = useState<Banner | null>(null);
@@ -297,6 +353,10 @@ export default function MoleGame({
     whiffs: 0,
     evolveReached: false,
     evolvePlayed: false,
+    finalPlayed: false,
+    baseDone: 0,
+    retryDone: 0,
+    serial: 0,
     spell: null as null | { cur: number; used: number[]; bad: number[]; done: boolean },
     coins: 0, // 이번 판에 받은 코인(정답마다 쌓임)
     hint: false,
@@ -521,14 +581,41 @@ export default function MoleGame({
     };
   }
 
+  // 진행 표시: 기본 n/전체 · 재도전 m개 남음
+  function updateProg(i: number) {
+    const g = game.current;
+    const cur = queueRef.current[i];
+    const retryLeft = queueRef.current.slice(i).filter((x) => x.retry).length;
+    setProg({ base: Math.min(g.baseDone + (cur && !cur.retry ? 1 : 0), questions?.length ?? 0), total: questions?.length ?? 0, retryLeft });
+  }
+
+  // 문제 하나가 끝났을 때(정답/시간 초과 종료) 한 번만: 기본 문제 완료 수 증가, 문제가 있었던 단어는 재도전 1개 등록.
+  // 반환값: 이 뒤에 문제가 더 있는지.
+  function settleQuestion(cq: MoleQuestion, problem: boolean): boolean {
+    const g = game.current;
+    if (!cq.retry) {
+      g.baseDone += 1;
+      if (problem && !retryRegistered.current.has(cq.target.id)) {
+        retryRegistered.current.add(cq.target.id);
+        const rq: MoleQuestion = { ...buildChoiceQuestion(cq.target, wordPool, cq.dir === "toEng" ? "toKor" : "toEng"), retry: true };
+        const at = Math.min(qIndex + 3, queueRef.current.length); // 다른 문제 2개를 끝낸 뒤. 남은 문제가 부족하면 맨 뒤
+        queueRef.current.splice(at, 0, rq);
+      }
+    } else {
+      g.retryDone += 1;
+    }
+    return qIndex + 1 < queueRef.current.length;
+  }
+
   // ---------- 문제 시작 ----------
   function startQuestion(i: number) {
-    if (!questions) return;
+    const nq = queueRef.current[i];
+    if (!nq) return;
     token.current += 1;
     timers.current.forEach(clearTimeout);
     timers.current.clear();
     const g = game.current;
-    const nq = questions[i];
+    g.serial += 1; // 문제마다 고유 번호(같은 단어의 기본/재도전이 FEVER에서 같은 문제로 취급되지 않게)
     g.q = nq;
     g.wrong = 0;
     g.answered = false;
@@ -538,6 +625,7 @@ export default function MoleGame({
     setTimeLeftMs(TIME_LIMIT_SEC * 1000);
     setQ(nq);
     setQIndex(i);
+    updateProg(i);
     setPoses(["idle", "idle", "idle", "idle"]);
     setHoles(["base", "base", "base", "base"]);
     setHint(false);
@@ -574,7 +662,10 @@ export default function MoleGame({
       bestCombo: g.bestCombo,
       retries: g.retries,
       whiffs: g.whiffs,
-      evolved: g.evolveReached,
+      evolved: g.evolveReached || levelRef.current >= 1,
+      level: Math.max(levelRef.current, g.finalPlayed ? 2 : 0, g.evolveReached ? 1 : 0),
+      baseCount: g.baseDone,
+      retryCount: g.retryDone,
       coins: g.coins + earnCoins(COIN_COMPLETE, "vocab").granted, // 완료 보너스는 한 판에 한 번만
     });
     token.current += 1;
@@ -586,7 +677,7 @@ export default function MoleGame({
   // 다음 문제로: 두더지가 내려갔다가 다음 문제의 세 마리가 올라온다.
   function goNext() {
     const i = qIndex + 1;
-    if (i >= ROUND_COUNT) {
+    if (i >= queueRef.current.length) {
       finishGame();
       return;
     }
@@ -626,13 +717,14 @@ export default function MoleGame({
     setReveal({ english: cq.target.english, korean: cq.target.korean });
     setHint(true);
     const tk = token.current;
-    const fc = fever.complete(`q${qIndex}`, false, qIndex + 1 < ROUND_COUNT); // 시간 초과로 끝난 문제 = 최종 오답
+    const hasNext = settleQuestion(cq as MoleQuestion, true); // 시간 초과로 끝난 문제 = 기본 문제 완료 + 재도전 등록
+    const fc = fever.complete(`q${g.serial}`, false, hasNext); // 최종 오답
     const spoken = speak(cq.target.english, "en-US", mutedRef.current);
     void Promise.all([new Promise<void>((r) => setTimeout(r, T_REVEAL_MIN)), spoken])
       .then(() => fever.playPost(fc, false))
       .then(() => {
         if (token.current !== tk || game.current.finished) return;
-        goNext();
+        afterReward(goNext);
       });
   }
 
@@ -652,22 +744,68 @@ export default function MoleGame({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage, phaseUi, qIndex]);
 
-  // ---------- 3콤보 진화: 세 마리 모두 동시에 ----------
-  function evolveAll(then: () => void) {
-    const g = game.current;
-    g.evolvePlayed = true;
+  // ---------- 진화: 세 마리(또는 철자 4마리)가 함께 ----------
+  // steps: 거치는 단계(1=중간형, 2=최종형). 중간형과 최종형이 겹치면 하나의 순서로 이어서 보여준다.
+  function runEvolution(steps: (1 | 2)[], comboBanner: boolean, then: () => void) {
     setPhase("evolving");
+    setHandsOn(false);
     const L = layoutRef.current;
-    playSfx("evolve", mutedRef.current);
-    setBanner({ text: "3 COMBO!", tone: "combo", key: nextKey() });
-    L.slots.forEach((sl) => {
-      addFx({ sheet: "evolution", frames: reducedRef.current ? [EVOLVE_FRAMES[3]] : EVOLVE_FRAMES, x: sl.x, y: sl.y - L.moleH * 0.42, size: L.ringW * 1.15, duration: T_EVOLVE });
+    const n = game.current.q?.options.length ?? 3;
+    let t = 0;
+    steps.forEach((lv) => {
+      const dur = lv === 2 ? T_FINAL_EVOLVE : steps.length > 1 ? 650 : T_EVOLVE;
+      const at = t;
+      later(at, () => {
+        playSfx("evolve", mutedRef.current);
+        if (lv === 2) {
+          setBanner({ text: "최종 진화!", tone: "combo", key: nextKey() });
+          setGoldKey((k) => k + 1);
+        } else if (comboBanner) {
+          setBanner({ text: "3 COMBO!", tone: "combo", key: nextKey() });
+        }
+        slotIdx(n).forEach((slot) => {
+          // 모두 함께 살짝 움츠렸다가
+          play(spriteEls.current[slot], [{ transform: "scale(1,1)" }, { transform: "scale(1.06,0.88)" }, { transform: "scale(1,1)" }], { duration: Math.min(260, dur * 0.3), easing: "ease-in-out" });
+          const sl = L.slots[slot];
+          addFx({ sheet: "evolution", frames: reducedRef.current ? [EVOLVE_FRAMES[3]] : EVOLVE_FRAMES, x: sl.x, y: sl.y - L.moleH * 0.42, size: L.ringW * 1.15, duration: dur });
+        });
+      });
+      later(at + dur * 0.5, () => {
+        levelRef.current = lv;
+        setLevel(lv); // 일반 idle → 진화 idle (모두 동시에)
+      });
+      t += dur + 60;
     });
-    later(T_EVOLVE * 0.5, () => {
-      evolvedRef.current = true;
-      setEvolved(true); // 일반 idle → 진화 idle (세 마리 동시)
-    });
-    later(T_EVOLVE + 60, then);
+    later(t, then);
+  }
+
+  // 보상까지 끝난 뒤, 다음 문제를 시작하기 전에 진화할 조건을 확인한다.
+  function afterReward(goNextFn: () => void) {
+    const g = game.current;
+    const hasMore = qIndex + 1 < queueRef.current.length;
+    const lv = levelRef.current;
+    const needFinal = lv < 2 && !g.finalPlayed && g.baseDone >= FINAL_EVOLVE_AT;
+    const needMid = lv < 1 && !g.evolvePlayed && g.combo >= EVOLVE_COMBO;
+    if (needFinal) {
+      g.finalPlayed = true;
+      if (!hasMore) {
+        // 마지막 문제라 연출할 다음 문제가 없다. 결과 화면에 도달한 최종형을 보여준다.
+        levelRef.current = 2;
+        setLevel(2);
+        goNextFn();
+        return;
+      }
+      const steps: (1 | 2)[] = lv < 1 ? [1, 2] : [2];
+      if (lv < 1) g.evolvePlayed = true;
+      runEvolution(steps, needMid, goNextFn);
+      return;
+    }
+    if (needMid && hasMore) {
+      g.evolvePlayed = true;
+      runEvolution([1], true, goNextFn);
+      return;
+    }
+    goNextFn();
   }
 
   // ---------- 탭 처리 ----------
@@ -719,9 +857,10 @@ export default function MoleGame({
     const cq = g.q as MoleQuestion;
     setPhase("busy");
     const hadWrong = g.wrong > 0;
-    const fc = fever.complete(`q${qIndex}`, true, qIndex + 1 < ROUND_COUNT);
+    const hasNext = settleQuestion(cq, hadWrong || g.qTimeouts > 0);
+    const fc = fever.complete(`q${g.serial}`, true, hasNext);
     let wordCoins = 0;
-    if (!hadWrong) {
+    if (!hadWrong && !cq.retry) {
       g.firstTry += 1;
       wordCoins = earnCoins(COIN_PER_FIRST_TRY, "vocab").granted; // 새 보너스 없이 기존 첫 시도 정답 코인만
       g.coins += wordCoins;
@@ -748,9 +887,7 @@ export default function MoleGame({
       .then(() => (alive() ? fever.playPost(fc, true) : undefined))
       .then(() => {
         if (!alive()) return;
-        const isLast = qIndex + 1 >= ROUND_COUNT;
-        if (!isLast && game.current.combo >= EVOLVE_COMBO && !game.current.evolvePlayed) evolveAll(goNext);
-        else goNext();
+        afterReward(goNext);
       });
   }
 
@@ -793,7 +930,8 @@ export default function MoleGame({
     const cq = g.q!;
     const L = layoutRef.current;
     let wordCoins = 0;
-    if (firstPick) {
+    // 재도전에서는 첫 시도 코인을 다시 주지 않는다.
+    if (firstPick && !(cq as MoleQuestion).retry) {
       g.firstTry += 1;
       wordCoins = earnCoins(COIN_PER_FIRST_TRY, "vocab").granted; // 맞힐 때마다 바로 지갑에
       g.coins += wordCoins;
@@ -806,7 +944,9 @@ export default function MoleGame({
     setCombo(g.combo);
     if (g.combo >= EVOLVE_COMBO) g.evolveReached = true;
 
-    const fc = fever.complete(`q${qIndex}`, true, qIndex + 1 < ROUND_COUNT);
+    // 중간 오답/시간 초과가 있었으면 기본 문제는 재도전 대상이 된다. 완료 반영은 문제당 한 번.
+    const hasNext = settleQuestion(cq as MoleQuestion, g.wrong > 0 || g.qTimeouts > 0);
+    const fc = fever.complete(`q${g.serial}`, true, hasNext);
     playSfx("pop", mutedRef.current);
     setPoseAt(slot, "squash");
     setHoleAt(slot, "correct");
@@ -846,9 +986,7 @@ export default function MoleGame({
         .then(() => fever.playPost(fc, true))
         .then(() => {
           if (token.current !== tk || game.current.finished) return;
-          const isLast = qIndex + 1 >= ROUND_COUNT;
-          if (!isLast && game.current.combo >= EVOLVE_COMBO && !game.current.evolvePlayed) evolveAll(goNext);
-          else goNext();
+          afterReward(goNext);
         });
     });
   }
@@ -1004,7 +1142,24 @@ export default function MoleGame({
     color: "#fff",
   };
 
-  const moleSprite = (pose: Pose, ev: boolean): CSSProperties => {
+  const finalK = L.sm * FINAL_SCALE;
+  const moleSprite = (pose: Pose, lv: number): CSSProperties => {
+    if (lv >= 2) {
+      const f = FINAL_FRAMES[pose];
+      return {
+        position: "absolute",
+        left: -f.cx * finalK,
+        top: -f.fy * finalK,
+        width: f.w * finalK,
+        height: f.h * finalK,
+        backgroundImage: `url(${M}/moles_final_red.png)`,
+        backgroundRepeat: "no-repeat",
+        backgroundSize: `${FINAL_SHEET.w * finalK}px ${FINAL_SHEET.h * finalK}px`,
+        backgroundPosition: `${-f.x * finalK}px ${-f.y * finalK}px`,
+        pointerEvents: "none",
+      };
+    }
+    const ev = lv >= 1;
     const idx = POSES.indexOf(pose) + (ev ? 4 : 0);
     const col = COLX[idx % 4];
     const row = ROWY[Math.floor(idx / 4)];
@@ -1080,36 +1235,60 @@ export default function MoleGame({
 
   if (stage === "result" && finalStats) {
     const rows: [string, string][] = [
-      ["완료한 문제", `${ROUND_COUNT} / ${ROUND_COUNT}`],
+      ["기본 단어", `${finalStats.baseCount}개`],
+      ["재도전 단어", `${finalStats.retryCount}개`],
       ["최초 정답", `${finalStats.firstTry}개`],
       ["최고 콤보", `${finalStats.bestCombo}`],
-      ["재도전", `${finalStats.retries}번`],
+      ["오답 횟수", `${finalStats.retries}번`],
       ["빈 곳 헛스윙", `${finalStats.whiffs}번`],
     ];
-    const col = finalStats.evolved ? 0 : 0;
-    const row = finalStats.evolved ? 1 : 0;
+    const lvRes = finalStats.level;
+    const col = 0;
+    const row = lvRes >= 1 ? 1 : 0;
     const k = 0.34;
+    const fk = (352 * k * 1.15) / FINAL_FRAMES.idle.h; // 결과 화면의 최종형 크기
     return (
       <div ref={stageRef} style={stageBase} className="mg-stage flex items-center justify-center p-4">
         <MoleStyles />
         <div className="rounded-3xl bg-white/95 text-gray-800 px-8 py-6 w-full max-w-md flex flex-col items-center gap-3 shadow-2xl">
           <p className="text-3xl font-black text-amber-700">두더지 완료!</p>
-          <div style={{ width: 301 * k + 20, height: 352 * k + 10, position: "relative" }}>
-            <div
-              style={{
-                position: "absolute",
-                left: -(70 * k) + 10,
-                top: -(44 * k),
-                width: 444 * k,
-                height: 444 * k,
-                backgroundImage: `url(${M}/moles.png)`,
-                backgroundRepeat: "no-repeat",
-                backgroundSize: `${MOLE_SHEET.w * k}px ${MOLE_SHEET.h * k}px`,
-                backgroundPosition: `${-COLX[col] * k}px ${-ROWY[row] * k}px`,
-              }}
-            />
+          <div style={{ width: 301 * k + 20, height: 352 * k * 1.2 + 10, position: "relative" }}>
+            {lvRes >= 2 ? (
+              <div
+                style={{
+                  position: "absolute",
+                  left: "50%",
+                  marginLeft: -(FINAL_FRAMES.idle.w * fk) / 2,
+                  bottom: 0,
+                  width: FINAL_FRAMES.idle.w * fk,
+                  height: FINAL_FRAMES.idle.h * fk,
+                  backgroundImage: `url(${M}/moles_final_red.png)`,
+                  backgroundRepeat: "no-repeat",
+                  backgroundSize: `${FINAL_SHEET.w * fk}px ${FINAL_SHEET.h * fk}px`,
+                  backgroundPosition: `${-FINAL_FRAMES.idle.x * fk}px ${-FINAL_FRAMES.idle.y * fk}px`,
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  position: "absolute",
+                  left: -(70 * k) + 10,
+                  top: -(44 * k) + 352 * k * 0.2,
+                  width: 444 * k,
+                  height: 444 * k,
+                  backgroundImage: `url(${M}/moles.png)`,
+                  backgroundRepeat: "no-repeat",
+                  backgroundSize: `${MOLE_SHEET.w * k}px ${MOLE_SHEET.h * k}px`,
+                  backgroundPosition: `${-COLX[col] * k}px ${-ROWY[row] * k}px`,
+                }}
+              />
+            )}
           </div>
-          {finalStats.evolved && <p className="rounded-full bg-purple-100 text-purple-700 font-black px-4 py-1 text-base">🌟 진화 달성!</p>}
+          {lvRes >= 1 && (
+            <p className="rounded-full bg-purple-100 text-purple-700 font-black px-4 py-1 text-base">
+              {lvRes >= 2 ? "🌟 최종 진화 달성!" : "🌟 진화 달성!"}
+            </p>
+          )}
           <div className="w-full flex flex-col gap-1.5 text-lg font-bold">
             {rows.map(([kk, v]) => (
               <div key={kk} className="flex justify-between border-b border-gray-200 pb-1">
@@ -1158,7 +1337,7 @@ export default function MoleGame({
   const spellWord = (q as MoleQuestion | null)?.spell?.word ?? null;
   const isSpell = !!spellWord;
   const baseFs = clamp(MOLE_BODY_W * L.sm * 0.15, 18, 34);
-  const labelFsFor = (label: string) => (isSpell ? baseFs * 1.7 : label.includes(" ") ? baseFs : clamp(Math.min(baseFs, (MOLE_BODY_W * L.sm * 1.05) / Math.max(1, [...label].length * 0.62)), 13, baseFs));
+  const labelFsFor = (label: string) => (isSpell ? baseFs * 1.7 : label.includes(" ") ? baseFs * 0.8 : clamp(Math.min(baseFs, (MOLE_BODY_W * L.sm * 1.05) / Math.max(1, [...label].length * 0.62)), 13, baseFs));
   const moleBtn = (slot: number): CSSProperties => {
     const sl = L.slots[slot];
     const w = Math.max(48, L.ringW * 0.86);
@@ -1218,7 +1397,7 @@ export default function MoleGame({
                     style={{ position: "absolute", left: 0, top: 0, transformOrigin: "0 0" }}
                   >
                     <div className="mg-breathe" style={{ position: "absolute", left: 0, top: 0 }}>
-                      <div style={moleSprite(poses[slot], evolved)} />
+                      <div style={moleSprite(poses[slot], level)} />
                     </div>
                   </div>
                 </div>
@@ -1238,11 +1417,11 @@ export default function MoleGame({
                     style={{
                       position: "absolute",
                       left: 0,
-                      top: -LABEL_UP[poses[slot]] * L.sm,
+                      top: level >= 2 ? -FINAL_FRAMES[poses[slot]].up * finalK : -LABEL_UP[poses[slot]] * L.sm,
                       transform: "translate(-50%, -50%)",
                       transition: "top 90ms ease-out",
                       minWidth: MOLE_BODY_W * L.sm * 0.6,
-                      maxWidth: MOLE_BODY_W * L.sm * 1.1,
+                      maxWidth: MOLE_BODY_W * L.sm * 1.25,
                       padding: `${labelFsFor(q.options[slot].label) * 0.22}px ${labelFsFor(q.options[slot].label) * 0.55}px`,
                       borderRadius: labelFsFor(q.options[slot].label) * 0.9,
                       background: "#fff6dc",
@@ -1296,7 +1475,8 @@ export default function MoleGame({
           ✕ 나가기
         </button>
         <span className="rounded-full bg-black/45 px-4 py-2 text-base font-black">
-          {Math.min(qIndex + 1, ROUND_COUNT)} / {ROUND_COUNT}
+          기본 {prog.base}/{prog.total}
+          {prog.retryLeft > 0 ? ` · 재도전 ${prog.retryLeft}개 남음` : ""}
         </span>
         <button
           onClick={toggleMute}
@@ -1432,6 +1612,16 @@ export default function MoleGame({
             onKeyDown={onMoleKey}
           />
         ))}
+
+      {/* 최종 진화: 은은한 금색 빛 1회 (깜빡임 없음) */}
+      {goldKey > 0 && (
+        <div
+          key={goldKey}
+          aria-hidden
+          className="mg-gold"
+          style={{ position: "absolute", inset: 0, zIndex: 12, pointerEvents: "none", background: "radial-gradient(ellipse at 50% 70%, rgba(255,215,90,0.38) 0%, rgba(255,215,90,0) 65%)" }}
+        />
+      )}
 
       {/* 결과 문구 */}
       {banner && (
