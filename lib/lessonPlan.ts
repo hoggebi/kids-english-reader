@@ -52,6 +52,16 @@ export function recordLessonGameDone(setId: string) {
   saveLessonPlan(applyGameDone(plan, lesson, localDateKey()));
 }
 
+// 오늘 이 Lesson의 학습을 이미 마쳤는지(진행 계획 기준). 계획은 동기화되지만 오늘의 학습 카드 기록은 기기마다
+// 따로라서, 다른 기기이거나 카드 기록이 지워진 경우에도 "학습 완료"와 게임하기 잠금이 어긋나지 않게 맞출 때 쓴다.
+export function lessonStudyDoneByPlan(setId: string): boolean {
+  const lesson = lessonFromSetId(setId);
+  const plan = loadLessonPlan();
+  if (lesson === null || !plan) return false;
+  if (plan.progress && plan.progress.lesson === lesson && plan.progress.studyDone) return true;
+  return plan.currentLesson === lesson && plan.completedOn === localDateKey();
+}
+
 export function restartLessonPlan(): LessonPlan | null {
   const plan = loadLessonPlanRaw();
   if (!plan) return null;

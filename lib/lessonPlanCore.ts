@@ -103,3 +103,50 @@ export function restartPlan(plan: LessonPlan, today: string): LessonPlan {
     cycle: plan.cycle + 1,
   };
 }
+
+// ---------- 동기화 병합 ----------
+// 서버에서 받은 진행 계획과 이 기기의 계획을 합친다. 어느 쪽이든 더 진행된 쪽을 쓰고, 오늘 학습한 기록이
+// 오래된 서버 값에 덮여 사라지지 않게 한다. (회차 → 완료 여부 → 현재 Lesson → 오늘 완료 → 진행 단계 순으로 비교)
+const planRank = (p: LessonPlan): number[] => [
+  p.cycle,
+  p.finished ? 1 : 0,
+  p.currentLesson,
+  p.completedOn ? 1 : 0,
+  (p.progress?.studyDone ? 1 : 0) + (p.progress?.gameDone ? 1 : 0),
+];
+
+function cmp(a: number[], b: number[]): number {
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] - b[i];
+  return 0;
+}
+
+export function mergePlans(local: LessonPlan | null, server: LessonPlan | null): LessonPlan | null {
+  if (!local) return server;
+  if (!server) return local;
+  const [base, other] = cmp(planRank(local), planRank(server)) >= 0 ? [local, server] : [server, local];
+  const merged: LessonPlan = { ...base };
+  if (base.cycle === other.cycle) {
+    // 같은 회차: Lesson 완료 기록은 합치고, 같은 Lesson의 진행(학습/게임 완료 표시)은 둘 중 하나라도 했으면 한 것으로 본다.
+    const completed: Record<string, LessonCompletion> = { ...other.completed };
+    for (const [k, v] of Object.entries(base.completed)) {
+      const o = completed[k];
+      completed[k] = o
+        ? { firstOn: o.firstOn < v.firstOn ? o.firstOn : v.firstOn, lastOn: o.lastOn > v.lastOn ? o.lastOn : v.lastOn, count: Math.max(o.count, v.count) }
+        : v;
+    }
+    merged.completed = completed;
+    if (base.currentLesson === other.currentLesson && !base.completedOn) {
+      const a = base.progress;
+      const b = other.progress && other.progress.lesson === base.currentLesson ? other.progress : null;
+      if (a || b) {
+        merged.progress = {
+          lesson: base.currentLesson,
+          studyDone: !!(a?.studyDone || b?.studyDone),
+          gameDone: !!(a?.gameDone || b?.gameDone),
+        };
+      }
+    }
+  }
+  merged.confirmedAt = Math.max(local.confirmedAt ?? 0, server.confirmedAt ?? 0) || null;
+  return merged;
+}

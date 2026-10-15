@@ -12,7 +12,7 @@ import {
   getMoreStudyCandidates,
 } from "@/lib/vocabStorage";
 import { autoPush } from "@/lib/sync";
-import { recordLessonStudyDone } from "@/lib/lessonPlan";
+import { lessonStudyDoneByPlan, recordLessonStudyDone } from "@/lib/lessonPlan";
 import VocabGame from "./VocabGame";
 import SpellTeachCard from "./SpellTeachCard";
 
@@ -43,7 +43,15 @@ export default function VocabStudy({ set, onBack }: { set: VocabSet; onBack: () 
 
   useEffect(() => {
     const existing = loadTodaySession(set.id);
-    setSession(existing ?? buildDailySession(set));
+    let next = existing ?? buildDailySession(set);
+    // 진행 계획(목록의 "학습 완료 ✓")은 학습을 마쳤다고 되어 있는데 오늘의 학습 카드 기록이 없거나 덜 끝난 경우:
+    // 학습 완료로 맞춰서 게임하기가 열리게 한다.
+    if (next.phase !== "done" && next.cards.length > 0 && lessonStudyDoneByPlan(set.id)) {
+      next = { ...next, phase: "done", cursor: next.cards.length };
+      saveTodaySession(next);
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 저장소(localStorage)는 마운트 후에만 읽을 수 있다
+    setSession(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [set.id]);
 

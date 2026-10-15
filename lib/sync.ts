@@ -5,6 +5,8 @@ import { loadPet, mergePetState, setDoneChapterIds, getAllDoneChapterIds, loadPe
 import { loadVocabSets, saveVocabSets } from "./vocabStorage";
 import { loadChunkbooks, saveChunkbooks, type ChunkbookMeta } from "./chunkbook";
 import { loadLessonPlanRaw, saveLessonPlan, type LessonPlan } from "./lessonPlan";
+import { mergePlans } from "./lessonPlanCore";
+import { mergeVocabSets } from "./vocabMerge";
 import {
   loadLessonTexts,
   saveLessonTexts,
@@ -104,9 +106,11 @@ function applyServerPayload(data: Partial<SyncPayload> | null) {
   // 이 기기에서 이미 자란 단계가 되돌아가지 않는다.)
   if (data.pet) mergePetState(data.pet, "chapter");
   if (data.vocabPet) mergePetState(data.vocabPet, "vocab");
-  if (data.vocabSets) saveVocabSets(data.vocabSets);
+  // 단어별 학습 기록은 더 최근에 학습한 쪽을 써서, 오늘 학습한 내용이 오래된 서버 값에 덮이지 않게 한다.
+  if (data.vocabSets) saveVocabSets(mergeVocabSets(loadVocabSets(), data.vocabSets));
   if (data.chunkbooks) saveChunkbooks(data.chunkbooks);
-  if (data.lessonPlan) saveLessonPlan(data.lessonPlan);
+  // 진행 계획도 더 진행된 쪽을 쓴다(오늘 학습/게임 완료 표시가 사라지지 않게).
+  if (data.lessonPlan) saveLessonPlan(mergePlans(loadLessonPlanRaw(), data.lessonPlan));
   // 이 기기에 확인 저장된 본문이 있고 서버에는 없는 Lesson은 지우지 않고 합친다.
   if (data.lessonTexts) saveLessonTexts({ ...loadLessonTexts(), ...data.lessonTexts });
   if (data.pageRoles) saveRoleOverrides({ ...loadRoleOverrides(), ...data.pageRoles });
