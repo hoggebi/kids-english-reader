@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, Ref } from "react";
 import type { VocabWord } from "@/lib/types";
-import { loadPet, getPetImagePath, earnCoins } from "@/lib/pet";
+import { loadPet, getPetImagePath, earnCoins, COINS_DART_COMPLETE, COINS_DART_SPELL, COINS_DART_WORD } from "@/lib/pet";
 import { CoinAmount } from "./Coin";
 import { shuffle } from "./VocabGame";
 import { FeverHud, useFever } from "./FeverKit";
@@ -20,8 +20,9 @@ const A = "/assets/dart-game/v2";
 
 // ---------- 설정값 ----------
 const ROUND_COUNT = 10;
-const COIN_COMPLETE = 50; // 10문제 완료 보상
-const COIN_PER_FIRST_TRY = 10; // 최초 시도 정답당 보상
+const COIN_COMPLETE = COINS_DART_COMPLETE; // 10라운드 완료 보너스
+const COIN_PER_FIRST_TRY = COINS_DART_WORD; // 첫 시도 정답마다 바로 지급
+const COIN_SPELL = COINS_DART_SPELL; // 스펠링 라운드를 깨끗하게 완성
 const AIM_OFFSET_KEY = "chunkbook-v2-dartAimOffsetPx";
 const AIM_OFFSET_DEFAULT = 40; // 손가락에 가려지지 않도록 조준점을 포인터보다 위로 띄우는 값(CSS px)
 const AIM_OFFSET_MIN = 0;
@@ -671,6 +672,7 @@ export default function DartGame({
     combo: 0,
     bestCombo: 0,
     firstTry: 0,
+    coins: 0, // 이번 판에 받은 코인(정답마다 쌓임)
     wrongAttempts: 0,
     misses: 0,
     kind: "basic" as DartKind,
@@ -881,7 +883,7 @@ export default function DartGame({
         bestCombo: g.bestCombo,
         retries: g.wrongAttempts,
         spellDone: g.spellDone,
-        coins: earnCoins(COIN_COMPLETE + COIN_PER_FIRST_TRY * g.firstTry, "vocab").granted, // 라운드 단위로 한 번만 계산해 코인 지갑에 넣는다
+        coins: g.coins + earnCoins(COIN_COMPLETE, "vocab").granted, // 완료 보너스는 한 판에 한 번만
       });
       token.current += 1;
       setStage("result");
@@ -1190,7 +1192,12 @@ export default function DartGame({
     const g = game.current;
     const q = g.q!;
     const usedHint = g.hint;
-    if (g.wrong === 0) g.firstTry += 1;
+    let wordCoins = 0;
+    if (g.wrong === 0) {
+      g.firstTry += 1;
+      wordCoins = earnCoins(COIN_PER_FIRST_TRY, "vocab").granted; // 맞힐 때마다 바로 지갑에
+      g.coins += wordCoins;
+    }
     if (!usedHint) {
       g.combo += 1; // 힌트로 맞힌 정답은 콤보를 올리지 않는다
       g.bestCombo = Math.max(g.bestCombo, g.combo);
@@ -1213,7 +1220,7 @@ export default function DartGame({
         const pt = toPx(layoutRef.current, t.u, t.v);
         fever.burst(pt.x, pt.y, true);
       }
-      setBanner({ text: "명중!", tone: "good", key: nextKey() });
+      setBanner({ text: "명중!", sub: wordCoins > 0 ? `🪙 +${wordCoins}` : undefined, tone: "good", key: nextKey() });
       setReveal(q.reveal);
       const spoken = speak(q.reveal.english, "en-US", mutedRef.current);
       void Promise.all([delay(T_CELEBRATE + T_WORD_CONFIRM), spoken])
@@ -1300,11 +1307,14 @@ export default function DartGame({
     const q = g.q!;
     const sp = g.spell;
     g.spellDone += 1;
+    let spellCoins = 0;
     if (sp.clean && !sp.hint) {
       // 글자 오답/힌트 없이 완성 = 최초 성공 라운드, 콤보 +1. (오답/힌트가 있었던 라운드는 콤보를 올리지 않는다)
       g.firstTry += 1;
       g.combo += 1;
       g.bestCombo = Math.max(g.bestCombo, g.combo);
+      spellCoins = earnCoins(COIN_SPELL, "vocab").granted;
+      g.coins += spellCoins;
     }
     setCombo(g.combo);
     const fc = fever.complete(`q${qIndex}`, true, qIndex + 1 < ROUND_COUNT);
@@ -1316,7 +1326,7 @@ export default function DartGame({
         const pt = toPx(layoutRef.current, 0, 0);
         fever.burst(pt.x, pt.y, true);
       }
-      setBanner({ text: "완성!", tone: "good", key: nextKey() });
+      setBanner({ text: "완성!", sub: spellCoins > 0 ? `🪙 +${spellCoins}` : undefined, tone: "good", key: nextKey() });
       setReveal(q.reveal);
       const spoken = speak(q.reveal.english, "en-US", mutedRef.current);
       void Promise.all([delay(T_CELEBRATE + T_WORD_CONFIRM), spoken])

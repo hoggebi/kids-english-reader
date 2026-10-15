@@ -5,7 +5,7 @@ import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent a
 import type { VocabWord } from "@/lib/types";
 import { buildAlternatingQuestions, type Question } from "@/lib/gameQuestions";
 import { cancelSpeech, playSfx, speak, unlockAudio } from "@/lib/gameAudio";
-import { earnCoins } from "@/lib/pet";
+import { COINS_MOLE_COMPLETE, COINS_MOLE_WORD, earnCoins } from "@/lib/pet";
 import { CoinAmount } from "./Coin";
 import { FeverHud, useFever } from "./FeverKit";
 
@@ -20,8 +20,8 @@ const M = "/assets/mole-game";
 
 // ---------- 설정값 ----------
 const ROUND_COUNT = 10;
-const COIN_COMPLETE = 50;
-const COIN_PER_FIRST_TRY = 10;
+const COIN_COMPLETE = COINS_MOLE_COMPLETE; // 10문제 완료 보너스
+const COIN_PER_FIRST_TRY = COINS_MOLE_WORD; // 첫 시도 정답마다 바로 지급
 const EVOLVE_COMBO = 3;
 
 const T_RISE_STAGGER = 120;
@@ -231,7 +231,7 @@ export default function MoleGame({
   const [combo, setCombo] = useState(0);
   const [banner, setBanner] = useState<Banner | null>(null);
   const [reveal, setReveal] = useState<{ english: string; korean: string } | null>(null);
-  const [coinPop, setCoinPop] = useState<{ x: number; y: number; key: number; strong?: boolean } | null>(null);
+  const [coinPop, setCoinPop] = useState<{ x: number; y: number; key: number; strong?: boolean; amount?: number } | null>(null);
   const [fxList, setFxList] = useState<FxItem[]>([]);
   const [muted, setMuted] = useState(false);
   const mutedRef = useRef(false);
@@ -251,6 +251,7 @@ export default function MoleGame({
     whiffs: 0,
     evolveReached: false,
     evolvePlayed: false,
+    coins: 0, // 이번 판에 받은 코인(정답마다 쌓임)
     hint: false,
     finished: false,
     timeouts: 0,
@@ -523,7 +524,7 @@ export default function MoleGame({
       retries: g.retries,
       whiffs: g.whiffs,
       evolved: g.evolveReached,
-      coins: earnCoins(COIN_COMPLETE + COIN_PER_FIRST_TRY * g.firstTry, "vocab").granted, // 한 게임에 한 번만 계산해 코인 지갑에 넣는다
+      coins: g.coins + earnCoins(COIN_COMPLETE, "vocab").granted, // 완료 보너스는 한 판에 한 번만
     });
     token.current += 1;
     cancelSpeech();
@@ -651,7 +652,12 @@ export default function MoleGame({
     const g = game.current;
     const cq = g.q!;
     const L = layoutRef.current;
-    if (firstPick) g.firstTry += 1;
+    let wordCoins = 0;
+    if (firstPick) {
+      g.firstTry += 1;
+      wordCoins = earnCoins(COIN_PER_FIRST_TRY, "vocab").granted; // 맞힐 때마다 바로 지갑에
+      g.coins += wordCoins;
+    }
     const usedHint = g.hint;
     if (!usedHint) {
       g.combo += 1; // 힌트로 맞힌 정답은 콤보를 올리지 않는다
@@ -676,7 +682,7 @@ export default function MoleGame({
       addFx({ sheet: "correct", frames: reducedRef.current ? [CORRECT_FRAMES[2]] : CORRECT_FRAMES, x: T.x, y: T.y - L.moleH * 0.12, size: L.ringW * 0.78 * (fc.enhanced ? 1.25 : 1), duration: reducedRef.current ? 500 : 700 });
       if (fc.enhanced) fever.burst(T.x, T.y - L.moleH * 0.12, true);
       setBanner({ text: "정답!", tone: "good", key: nextKey() });
-      setCoinPop({ x: T.x, y: T.y - L.moleH * 0.1, key: nextKey(), strong: fc.enhanced });
+      if (wordCoins > 0) setCoinPop({ x: T.x, y: T.y - L.moleH * 0.1, key: nextKey(), strong: fc.enhanced, amount: wordCoins });
       if (g.combo === 5) setBanner({ text: "SUPER COMBO", tone: "combo", key: nextKey() });
       if (g.combo === 7) setBanner({ text: "MEGA COMBO", tone: "combo", key: nextKey() });
       // 통통 튀어 오르고
@@ -1133,7 +1139,7 @@ export default function MoleGame({
             className="mg-coin"
             style={{ position: "absolute", left: coinPop.x, top: coinPop.y, zIndex: 10, fontWeight: 900, fontSize: coinPop.strong ? 30 : 22, color: "#ffe14a", textShadow: "0 2px 4px rgba(0,0,0,.6)" }}
           >
-            <CoinAmount amount={COIN_PER_FIRST_TRY} prefix="+" size={coinPop.strong ? 32 : 24} />
+            <CoinAmount amount={coinPop.amount ?? COIN_PER_FIRST_TRY} prefix="+" size={coinPop.strong ? 32 : 24} />
           </div>
         )}
       </div>

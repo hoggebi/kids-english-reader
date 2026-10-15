@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { VocabWord } from "@/lib/types";
 import { nextMonster, type Monster } from "@/lib/monsters";
-import { COINS_BATTLE_BOSS, COINS_BATTLE_STAGE, earnCoins } from "@/lib/pet";
+import { COINS_BATTLE_BOSS, COINS_BATTLE_STAGE, COINS_BATTLE_WORD, earnCoins } from "@/lib/pet";
 import { CoinAmount } from "./Coin";
 import { FeverHud, useFever } from "./FeverKit";
 import { shuffle, playTone } from "./VocabGame";
@@ -278,7 +278,9 @@ export default function BattleGame({
   const [defeatedCount, setDefeatedCount] = useState(initialDefeatedCount);
   const [monster, setMonster] = useState<Monster>(() => nextMonster(0));
   const [monsterMaxHp, setMonsterMaxHp] = useState(3);
-  const [stageCoins, setStageCoins] = useState(0); // 이번 스테이지를 깨고 받은 코인
+  const [stageCoins, setStageCoins] = useState(0); // 이번 스테이지를 깨고 받은 코인(철자 정답 코인 + 클리어 보너스)
+  const stageWordCoins = useRef(0); // 이번 스테이지에서 철자를 맞혀 받은 코인
+  const [wordCoinPop, setWordCoinPop] = useState<{ amount: number; key: number } | null>(null);
   const [monsterHp, setMonsterHp] = useState(3);
   const [playerHp, setPlayerHp] = useState(PLAYER_MAX_HP);
   const [question, setQuestion] = useState<Question | null>(() =>
@@ -379,6 +381,7 @@ export default function BattleGame({
   }
 
   function beginEncounter(count: number) {
+    stageWordCoins.current = 0;
     const m = nextMonster(count);
     const hits = rollHitsNeeded(m);
     const kind = rollEntrance(!!m.isBoss);
@@ -481,7 +484,9 @@ export default function BattleGame({
 
     setKoStage("hold");
     // 스테이지를 깰 때마다 코인(보스는 더 많이)을 지갑에 넣는다.
-    setStageCoins(earnCoins(monster.isBoss ? COINS_BATTLE_BOSS : COINS_BATTLE_STAGE, "vocab").granted);
+    const bonus = earnCoins(monster.isBoss ? COINS_BATTLE_BOSS : COINS_BATTLE_STAGE, "vocab").granted;
+    setStageCoins(stageWordCoins.current + bonus);
+    stageWordCoins.current = 0;
     at(KO_HOLD_MS, () => {
       setKoStage("defeat");
       sfxKO();
@@ -538,6 +543,10 @@ export default function BattleGame({
     };
 
     if (ok) {
+      // 철자를 맞힐 때마다 바로 코인을 준다(가장 어려운 게임이라 단가가 가장 높다).
+      const wordCoins = earnCoins(COINS_BATTLE_WORD, "vocab").granted;
+      stageWordCoins.current += wordCoins;
+      if (wordCoins > 0) setWordCoinPop((p) => ({ amount: wordCoins, key: (p?.key ?? 0) + 1 }));
       const nextCombo = combo + 1;
 
       // setState 업데이터가 이 자리에서 곧바로 실행되지 않으므로, team/combo는
@@ -936,6 +945,12 @@ export default function BattleGame({
               }}
             />
           </div>
+        )}
+
+        {showBottomUI && wordCoinPop && feedback === "correct" && (
+          <p key={wordCoinPop.key} className="anim-popupFade absolute right-6 top-2 text-lg font-black text-yellow-300 drop-shadow z-20 leading-normal">
+            🪙 +{wordCoinPop.amount}
+          </p>
         )}
 
         {showBottomUI && feedback === "wrong" && (

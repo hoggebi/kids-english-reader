@@ -583,15 +583,23 @@ const COINS_X10_FLAG = "chunkbook-v2-coins-x10";
 const DONE_LESSONS_KEY = "chunkbook-v2-done-lessons";
 const LESSON_DAY_KEY = "chunkbook-v2-lesson-growth-day";
 
-export const DAILY_COIN_CAP = 600; // 하루 10분 기준의 약 2.5배. 넘으면 "오늘은 여기까지!"
+export const DAILY_COIN_CAP = 900; // 게임 코인의 하루 한도. 넘으면 "오늘은 여기까지!" (성장 보너스는 한도에 포함하지 않는다)
 export const COINS_SENTENCE = 20; // 문장 하나 쓰기
 export const COINS_LISTEN = 30; // 읽고 듣기 한 바퀴
 export const COINS_LESSON_DONE = 100; // Lesson 한 번 끝까지(보너스)
 export const COINS_READ_ROUND = 30; // 챕터 한 페이지 2번 읽기
 export const COINS_CHAPTER_DONE = 200; // 챕터 끝까지 + 퀴즈(보너스)
 export const COINS_VOCAB_ROUND = 100; // 단어장 하루 게임 전부 완료(보너스)
-export const COINS_BATTLE_STAGE = 10; // 몬스터 배틀: 스테이지를 깰 때마다
-export const COINS_BATTLE_BOSS = 30; // 몬스터 배틀: 보스 스테이지
+// 게임 코인: 철자를 직접 쳐야 하는 몬스터 배틀이 가장 많이, 다트, 두더지 순서.
+// 문제를 맞힐 때마다 바로 준다. 한 판을 끝까지 하면 완료 보너스가 따로 붙는다.
+export const COINS_BATTLE_WORD = 15; // 몬스터 배틀: 철자를 맞힐 때마다
+export const COINS_BATTLE_STAGE = 20; // 몬스터 배틀: 스테이지 클리어 보너스
+export const COINS_BATTLE_BOSS = 60; // 몬스터 배틀: 보스 스테이지 클리어 보너스
+export const COINS_DART_WORD = 6; // 다트: 첫 시도 정답
+export const COINS_DART_SPELL = 15; // 다트: 스펠링 라운드를 틀리거나 힌트 없이 완성
+export const COINS_DART_COMPLETE = 15; // 다트: 10라운드 완료 보너스
+export const COINS_MOLE_WORD = 3; // 두더지: 첫 시도 정답
+export const COINS_MOLE_COMPLETE = 10; // 두더지: 10문제 완료 보너스
 
 function numFromStorage(key: string): number {
   if (typeof window === "undefined") return 0;
