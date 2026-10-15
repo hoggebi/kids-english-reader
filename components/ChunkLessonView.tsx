@@ -37,6 +37,19 @@ type Mode = "home" | "read" | "write" | "review" | "roles";
 // 따옴표 표기(둥근/곧은, 문장 일부를 인용한 경우의 여닫는 따옴표)는 비교에서 뺀다. 글자와 구두점이 다를 때만 경고한다.
 const norm = (s: string) => s.replace(/[“”"‘’']/g, "").replace(/\s+/g, " ").trim().toLowerCase();
 
+// 읽어 주는 속도: 예전 속도(0.9 / 0.85)의 0.7배로 천천히.
+const READ_RATE = 0.9 * 0.7;
+const WRITE_RATE = 0.85 * 0.7;
+
+// 따라쓰기 뜻 힌트: 한국어 전체가 아니라 앞부분 한두 단어만 살짝 보여 준다.
+function hintOf(ko: string): string {
+  const words = ko.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "";
+  if (words.length === 1) return words[0].slice(0, Math.max(1, Math.ceil(words[0].length / 3))) + "…";
+  const shown = Math.min(2, Math.max(1, Math.floor(words.length / 3)));
+  return words.slice(0, shown).join(" ") + " …";
+}
+
 function speakSupported() {
   return typeof window !== "undefined" && "speechSynthesis" in window;
 }
@@ -102,7 +115,7 @@ function ReadListen({
         setIdx(i);
         const u = new SpeechSynthesisUtterance(lines[i].en);
         u.lang = "en-US";
-        u.rate = 0.9;
+        u.rate = READ_RATE;
         let advanced = false;
         const next = () => {
           if (advanced || tk !== token.current) return;
@@ -113,7 +126,7 @@ function ReadListen({
         u.onend = next;
         u.onerror = next;
         // 일부 기기에서 end 이벤트가 오지 않는 경우를 대비한 안전장치
-        watchdog.current = setTimeout(next, 2500 + lines[i].en.length * 110);
+        watchdog.current = setTimeout(next, 2500 + lines[i].en.length * 160); // 느리게 읽는 만큼 여유를 둔다
         window.speechSynthesis.speak(u);
       };
       say(start);
@@ -367,7 +380,7 @@ function WritingActivity({
     stop();
     const u = new SpeechSynthesisUtterance(s);
     u.lang = "en-US";
-    u.rate = 0.85;
+    u.rate = WRITE_RATE;
     window.speechSynthesis.speak(u);
   }
 
@@ -426,7 +439,7 @@ function WritingActivity({
         <p className="text-3xl sm:text-4xl font-black text-gray-900 text-center leading-snug" data-testid="write-sentence">
           {item.en}
         </p>
-        {hint && <p className="text-lg font-bold text-sky-700 text-center" data-testid="write-hint">{item.ko}</p>}
+        {hint && <p className="text-lg font-bold text-sky-700 text-center" data-testid="write-hint">{hintOf(item.ko)}</p>}
       </div>
 
       <div className="flex flex-wrap justify-center gap-2">
@@ -434,7 +447,7 @@ function WritingActivity({
           🔈 문장 듣기
         </button>
         <button onClick={() => setHint((h) => !h)} className="min-h-[48px] px-5 rounded-full bg-gray-100 text-gray-700 text-sm font-bold">
-          💡 뜻 힌트 {hint ? "숨기기" : "보기"}
+          💡 힌트 {hint ? "숨기기" : "살짝 보기"}
         </button>
       </div>
 
@@ -804,6 +817,7 @@ export default function ChunkLessonView({
 
   return (
     <div className="flex flex-col gap-3 rounded-2xl bg-gray-50 p-4" data-testid="lesson-home">
+      <PetCompanion tick={0} track="chapter" />
       <div className="flex items-baseline justify-between gap-2">
         <p className="text-lg font-bold text-gray-900">Lesson {lesson}</p>
         <p className="text-xs text-gray-500">

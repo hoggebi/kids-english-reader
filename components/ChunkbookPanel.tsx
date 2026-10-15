@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import ChunkLessonView from "./ChunkLessonView";
+import PetCompanion from "./PetCompanion";
 import {
   type ChunkbookMeta,
   classifyPages,
@@ -551,6 +552,9 @@ export default function ChunkbookPanel({
           </div>
         </div>
       )}
+
+      {/* 청크북 메인 위에도 같은 캐릭터(진화·장착 아이템 포함) */}
+      {!current && <PetCompanion tick={0} track="chapter" />}
 
       {/* Lesson 목록 */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" data-testid="lesson-list">

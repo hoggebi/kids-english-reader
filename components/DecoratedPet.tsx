@@ -50,7 +50,7 @@ export default function DecoratedPet({
 
   return (
     <div
-      className={`relative overflow-hidden rounded-2xl bg-gray-100 ${className}`}
+      className={`relative overflow-hidden rounded-2xl ${className}`}
       style={{ aspectRatio: String(SCENE_ASPECT) }}
       data-testid="decorated-pet"
     >
