@@ -56,6 +56,8 @@ export default function ShopView({ initialFriend, onClose }: { initialFriend?: F
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   // 소품 위치 편집(draft). 저장을 눌러야 확정된다.
   const [editing, setEditing] = useState<{ itemId: string; draft: Placement; original: Placement } | null>(null);
+  // 미리보기 중인(아직 장착하지 않은) 소품에 맞춰 둔 위치. 저장되지 않고, 장착할 때 함께 저장된다.
+  const [previewPlacement, setPreviewPlacement] = useState<{ itemId: string; placement: Placement } | null>(null);
 
   const friends = useMemo(() => listFriends(initialFriend ?? null), [tick, initialFriend]); // eslint-disable-line react-hooks/exhaustive-deps
   const state = useMemo(() => loadShop(), [tick]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -107,35 +109,46 @@ export default function ShopView({ initialFriend, onClose }: { initialFriend?: F
   function selectFriend(key: string) {
     setSelectedKey(key);
     setEditing(null); // 친구를 바꾸면 위치 편집도 취소
+    setPreviewPlacement(null);
     setPreview({}); // 친구를 바꾸면 미리보기는 취소
     setFocus(null);
     setJustBought(null);
   }
 
-  // 지금 장착한 소품의 현재 위치(저장된 값 → 기본 위치)
+  // 위치를 바꿀 소품: 미리보기 중인 소품이 있으면 그것, 없으면 지금 장착한 소품.
+  const targetPropId = (preview.prop ?? saved.prop) && SHOP_BY_ID[(preview.prop ?? saved.prop) as string] ? ((preview.prop ?? saved.prop) as string) : null;
+
+  // 소품의 현재 위치(미리보기에서 맞춰 둔 값 → 저장된 값 → 기본 위치)
   function currentPropPlacement(): { itemId: string; placement: Placement } | null {
-    if (!current) return null;
-    const id = saved.prop;
-    if (!id || !SHOP_BY_ID[id]) return null;
+    if (!current || !targetPropId) return null;
+    const id = targetPropId;
     const path = getPetImagePath(current.pet, current.friend.track);
     const prefix = getSpecies(current.friend.generation, current.friend.track).imagePrefix;
-    return { itemId: id, placement: getPlacement(current.key, current.pet.stage, id) ?? defaultPlacement(id, path, prefix) };
+    const fromPreview = previewPlacement && previewPlacement.itemId === id ? previewPlacement.placement : null;
+    return { itemId: id, placement: fromPreview ?? getPlacement(current.key, current.pet.stage, id) ?? defaultPlacement(id, path, prefix) };
   }
 
   function startEdit() {
     const cur = currentPropPlacement();
     if (!cur) return;
-    setPreview({}); // 미리보기는 정리하고 저장된 장착 상태에서 편집한다
-    setFocus(null);
+    setFocus(null); // 미리보기(배경·효과 포함)는 그대로 두고 그 위에서 소품만 옮긴다
     setEditing({ itemId: cur.itemId, draft: cur.placement, original: cur.placement });
   }
 
   function saveEdit() {
     if (!current || !editing) return;
-    setPlacement(current.key, current.pet.stage, editing.itemId, editing.draft);
+    if (saved.prop === editing.itemId) {
+      // 이미 장착한 소품: 바로 저장
+      setPlacement(current.key, current.pet.stage, editing.itemId, editing.draft);
+      setPreviewPlacement(null);
+      autoPush();
+      flash("소품 위치를 저장했어요!");
+    } else {
+      // 미리보기 중인 소품: 아직 저장하지 않고 미리보기에만 적용한다(장착하면 함께 저장된다)
+      setPreviewPlacement({ itemId: editing.itemId, placement: editing.draft });
+      flash("미리보기에 적용했어요. 장착하면 이 위치로 저장돼요.");
+    }
     setEditing(null);
-    autoPush();
-    flash("소품 위치를 저장했어요!");
   }
 
   function resetEditToDefault() {
@@ -152,16 +165,23 @@ export default function ShopView({ initialFriend, onClose }: { initialFriend?: F
     setBubble(null);
     // 무료 미리보기: 실제 장착에는 영향이 없다
     setPreview((p) => ({ ...p, [item.slot]: item.id }));
+    if (item.slot === "prop" && previewPlacement && previewPlacement.itemId !== item.id) setPreviewPlacement(null); // 다른 소품을 보면 맞춰 둔 위치는 버린다
   }
 
   function cancelPreview() {
     setPreview({});
+    setPreviewPlacement(null);
     setFocus(null);
   }
 
   function equip(item: ShopItem) {
     if (!current) return;
     equipItem(current.key, item.slot, item.id);
+    // 미리보기에서 맞춰 둔 소품 위치는 장착하면서 함께 저장한다.
+    if (item.slot === "prop" && previewPlacement && previewPlacement.itemId === item.id) {
+      setPlacement(current.key, current.pet.stage, item.id, previewPlacement.placement);
+      setPreviewPlacement(null);
+    }
     setPreview((p) => {
       const n = { ...p };
       delete n[item.slot];
@@ -250,7 +270,7 @@ export default function ShopView({ initialFriend, onClose }: { initialFriend?: F
                     forceScene
                     className="w-full"
                     still={!!editing}
-                    placementOverride={editing ? editing.draft : null}
+                    placementOverride={editing ? editing.draft : previewPlacement && preview.prop === previewPlacement.itemId ? previewPlacement.placement : null}
                     overlay={
                       editing ? (
                         <PropEditOverlay value={editing.draft} onChange={(d) => setEditing((e) => (e ? { ...e, draft: d } : e))} label={SHOP_BY_ID[editing.itemId]?.name ?? "소품"} />
@@ -276,10 +296,12 @@ export default function ShopView({ initialFriend, onClose }: { initialFriend?: F
                   onCancel={() => setEditing(null)}
                   onSave={saveEdit}
                   dirty={!samePlacement(editing.draft, editing.original)}
+                  saveLabel={saved.prop === editing.itemId ? "저장" : "적용"}
+                  note={saved.prop === editing.itemId ? undefined : "미리보기 중이라 아직 저장되지 않아요. 장착하면 이 위치로 저장돼요."}
                 />
               )}
               <div className="flex flex-wrap gap-2 items-center">
-                {!editing && saved.prop && !previewing && (
+                {!editing && targetPropId && (
                   <button onClick={startEdit} className="min-h-[44px] px-4 rounded-full bg-sky-50 border-2 border-sky-200 text-sky-700 text-sm font-bold" data-testid="edit-prop-button">
                     ✋ 위치 바꾸기
                   </button>
@@ -295,7 +317,7 @@ export default function ShopView({ initialFriend, onClose }: { initialFriend?: F
                   </button>
                 ))}
               </div>
-              {!editing && !saved.prop && <p className="text-xs text-gray-400">소품을 장착하면 ‘위치 바꾸기’로 소품을 원하는 곳으로 옮길 수 있어요.</p>}
+              {!editing && !targetPropId && <p className="text-xs text-gray-400">소품을 미리보거나 장착하면 ‘위치 바꾸기’로 소품을 원하는 곳으로 옮기고 크기를 바꿀 수 있어요.</p>}
               {previewing && <p className="text-xs text-gray-400">지금은 미리보기예요. 사거나 장착하기 전에는 저장되지 않아요.</p>}
             </div>
 

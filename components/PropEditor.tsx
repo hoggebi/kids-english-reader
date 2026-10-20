@@ -138,6 +138,8 @@ export function PropEditControls({
   onCancel,
   onSave,
   dirty,
+  saveLabel = "저장",
+  note,
 }: {
   value: Placement;
   onChange: (p: Placement) => void;
@@ -145,11 +147,14 @@ export function PropEditControls({
   onCancel: () => void;
   onSave: () => void;
   dirty: boolean;
+  saveLabel?: string;
+  note?: string;
 }) {
   const btn = "min-h-[44px] px-4 rounded-full bg-white border-2 border-gray-200 text-gray-700 text-sm font-bold active:scale-95 transition disabled:opacity-40";
   return (
     <div className="flex flex-col gap-2 rounded-2xl bg-sky-50 border-2 border-sky-200 p-3" data-testid="prop-edit-controls">
-      <p className="text-sm font-bold text-sky-800">소품을 손가락으로 끌어서 옮겨 보세요. 저장해야 확정돼요.</p>
+      <p className="text-sm font-bold text-sky-800">소품을 손가락으로 끌어서 옮기고 크기도 바꿔 보세요. {saveLabel}을 눌러야 적용돼요.</p>
+      {note && <p className="text-xs text-sky-700">{note}</p>}
       <div className="flex flex-wrap gap-2 items-center">
         <button onClick={() => onChange(scalePlacement(value, 1 / 1.12))} disabled={value.scale <= SCALE_MIN + 1e-6} className={btn} aria-label="소품 작게">
           크기 −
@@ -172,7 +177,7 @@ export function PropEditControls({
           취소
         </button>
         <button onClick={onSave} disabled={!dirty} className="flex-1 min-h-[48px] rounded-full bg-sky-600 text-white font-bold disabled:opacity-40 active:scale-95 transition">
-          저장
+          {saveLabel}
         </button>
       </div>
     </div>
