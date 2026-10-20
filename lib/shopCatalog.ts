@@ -1,4 +1,4 @@
-// 친구 꾸미기 상점 카탈로그(상품 20종: 기본 12종 + 2차 확장 8종). 상품 id와 가격은 서버(app/api/shop)도 같은 값을 쓴다.
+// 친구 꾸미기 상점 카탈로그(상품 23종: 기본 12종 + 2차 확장 8종 + 화려한 소품 3종). 상품 id와 가격은 서버(app/api/shop)도 같은 값을 쓴다.
 // 이미지는 public/shop/ 에 있고, 글자·가격은 이미지에 합성하지 않고 화면(UI)에서 보여준다.
 
 export type ShopSlot = "background" | "prop" | "effect";
@@ -12,6 +12,7 @@ export type ShopItem = {
   asset: string;
   animation: ShopAnimation;
   rare?: boolean;
+  defaultPlacement?: { x: number; y: number; scale: number; layer: "front" | "back" }; // 소품 기본 위치(캔버스 0~1, 폭 비율). 없으면 기존 소품 배치를 쓴다
   isNew?: boolean; // 이번에 추가한 상품에만 붙는 NEW 배지(기간·할인·품절 표시 아님)
 };
 
@@ -32,14 +33,18 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: "lightning_aura", name: "번개 기운", price: 1000, slot: "effect", asset: "/shop/lightning_aura.png", animation: "pulse" },
   { id: "galaxy_aura", name: "은하 오라", price: 2000, slot: "effect", asset: "/shop/galaxy_aura.png", animation: "pulse", rare: true },
   // ---- 2차 확장(배경 3 + 효과 5). 기존 상품·가격은 그대로 두고 뒤에 붙인다.
-  { id: "lava_kingdom", name: "용암 왕국", price: 900, slot: "background", asset: "/shop/lava_kingdom.jpg", animation: "none", isNew: true },
-  { id: "glacier_palace", name: "빙하 궁전", price: 1100, slot: "background", asset: "/shop/glacier_palace.jpg", animation: "none", isNew: true },
-  { id: "aurora_summit", name: "오로라 정상", price: 1400, slot: "background", asset: "/shop/aurora_summit.jpg", animation: "none", isNew: true },
-  { id: "wind_vortex", name: "바람 회오리", price: 700, slot: "effect", asset: "/shop/wind_vortex.png", animation: "pulse", isNew: true },
-  { id: "tidal_wave", name: "파도 수호막", price: 1000, slot: "effect", asset: "/shop/tidal_wave.png", animation: "pulse", isNew: true },
-  { id: "meteor_trails", name: "유성 질주", price: 1500, slot: "effect", asset: "/shop/meteor_trails.png", animation: "pulse", isNew: true },
-  { id: "dragon_flame", name: "용의 불꽃", price: 2200, slot: "effect", asset: "/shop/dragon_flame.png", animation: "pulse", rare: true, isNew: true },
-  { id: "blackhole_halo", name: "블랙홀 오라", price: 3000, slot: "effect", asset: "/shop/blackhole_halo.png", animation: "pulse", rare: true, isNew: true },
+  { id: "lava_kingdom", name: "용암 왕국", price: 900, slot: "background", asset: "/shop/lava_kingdom.jpg", animation: "none" },
+  { id: "glacier_palace", name: "빙하 궁전", price: 1100, slot: "background", asset: "/shop/glacier_palace.jpg", animation: "none" },
+  { id: "aurora_summit", name: "오로라 정상", price: 1400, slot: "background", asset: "/shop/aurora_summit.jpg", animation: "none" },
+  { id: "wind_vortex", name: "바람 회오리", price: 700, slot: "effect", asset: "/shop/wind_vortex.png", animation: "pulse" },
+  { id: "tidal_wave", name: "파도 수호막", price: 1000, slot: "effect", asset: "/shop/tidal_wave.png", animation: "pulse" },
+  { id: "meteor_trails", name: "유성 질주", price: 1500, slot: "effect", asset: "/shop/meteor_trails.png", animation: "pulse" },
+  { id: "dragon_flame", name: "용의 불꽃", price: 2200, slot: "effect", asset: "/shop/dragon_flame.png", animation: "pulse", rare: true },
+  { id: "blackhole_halo", name: "블랙홀 오라", price: 3000, slot: "effect", asset: "/shop/blackhole_halo.png", animation: "pulse", rare: true },
+  // ---- 화려한 소품 3종(소품 슬롯 그대로). 위치·크기·앞뒤는 '꾸미기 → 위치 바꾸기'에서 바꿀 수 있다.
+  { id: "royal_gem_crown", name: "오색 보석 왕관", price: 1200, slot: "prop", asset: "/shop/royal_gem_crown.png", animation: "none", rare: true, isNew: true, defaultPlacement: { x: 0.5, y: 0.2, scale: 0.32, layer: "front" } },
+  { id: "golden_wings", name: "황금 빛 날개", price: 1800, slot: "prop", asset: "/shop/golden_wings.png", animation: "none", rare: true, isNew: true, defaultPlacement: { x: 0.5, y: 0.45, scale: 0.85, layer: "back" } },
+  { id: "arcane_crystal_orb", name: "마법 수정구", price: 1500, slot: "prop", asset: "/shop/arcane_crystal_orb.png", animation: "none", rare: true, isNew: true, defaultPlacement: { x: 0.8, y: 0.65, scale: 0.3, layer: "front" } },
 ];
 
 export const SHOP_BY_ID: Record<string, ShopItem> = Object.fromEntries(SHOP_ITEMS.map((i) => [i.id, i]));

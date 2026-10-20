@@ -1,6 +1,7 @@
 "use client";
 
 import { SHOP_BY_ID, type ShopSlot } from "./shopCatalog";
+import { sanitizePlacement, type Placement } from "./placement";
 import { getSpecies, loadCoinsTotal, type PetTrack } from "./pet";
 import { getSyncCode } from "./sync";
 
@@ -12,16 +13,37 @@ import { getSyncCode } from "./sync";
 const SHOP_KEY = "chunkbook-v2-shop";
 
 export type Equipped = Partial<Record<ShopSlot, string>>;
+// 소품 위치: 친구(트랙+종류) → 성장 단계 → 소품 id → 위치. 단계마다 자세와 크기가 달라 단계별로 따로 저장한다.
+export type Placements = Record<string, Record<string, Record<string, Placement>>>;
 export type ShopState = {
   owned: string[];
   spent: number;
   equipped: Record<string, Equipped>;
+  placements: Placements;
   goal: string | null;
   pending: Record<string, string>;
   local: { purchaseId: string; itemId: string }[];
 };
 
-const EMPTY: ShopState = { owned: [], spent: 0, equipped: {}, goal: null, pending: {}, local: [] };
+const EMPTY: ShopState = { owned: [], spent: 0, equipped: {}, placements: {}, goal: null, pending: {}, local: [] };
+
+function sanitizePlacements(raw: unknown): Placements {
+  const out: Placements = {};
+  if (!raw || typeof raw !== "object") return out;
+  for (const [fk, stages] of Object.entries(raw as Record<string, unknown>)) {
+    if (!stages || typeof stages !== "object") continue;
+    for (const [st, items] of Object.entries(stages as Record<string, unknown>)) {
+      if (!items || typeof items !== "object") continue;
+      for (const [id, pl] of Object.entries(items as Record<string, unknown>)) {
+        if (!SHOP_BY_ID[id]) continue;
+        const clean = sanitizePlacement(pl);
+        if (!clean) continue;
+        ((out[fk] ??= {})[st] ??= {})[id] = clean;
+      }
+    }
+  }
+  return out;
+}
 
 export function loadShop(): ShopState {
   if (typeof window === "undefined") return { ...EMPTY };
@@ -33,6 +55,7 @@ export function loadShop(): ShopState {
       owned: Array.isArray(p.owned) ? p.owned.filter((id) => typeof id === "string" && SHOP_BY_ID[id]) : [],
       spent: typeof p.spent === "number" && p.spent >= 0 ? p.spent : 0,
       equipped: p.equipped && typeof p.equipped === "object" ? p.equipped : {},
+      placements: sanitizePlacements(p.placements),
       goal: typeof p.goal === "string" && SHOP_BY_ID[p.goal] ? p.goal : null,
       pending: p.pending && typeof p.pending === "object" ? p.pending : {},
       local: Array.isArray(p.local) ? p.local : [],
@@ -63,6 +86,22 @@ export function getEquipped(key: string): Equipped {
   return loadShop().equipped[key] ?? {};
 }
 
+// 저장된 소품 위치(없으면 null → 기본 위치를 쓴다).
+export function getPlacement(key: string, stage: number, itemId: string): Placement | null {
+  return loadShop().placements[key]?.[String(stage)]?.[itemId] ?? null;
+}
+
+export function setPlacement(key: string, stage: number, itemId: string, pl: Placement | null) {
+  const s = loadShop();
+  const byKey = { ...(s.placements[key] ?? {}) };
+  const byStage = { ...(byKey[String(stage)] ?? {}) };
+  if (pl) byStage[itemId] = pl;
+  else delete byStage[itemId];
+  byKey[String(stage)] = byStage;
+  s.placements = { ...s.placements, [key]: byKey };
+  saveShop(s);
+}
+
 export function hasAnyEquipped(key: string): boolean {
   const e = getEquipped(key);
   return !!(e.background || e.prop || e.effect);
@@ -85,12 +124,12 @@ export function setGoal(itemId: string | null) {
 }
 
 // 동기화 payload용
-export function exportShopForSync(): { equipped: Record<string, Equipped>; goal: string | null } {
+export function exportShopForSync(): { equipped: Record<string, Equipped>; goal: string | null; placements: Placements } {
   const s = loadShop();
-  return { equipped: s.equipped, goal: s.goal };
+  return { equipped: s.equipped, goal: s.goal, placements: s.placements };
 }
 
-export function applyShopFromSync(data: { equipped?: Record<string, Equipped>; goal?: string | null }) {
+export function applyShopFromSync(data: { equipped?: Record<string, Equipped>; goal?: string | null; placements?: unknown }) {
   const s = loadShop();
   if (data.equipped && typeof data.equipped === "object") {
     // 보유하지 않은 상품이 장착으로 들어오지 않도록 걸러낸다.
@@ -106,6 +145,17 @@ export function applyShopFromSync(data: { equipped?: Record<string, Equipped>; g
     s.equipped = clean;
   }
   if (data.goal !== undefined) s.goal = data.goal && SHOP_BY_ID[data.goal] ? data.goal : null;
+  // 소품 위치: 서버 값이 있으면 그 항목은 서버 값을 쓰고, 이 기기에만 있는 항목은 지우지 않는다(위치 편집이 동기화로 사라지지 않게).
+  if (data.placements) {
+    const incoming = sanitizePlacements(data.placements);
+    const merged: Placements = { ...s.placements };
+    for (const [fk, stages] of Object.entries(incoming)) {
+      const byKey = { ...(merged[fk] ?? {}) };
+      for (const [st, items] of Object.entries(stages)) byKey[st] = { ...(byKey[st] ?? {}), ...items };
+      merged[fk] = byKey;
+    }
+    s.placements = merged;
+  }
   saveShop(s);
 }
 

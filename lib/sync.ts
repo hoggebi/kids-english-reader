@@ -73,7 +73,7 @@ type SyncPayload = {
   petXp?: number; // 챕터·청크북 캐릭터의 다음 단계까지 쌓인 코인
   vocabXp?: number; // 단어장 캐릭터의 다음 단계까지 쌓인 코인
   coins?: number; // 지금까지 모은 코인 합계
-  shop?: { equipped: Record<string, Partial<Record<"background" | "prop" | "effect", string>>>; goal: string | null }; // 친구별 장착과 목표 아이템(보유·잔액은 서버 /api/shop이 기준)
+  shop?: { equipped: Record<string, Partial<Record<"background" | "prop" | "effect", string>>>; goal: string | null; placements?: unknown }; // 친구별 장착과 목표 아이템(보유·잔액은 서버 /api/shop이 기준)
   doneLessons?: number[]; // 끝까지 마친 청크북 Lesson(도장)
 };
 

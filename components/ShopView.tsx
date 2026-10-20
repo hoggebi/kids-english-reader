@@ -5,7 +5,11 @@ import DecoratedPet from "./DecoratedPet";
 import { CoinAmount } from "./Coin";
 import { SHOP_BY_ID, SHOP_ITEMS, SHOP_SLOT_LABEL, type ShopItem, type ShopSlot } from "@/lib/shopCatalog";
 import { CHAPTER_SPECIES, VOCAB_SPECIES, MAX_STAGE, loadPet, type PetState, type PetTrack } from "@/lib/pet";
-import { buyItem, equipItem, friendKey, loadShop, refreshShopFromServer, setGoal, shopBalance, type Equipped } from "@/lib/shop";
+import { buyItem, equipItem, friendKey, getPlacement, loadShop, refreshShopFromServer, setGoal, setPlacement, shopBalance, type Equipped } from "@/lib/shop";
+import { PropEditControls, PropEditOverlay } from "./PropEditor";
+import { samePlacement, type Placement } from "@/lib/placement";
+import { defaultPlacement } from "@/lib/propDefaults";
+import { getPetImagePath, getSpecies } from "@/lib/pet";
 import { autoPush } from "@/lib/sync";
 
 export type Friend = { track: PetTrack; generation: number };
@@ -50,6 +54,8 @@ export default function ShopView({ initialFriend, onClose }: { initialFriend?: F
   const [bubble, setBubble] = useState<string | null>(null);
   const [justBought, setJustBought] = useState<string | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // 소품 위치 편집(draft). 저장을 눌러야 확정된다.
+  const [editing, setEditing] = useState<{ itemId: string; draft: Placement; original: Placement } | null>(null);
 
   const friends = useMemo(() => listFriends(initialFriend ?? null), [tick, initialFriend]); // eslint-disable-line react-hooks/exhaustive-deps
   const state = useMemo(() => loadShop(), [tick]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -100,12 +106,47 @@ export default function ShopView({ initialFriend, onClose }: { initialFriend?: F
 
   function selectFriend(key: string) {
     setSelectedKey(key);
+    setEditing(null); // 친구를 바꾸면 위치 편집도 취소
     setPreview({}); // 친구를 바꾸면 미리보기는 취소
     setFocus(null);
     setJustBought(null);
   }
 
+  // 지금 장착한 소품의 현재 위치(저장된 값 → 기본 위치)
+  function currentPropPlacement(): { itemId: string; placement: Placement } | null {
+    if (!current) return null;
+    const id = saved.prop;
+    if (!id || !SHOP_BY_ID[id]) return null;
+    const path = getPetImagePath(current.pet, current.friend.track);
+    const prefix = getSpecies(current.friend.generation, current.friend.track).imagePrefix;
+    return { itemId: id, placement: getPlacement(current.key, current.pet.stage, id) ?? defaultPlacement(id, path, prefix) };
+  }
+
+  function startEdit() {
+    const cur = currentPropPlacement();
+    if (!cur) return;
+    setPreview({}); // 미리보기는 정리하고 저장된 장착 상태에서 편집한다
+    setFocus(null);
+    setEditing({ itemId: cur.itemId, draft: cur.placement, original: cur.placement });
+  }
+
+  function saveEdit() {
+    if (!current || !editing) return;
+    setPlacement(current.key, current.pet.stage, editing.itemId, editing.draft);
+    setEditing(null);
+    autoPush();
+    flash("소품 위치를 저장했어요!");
+  }
+
+  function resetEditToDefault() {
+    if (!current || !editing) return;
+    const path = getPetImagePath(current.pet, current.friend.track);
+    const prefix = getSpecies(current.friend.generation, current.friend.track).imagePrefix;
+    setEditing({ ...editing, draft: defaultPlacement(editing.itemId, path, prefix) });
+  }
+
   function tapItem(item: ShopItem) {
+    if (editing) return; // 위치 편집 중에는 상품을 바꾸지 않는다
     setFocus(item.id);
     setJustBought(null);
     setBubble(null);
@@ -201,7 +242,21 @@ export default function ShopView({ initialFriend, onClose }: { initialFriend?: F
             <div className="lg:w-1/2 flex flex-col gap-2">
               <div className="relative">
                 {current && (
-                  <DecoratedPet pet={current.pet} track={current.friend.track} equipped={shown} alt={`${current.name} 미리보기`} forceScene className="w-full" />
+                  <DecoratedPet
+                    pet={current.pet}
+                    track={current.friend.track}
+                    equipped={shown}
+                    alt={`${current.name} 미리보기`}
+                    forceScene
+                    className="w-full"
+                    still={!!editing}
+                    placementOverride={editing ? editing.draft : null}
+                    overlay={
+                      editing ? (
+                        <PropEditOverlay value={editing.draft} onChange={(d) => setEditing((e) => (e ? { ...e, draft: d } : e))} label={SHOP_BY_ID[editing.itemId]?.name ?? "소품"} />
+                      ) : undefined
+                    }
+                  />
                 )}
                 {sparkle > 0 && (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -213,7 +268,22 @@ export default function ShopView({ initialFriend, onClose }: { initialFriend?: F
                   </div>
                 )}
               </div>
+              {editing && (
+                <PropEditControls
+                  value={editing.draft}
+                  onChange={(d) => setEditing((e) => (e ? { ...e, draft: d } : e))}
+                  onDefault={resetEditToDefault}
+                  onCancel={() => setEditing(null)}
+                  onSave={saveEdit}
+                  dirty={!samePlacement(editing.draft, editing.original)}
+                />
+              )}
               <div className="flex flex-wrap gap-2 items-center">
+                {!editing && saved.prop && !previewing && (
+                  <button onClick={startEdit} className="min-h-[44px] px-4 rounded-full bg-sky-50 border-2 border-sky-200 text-sky-700 text-sm font-bold" data-testid="edit-prop-button">
+                    ✋ 위치 바꾸기
+                  </button>
+                )}
                 {previewing && (
                   <button onClick={cancelPreview} className="min-h-[44px] px-4 rounded-full bg-gray-100 text-gray-700 text-sm font-bold">
                     미리보기 취소
@@ -225,11 +295,12 @@ export default function ShopView({ initialFriend, onClose }: { initialFriend?: F
                   </button>
                 ))}
               </div>
+              {!editing && !saved.prop && <p className="text-xs text-gray-400">소품을 장착하면 ‘위치 바꾸기’로 소품을 원하는 곳으로 옮길 수 있어요.</p>}
               {previewing && <p className="text-xs text-gray-400">지금은 미리보기예요. 사거나 장착하기 전에는 저장되지 않아요.</p>}
             </div>
 
             {/* 상품 */}
-            <div className="lg:w-1/2 flex flex-col gap-3">
+            <div className={`lg:w-1/2 flex flex-col gap-3 ${editing ? "opacity-50 pointer-events-none" : ""}`} aria-disabled={!!editing}>
               <div className="flex gap-2" role="tablist" aria-label="상품 종류">
                 {(["all", "prop", "background", "effect"] as Filter[]).map((f) => (
                   <button
