@@ -2,7 +2,7 @@
 
 import type { VocabSet } from "./types";
 import { lessonFromSetId, lessonSetsFromDefs, type MeaningDraft } from "./lessonData";
-import { applyGameDone, applyStudyDone, localDateKey, newPlan, normalizePlan, restartPlan, type LessonPlan } from "./lessonPlanCore";
+import { applyGameDone, applyGamePlayed, applyStudyDone, localDateKey, newPlan, normalizePlan, restartPlan, type LessonPlan } from "./lessonPlanCore";
 
 export { lessonFromSetId, lessonSetId, draftKey, type MeaningDraft } from "./lessonData";
 export type { LessonPlan } from "./lessonPlanCore";
@@ -45,6 +45,14 @@ export function recordLessonStudyDone(setId: string) {
   saveLessonPlan(applyStudyDone(plan, lesson, localDateKey()));
 }
 
+// 게임 한 종류(hunt/mole/battle)를 마쳤다고 기록한다. 3종이 모이면 게임 완료.
+export function recordLessonGamePlayed(setId: string, kind: string) {
+  const lesson = lessonFromSetId(setId);
+  const plan = loadLessonPlan();
+  if (lesson === null || !plan) return;
+  saveLessonPlan(applyGamePlayed(plan, lesson, kind, localDateKey()));
+}
+
 export function recordLessonGameDone(setId: string) {
   const lesson = lessonFromSetId(setId);
   const plan = loadLessonPlan();
@@ -60,6 +68,20 @@ export function lessonStudyDoneByPlan(setId: string): boolean {
   if (lesson === null || !plan) return false;
   if (plan.progress && plan.progress.lesson === lesson && plan.progress.studyDone) return true;
   return plan.currentLesson === lesson && plan.completedOn === localDateKey();
+}
+
+// 3종 게임을 모두 마쳤다는 기록(기기에 남은 하루 단위 기록들의 합)이 있는데 진행 계획에는 "게임 완료"가 빠져 있으면 맞춘다.
+// 바뀐 계획을 돌려주고(저장함), 바꿀 게 없으면 null.
+export function reconcileLessonGameDone(setId: string, localKinds: string[] = []): LessonPlan | null {
+  const lesson = lessonFromSetId(setId);
+  let plan = loadLessonPlan();
+  if (lesson === null || !plan) return null;
+  const before = JSON.stringify(plan);
+  // 이 기기에 남은 게임 기록을 진행 계획(동기화되는 값)에 합쳐 넣는다.
+  for (const k of localKinds) plan = applyGamePlayed(plan, lesson, k, localDateKey());
+  if (JSON.stringify(plan) === before) return null;
+  saveLessonPlan(plan);
+  return plan;
 }
 
 export function restartLessonPlan(): LessonPlan | null {

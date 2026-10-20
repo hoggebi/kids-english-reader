@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { VocabSet } from "@/lib/types";
 import { LESSON_DEFS, LESSON_NUMBERS, lessonSetId } from "@/lib/lessonData";
-import { confirmLessons, draftKey, restartLessonPlan, type LessonPlan, type MeaningDraft } from "@/lib/lessonPlan";
+import { confirmLessons, draftKey, reconcileLessonGameDone, restartLessonPlan, type LessonPlan, type MeaningDraft } from "@/lib/lessonPlan";
 import { lessonStatus } from "@/lib/lessonPlanCore";
-import { LESSON_GAME_KINDS, loadGamesPlayedToday } from "@/lib/vocabStorage";
+import { LESSON_GAME_KINDS, lessonGamesPlayed } from "@/lib/vocabStorage";
 
 // 저장 전에 부모가 새 단어(교재 뜻)를 확인·수정하는 화면
 function LessonReview({
@@ -136,6 +136,19 @@ export default function LessonPanel({
   const lessonSets = sets.filter((s) => LESSON_NUMBERS.some((l) => s.id === lessonSetId(l)));
   const confirmed = plan !== null && plan.confirmedAt !== null && lessonSets.length === LESSON_NUMBERS.length;
 
+  // 이 기기에 3종 게임을 모두 마친 기록이 있는데 진행 계획에는 "게임 완료"가 빠져 있으면 맞춘다.
+  // (게임을 여러 날에 나눠 했거나, 예전 방식으로 기록되어 어긋난 경우)
+  useEffect(() => {
+    if (!plan || plan.finished || plan.completedOn || plan.progress?.gameDone) return;
+    const sid = lessonSetId(plan.currentLesson);
+    const local = lessonGamesPlayed(sid);
+    const known = plan.progress?.games ?? [];
+    if (local.every((k) => known.includes(k))) return; // 합칠 게 없다
+    const next = reconcileLessonGameDone(sid, local);
+    if (next) onPlanChange(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan]);
+
   function handleSave(draft: MeaningDraft) {
     const { sets: next, plan: p } = confirmLessons(sets, draft);
     onSetsChange(next);
@@ -169,11 +182,13 @@ export default function LessonPanel({
   const progress = plan.progress && plan.progress.lesson === current ? plan.progress : null;
   const studyDone = !!progress?.studyDone || doneToday;
   // 게임 완료는 다트·두더지·몬스터 3가지를 모두 마쳤을 때만. 하나라도 남았으면 "진행 중"으로 보여 준다.
-  const gamesPlayed = currentSet ? loadGamesPlayedToday(currentSet.id).filter((k) => (LESSON_GAME_KINDS as readonly string[]).includes(k)) : [];
-  const allGamesPlayed = gamesPlayed.length >= LESSON_GAME_KINDS.length;
-  const gameDone = (!!progress?.gameDone || doneToday) && allGamesPlayed;
+  // 마친 게임 종류 = 진행 계획(동기화됨)에 기록된 것 + 이 기기에 남은 기록. 3종을 모두 마치면 게임 완료.
+  const gamesPlayed = Array.from(
+    new Set([...(progress?.games ?? []), ...(currentSet ? lessonGamesPlayed(currentSet.id) : [])]),
+  ).filter((k) => (LESSON_GAME_KINDS as readonly string[]).includes(k));
+  const gameDone = !!progress?.gameDone || doneToday;
   const gameStarted = gamesPlayed.length > 0;
-  const actionLabel = doneToday && allGamesPlayed ? "다시 하기" : progress?.studyDone || studyDone ? "이어서 하기" : "학습 시작";
+  const actionLabel = doneToday && gameDone ? "다시 하기" : progress?.studyDone || studyDone ? "이어서 하기" : "학습 시작";
 
   return (
     <div className="w-full max-w-4xl flex flex-col gap-3" data-testid="lesson-panel">
@@ -207,7 +222,7 @@ export default function LessonPanel({
                   게임 {gameDone ? "완료 ✓" : gameStarted ? `진행 중 ${gamesPlayed.length}/${LESSON_GAME_KINDS.length}` : "전"}
                 </span>
               </p>
-              {doneToday && allGamesPlayed && (
+              {doneToday && gameDone && (
                 <p className="mt-1 text-xs text-sky-800">오늘 Lesson {current}을 마쳤어요. 다음 학습일에 Lesson {Math.min(8, current + 1)}로 넘어가요.</p>
               )}
             </div>

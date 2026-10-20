@@ -2,7 +2,7 @@
 import type { VocabSet, VocabWord, VocabDailySession, VocabStudyMode } from "./types";
 import { lessonFromSetId } from "./lessonData";
 import { localDateKey } from "./lessonPlanCore";
-import { recordLessonGameDone } from "./lessonPlan";
+import { loadLessonPlanRaw, recordLessonGamePlayed } from "./lessonPlan";
 
 const VOCAB_KEY = "chunkbook-v2-vocab-sets";
 const SESSION_KEY_PREFIX = "chunkbook-v2-vocab-session-";
@@ -257,15 +257,27 @@ export function extendDailySession(set: VocabSet, session: VocabDailySession): V
 
 export const LESSON_GAME_KINDS = ["hunt", "mole", "battle"] as const;
 
-// 오늘 이 단어장으로 마친 게임 종류(hunt=다트, mole=두더지, battle=몬스터).
-export function loadGamesPlayedToday(setId: string): string[] {
+// 이 Lesson(단어장)으로 지금 회차 동안 마친 게임 종류(hunt=다트, mole=두더지, battle=몬스터).
+// 하루 단위 기록들을 모두 합친다. 게임 3종을 하루에 몰아서 하지 않고 여러 날에 나눠 해도 완료로 인정하기 위해서다
+// (캐릭터 성장 진행도도 날짜와 상관없이 3종을 모으는 방식이다). 현재 회차 시작일(startedOn) 이후 기록만 센다.
+export function lessonGamesPlayed(setId: string): string[] {
   if (typeof window === "undefined") return [];
+  const prefix = `${GAMES_PLAYED_PREFIX}${setId}-`;
+  const since = loadLessonPlanRaw()?.startedOn ?? "";
+  const kinds = new Set<string>();
   try {
-    const raw = localStorage.getItem(`${GAMES_PLAYED_PREFIX}${setId}-${todayKey()}`);
-    return raw ? (JSON.parse(raw) as string[]) : [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith(prefix)) continue;
+      const date = k.slice(prefix.length);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < since) continue;
+      const list = JSON.parse(localStorage.getItem(k) ?? "[]") as string[];
+      list.forEach((x) => kinds.add(x));
+    }
   } catch {
-    return [];
+    /* ignore */
   }
+  return [...kinds];
 }
 
 export function recordVocabGamePlayed(
@@ -283,9 +295,11 @@ export function recordVocabGamePlayed(
   }
   if (!played.includes(kind)) played.push(kind);
   localStorage.setItem(key, JSON.stringify(played));
-  // Lesson의 "게임 완료"는 다트·두더지·몬스터 3가지를 모두 마쳤을 때만 기록한다. (단어별 기록과는 별개)
-  const all = LESSON_GAME_KINDS.every((k) => played.includes(k));
-  if (all) recordLessonGameDone(setId);
+  // Lesson의 "게임 완료"는 다트·두더지·몬스터 3가지를 모두 마쳤을 때(여러 날·여러 기기에 나눠 해도) 기록한다.
+  // 마친 게임 종류는 진행 계획에 저장되어 동기화된다. (단어별 기록과는 별개)
+  recordLessonGamePlayed(setId, kind);
+  const total = lessonGamesPlayed(setId);
+  const all = LESSON_GAME_KINDS.every((k) => total.includes(k));
 
   return { allGamesDoneToday: all };
 }

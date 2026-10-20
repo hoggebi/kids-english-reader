@@ -18,7 +18,8 @@ export type LessonPlan = {
   currentLesson: number;
   finished: boolean;
   completed: Record<string, LessonCompletion>; // 이번 회차의 Lesson 완료 기록
-  progress: { lesson: number; studyDone: boolean; gameDone: boolean } | null; // 현재 Lesson 진행 중 상태
+  // games = 이번 Lesson에서 마친 게임 종류(hunt 다트 / mole 두더지 / battle 몬스터). 동기화되어 기기가 달라도 같이 센다.
+  progress: { lesson: number; studyDone: boolean; gameDone: boolean; games?: string[] } | null; // 현재 Lesson 진행 중 상태
   completedOn: string | null; // 현재 Lesson을 완료한 날
   confirmedAt: number | null; // 부모가 Lesson 단어 뜻을 확인·저장한 시각
 };
@@ -72,6 +73,18 @@ export function applyStudyDone(plan: LessonPlan, lesson: number, today: string):
   const p = normalizePlan(plan, today);
   if (!isTracked(p, lesson)) return p;
   const progress = { lesson, studyDone: true, gameDone: p.progress?.gameDone ?? false };
+  return tryComplete({ ...p, progress }, today);
+}
+
+export const LESSON_GAMES = ["hunt", "mole", "battle"] as const;
+
+// 게임 한 종류를 마쳤을 때: 마친 게임 종류에 추가하고, 3종이 모두 모이면 "게임 완료"로 본다(여러 날·여러 기기에 나눠 해도 된다).
+export function applyGamePlayed(plan: LessonPlan, lesson: number, kind: string, today: string): LessonPlan {
+  const p = normalizePlan(plan, today);
+  if (!isTracked(p, lesson)) return p;
+  const games = Array.from(new Set([...(p.progress?.games ?? []), kind]));
+  const all = (LESSON_GAMES as readonly string[]).every((k) => games.includes(k));
+  const progress = { lesson, studyDone: p.progress?.studyDone ?? false, gameDone: all || (p.progress?.gameDone ?? false), games };
   return tryComplete({ ...p, progress }, today);
 }
 
@@ -143,7 +156,15 @@ export function mergePlans(local: LessonPlan | null, server: LessonPlan | null):
           lesson: base.currentLesson,
           studyDone: !!(a?.studyDone || b?.studyDone),
           gameDone: !!(a?.gameDone || b?.gameDone),
+          games: Array.from(new Set([...(a?.games ?? []), ...(b?.games ?? [])])),
         };
+        // 기기마다 나눠 한 게임을 합쳐서 3종이 모두 모이면 게임 완료로 본다. 학습도 끝났으면 Lesson 완료까지 이어진다.
+        if ((LESSON_GAMES as readonly string[]).every((k) => merged.progress!.games!.includes(k))) merged.progress.gameDone = true;
+        const done = tryComplete(merged, localDateKey());
+        merged.progress = done.progress;
+        merged.completed = done.completed;
+        merged.completedOn = done.completedOn;
+        merged.finished = done.finished;
       }
     }
   }

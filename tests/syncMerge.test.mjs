@@ -14,11 +14,13 @@ t("서버가 더 진행됐으면 서버를 따른다", () => {
   const server = { ...base, currentLesson: 3 };
   assert.equal(mergePlans(base, server).currentLesson, 3);
 });
-t("같은 Lesson에서 학습은 한 기기, 게임은 다른 기기면 둘 다 인정", () => {
+t("같은 Lesson에서 학습은 한 기기, 게임은 다른 기기면 합쳐서 완료", () => {
   const a = { ...base, progress: { lesson: 2, studyDone: true, gameDone: false } };
   const b = { ...base, progress: { lesson: 2, studyDone: false, gameDone: true } };
   const m = mergePlans(a, b);
-  assert.deepEqual([m.progress.studyDone, m.progress.gameDone], [true, true]);
+  // 학습은 한 기기, 게임은 다른 기기에서 마쳤으면 합쳐서 Lesson 완료로 이어진다.
+  assert.ok(m.completedOn);
+  assert.equal(m.completed["2"].count, 1);
 });
 t("오늘 완료 기록이 있는 쪽이 이긴다", () => {
   const done = { ...base, completedOn: "2026-10-15", completed: { "2": { firstOn: "2026-10-15", lastOn: "2026-10-15", count: 1 } } };
