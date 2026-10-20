@@ -26,12 +26,22 @@ const t = (name, fn) => {
   console.log("ok -", name);
 };
 
-t("상품 12종, id 중복 없음", () => {
-  assert.equal(SHOP_ITEMS.length, 12);
-  assert.equal(new Set(SHOP_ITEMS.map((i) => i.id)).size, 12);
+t("상품 20종(기본 12 + 2차 8), id 중복 없음", () => {
+  assert.equal(SHOP_ITEMS.length, 20);
+  assert.equal(new Set(SHOP_ITEMS.map((i) => i.id)).size, 20);
 });
-t("가격과 슬롯이 패키지 카탈로그와 같다", () => {
-  for (const [id, [price, slot]] of Object.entries(PACK)) {
+const PACK2 = {
+  lava_kingdom: [900, "background"],
+  glacier_palace: [1100, "background"],
+  aurora_summit: [1400, "background"],
+  wind_vortex: [700, "effect"],
+  tidal_wave: [1000, "effect"],
+  meteor_trails: [1500, "effect"],
+  dragon_flame: [2200, "effect"],
+  blackhole_halo: [3000, "effect"],
+};
+t("가격과 슬롯이 패키지 카탈로그와 같다(기본 12 + 2차 8)", () => {
+  for (const [id, [price, slot]] of Object.entries({ ...PACK, ...PACK2 })) {
     assert.equal(SHOP_BY_ID[id]?.price, price, id);
     assert.equal(SHOP_BY_ID[id]?.slot, slot, id);
   }
@@ -39,10 +49,11 @@ t("가격과 슬롯이 패키지 카탈로그와 같다", () => {
 t("이미지 파일이 모두 public/shop에 있다", () => {
   for (const i of SHOP_ITEMS) assert.ok(fs.existsSync(`public${i.asset}`), i.asset);
 });
-t("배경 3, 소품 4, 효과 5, 레어는 은하 오라 하나", () => {
+t("배경 6, 소품 4, 효과 10. NEW는 2차 8종에만", () => {
   const c = (s) => SHOP_ITEMS.filter((i) => i.slot === s).length;
-  assert.deepEqual([c("background"), c("prop"), c("effect")], [3, 4, 5]);
-  assert.deepEqual(SHOP_ITEMS.filter((i) => i.rare).map((i) => i.id), ["galaxy_aura"]);
+  assert.deepEqual([c("background"), c("prop"), c("effect")], [6, 4, 10]);
+  assert.deepEqual(SHOP_ITEMS.filter((i) => i.isNew).map((i) => i.id).sort(), Object.keys(PACK2).sort());
+  assert.ok(SHOP_ITEMS.filter((i) => PACK[i.id]).every((i) => !i.isNew), "기존 상품에는 NEW가 없다");
 });
 
 console.log(`${n} tests passed`);

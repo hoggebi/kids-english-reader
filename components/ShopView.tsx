@@ -259,6 +259,7 @@ export default function ShopView({ initialFriend, onClose }: { initialFriend?: F
                       }`}
                     >
                       {item.rare && <span className="absolute top-1 left-1 text-[10px] font-bold text-violet-700 bg-violet-100 rounded-full px-1.5">레어</span>}
+                      {item.isNew && !isGoal && <span className="absolute top-1 right-1 text-[10px] font-bold text-white bg-sky-600 rounded-full px-1.5" data-testid={`shop-new-${item.id}`}>NEW</span>}
                       {isGoal && <span className="absolute top-1 right-1 text-[10px] font-bold text-amber-700 bg-amber-100 rounded-full px-1.5">목표</span>}
                       <div className="w-full aspect-square rounded-xl overflow-hidden flex items-center justify-center bg-white">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
