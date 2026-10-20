@@ -13,8 +13,9 @@ type Filter = "all" | ShopSlot;
 
 const TRACK_LABEL: Record<PetTrack, string> = { chapter: "챕터·청크북", vocab: "단어장" };
 
-// 만난 친구들(키우는 중 + 졸업)을 모은다. 성장 단계가 바뀌어도 같은 친구로 본다.
-function listFriends(): { friend: Friend; key: string; pet: PetState; name: string; graduated: boolean }[] {
+// 상점에는 지금 키우는 친구(챕터·청크북, 단어장 각 1명)만 보여 준다. 예전에 졸업한 친구는 도감에서 "꾸미기"를 눌러
+// 들어왔을 때(extra)만 그 친구를 함께 보여 준다. 성장 단계가 바뀌어도 같은 친구로 본다.
+function listFriends(extra: Friend | null): { friend: Friend; key: string; pet: PetState; name: string; graduated: boolean }[] {
   const out: { friend: Friend; key: string; pet: PetState; name: string; graduated: boolean }[] = [];
   (["chapter", "vocab"] as PetTrack[]).forEach((track) => {
     const species = track === "vocab" ? VOCAB_SPECIES : CHAPTER_SPECIES;
@@ -23,6 +24,7 @@ function listFriends(): { friend: Friend; key: string; pet: PetState; name: stri
       const gen = i + 1;
       if (cur.generation < gen) return;
       const graduated = cur.generation > gen;
+      if (graduated && !(extra && extra.track === track && extra.generation === gen)) return; // 예전 친구는 도감에서 들어온 경우에만
       const pet: PetState = graduated ? { stage: MAX_STAGE, generation: gen } : { stage: cur.stage, generation: gen };
       out.push({
         friend: { track, generation: gen },
@@ -49,7 +51,7 @@ export default function ShopView({ initialFriend, onClose }: { initialFriend?: F
   const [justBought, setJustBought] = useState<string | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-  const friends = useMemo(() => listFriends(), [tick]); // eslint-disable-line react-hooks/exhaustive-deps
+  const friends = useMemo(() => listFriends(initialFriend ?? null), [tick, initialFriend]); // eslint-disable-line react-hooks/exhaustive-deps
   const state = useMemo(() => loadShop(), [tick]); // eslint-disable-line react-hooks/exhaustive-deps
   const balance = useMemo(() => shopBalance(), [tick]); // eslint-disable-line react-hooks/exhaustive-deps
 
