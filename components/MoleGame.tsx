@@ -11,7 +11,7 @@ import { FeverHud, useFever } from "./FeverKit";
 
 // ---------------------------------------------------------------------------
 // 두더지 잡기 v2
-//  - 한국어 ↔ 영어 번갈아 출제(방향 문구는 표시하지 않음), 총 10문제
+//  - 한국어 뜻을 보여 주고 철자 보기 4개(정답 1 + 철자 오답 3) 중 올바른 철자의 두더지를 고른다. 총 10문제
 //  - 정답: 납작 → 통통 튀기 / 오답: 두더지가 피하고 망치가 흙에 / 3콤보: 세 마리 모두 진화
 //  - 두더지·라벨·터치 영역을 구멍(slot) 단위 한 묶음으로 관리한다
 // ---------------------------------------------------------------------------
@@ -107,8 +107,6 @@ const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n
 // ---------- 철자 문제: 단어의 마지막 두 글자를 두더지 4마리 중에서 골라 채운다 ----------
 // 일반 3문제 다음에 철자 1문제(4번째, 8번째…). 문제 수는 그대로이고, 적합한 단어가 없으면 일반 문제로 둔다.
 type MoleQuestion = Question & { spell?: { word: string }; retry?: boolean };
-const SPELL_RE = /^[A-Za-z]{3,}$/;
-const ALPHABET = "abcdefghijklmnopqrstuvwxyz";
 const shuffleList = <T,>(arr: T[]): T[] => {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -117,14 +115,6 @@ const shuffleList = <T,>(arr: T[]): T[] => {
   }
   return a;
 };
-function buildSpellQuestion(w: VocabWord): MoleQuestion {
-  const word = w.english.trim().toLowerCase();
-  const need = [word[word.length - 2], word[word.length - 1]];
-  const bad = shuffleList([...ALPHABET].filter((c) => !need.includes(c))).slice(0, 2); // 정답 글자와 겹치지 않고 서로 다름
-  const options = shuffleList([...need, ...bad]).map((ch) => ({ word: w, label: ch.toUpperCase() })); // 위치는 한 번만 섞는다
-  return { target: w, dir: "toEng", prompt: w.korean, options, correctSlot: -1, spell: { word } };
-}
-const normLabel = (s: string) => s.trim().toLowerCase();
 function validWords(words: VocabWord[]): VocabWord[] {
   const ids = new Set<string>();
   return words.filter((w) => {
@@ -133,42 +123,93 @@ function validWords(words: VocabWord[]): VocabWord[] {
     return true;
   });
 }
-function buildChoiceQuestion(target: VocabWord, pool: VocabWord[], dir: "toEng" | "toKor"): MoleQuestion {
-  const label = (w: VocabWord) => (dir === "toEng" ? w.english : w.korean);
-  const seen = new Set([normLabel(label(target))]);
-  const others = shuffleList(pool.filter((x) => x.id !== target.id));
-  const d: VocabWord[] = [];
-  for (const w of others) {
-    const l = normLabel(label(w));
-    if (!l || seen.has(l)) continue; // 같은 라벨이 두 번 보이지 않게
-    seen.add(l);
-    d.push(w);
-    if (d.length === 2) break;
+
+// ---------- 철자 보기: 정답 1개 + 그럴듯한 철자 오답 3개 ----------
+// 철자 문제로 쓸 수 있는 단어: 알파벳이 3글자 이상이고 숫자가 없는 것
+const spellable = (w: VocabWord) => /^[^0-9]*$/.test(w.english) && (w.english.match(/[A-Za-z]/g)?.length ?? 0) >= 3;
+// 같은 단어의 다른 허용 철자(영/미식). 오답 보기로 나오면 안 된다.
+const VARIANT_GROUPS = [["color", "colour"], ["favorite", "favourite"], ["gray", "grey"], ["center", "centre"], ["theater", "theatre"], ["neighbor", "neighbour"], ["program", "programme"], ["donut", "doughnut"], ["cozy", "cosy"], ["pajamas", "pyjamas"], ["traveling", "travelling"], ["mom", "mum"], ["tire", "tyre"], ["jewelry", "jewellery"], ["check", "cheque"], ["flavor", "flavour"], ["honor", "honour"], ["humor", "humour"], ["realize", "realise"], ["organize", "organise"]];
+const VARIANTS = new Map<string, string[]>();
+for (const g of VARIANT_GROUPS) for (const w of g) VARIANTS.set(w, g.filter((x) => x !== w));
+// 검수된 오답 목록(있으면 우선 사용). 키 = 소문자 정답
+const CURATED_MISSPELLINGS: Record<string, string[]> = {};
+const VOWELS = "aeiou";
+const VOWEL_SWAP: Record<string, string> = { a: "o", e: "i", i: "e", o: "a", u: "o" };
+const VOWEL_SWAP2: Record<string, string> = { a: "e", e: "a", i: "y", o: "u", u: "a" };
+function misspellCandidates(word: string): string[][] {
+  const swap: string[] = [];
+  const vowel: string[] = [];
+  const omit: string[] = [];
+  const dup: string[] = [];
+  const isL = (c: string) => /[a-z]/.test(c);
+  for (let i = 0; i < word.length - 1; i++) {
+    if (isL(word[i]) && isL(word[i + 1]) && word[i] !== word[i + 1]) swap.push(word.slice(0, i) + word[i + 1] + word[i] + word.slice(i + 2)); // 인접 글자 교환
   }
-  for (const w of others) {
-    if (d.length >= 2) break;
-    if (!d.includes(w)) d.push(w);
+  for (let i = 0; i < word.length; i++) {
+    const c = word[i];
+    if (VOWELS.includes(c)) {
+      vowel.push(word.slice(0, i) + VOWEL_SWAP[c] + word.slice(i + 1)); // 모음 혼동
+      vowel.push(word.slice(0, i) + VOWEL_SWAP2[c] + word.slice(i + 1));
+    }
+    if (isL(c) && i > 0 && i < word.length) omit.push(word.slice(0, i) + word.slice(i + 1)); // 글자 누락(첫 글자는 유지)
+    if (isL(c)) dup.push(word.slice(0, i + 1) + c + word.slice(i + 1)); // 글자 중복
+    if (isL(c) && i + 1 < word.length && word[i + 1] === c) dup.push(word.slice(0, i) + word.slice(i + 1)); // 겹글자 줄이기
   }
-  const options = shuffleList([target, ...d]).map((word) => ({ word, label: label(word) }));
-  return { target, dir, prompt: dir === "toEng" ? target.korean : target.english, options, correctSlot: options.findIndex((o) => o.word.id === target.id) };
+  return [swap, vowel, omit, dup];
 }
-// 레슨 전체 단어를 한 번씩, 섞은 순서로. 일반 3문제 → 철자 1문제 패턴(4번째, 8번째…).
-// 철자 슬롯의 단어가 철자에 부적합하면 아직 안 나온 적합한 단어와 순서를 바꾼다(없으면 일반 문제로 둔다).
-function buildBaseQuestions(words: VocabWord[]): MoleQuestion[] | null {
-  const valid = validWords(words);
-  if (valid.length < 3) return null;
-  const order = shuffleList(valid);
-  const ok = (w: VocabWord) => SPELL_RE.test(w.english.trim());
-  for (let i = 3; i < order.length; i += 4) {
-    if (ok(order[i])) continue;
-    for (let k = i + 1; k < order.length; k++) {
-      if (k % 4 !== 3 && ok(order[k])) {
-        [order[i], order[k]] = [order[k], order[i]];
-        break;
+function applyCase(src: string, out: string): string {
+  if (src === src.toUpperCase() && src !== src.toLowerCase()) return out.toUpperCase();
+  if (src[0] && src[0] === src[0].toUpperCase() && src[0] !== src[0].toLowerCase()) return out[0].toUpperCase() + out.slice(1);
+  return out;
+}
+// 정답과 같거나, 허용되는 다른 철자이거나, 이 레슨의 다른 단어와 같은 보기는 제외한다.
+export function buildMisspellings(english: string, pool: VocabWord[], count = 3): string[] {
+  const src = english.trim();
+  const base = src.toLowerCase();
+  const banned = new Set<string>([base, ...(VARIANTS.get(base) ?? [])]);
+  for (const w of pool) banned.add(w.english.trim().toLowerCase());
+  const out: string[] = [];
+  const add = (c: string) => {
+    const k = c.trim().toLowerCase();
+    if (!k || banned.has(k) || out.some((o) => o.toLowerCase() === k)) return false;
+    out.push(applyCase(src, k));
+    return true;
+  };
+  for (const c of CURATED_MISSPELLINGS[base] ?? []) {
+    if (out.length >= count) break;
+    add(c);
+  }
+  // 종류별로 하나씩 돌아가며 뽑아 한 가지 유형만 몰리지 않게 한다.
+  const groups = misspellCandidates(base).map((g) => shuffleList(g));
+  for (let round = 0; out.length < count && round < 40; round++) {
+    let progressed = false;
+    for (const g of groups) {
+      while (g.length && out.length < count) {
+        if (add(g.shift()!)) {
+          progressed = true;
+          break;
+        }
       }
     }
+    if (!progressed) break;
   }
-  return order.map((w, i) => (i % 4 === 3 && ok(w) ? buildSpellQuestion(w) : buildChoiceQuestion(w, valid, i % 2 === 0 ? "toEng" : "toKor")));
+  return out;
+}
+// 한국어 뜻을 보여 주고 영어 철자 4개 중 정답을 고르는 문제. 보기 위치는 문제를 만들 때 한 번만 섞는다.
+function buildSpellingQuestion(target: VocabWord, pool: VocabWord[]): MoleQuestion | null {
+  const correct = target.english.trim();
+  const wrong = buildMisspellings(correct, pool);
+  if (wrong.length < 3) return null;
+  const options = shuffleList([{ word: target, label: correct, ok: true }, ...wrong.map((label) => ({ word: target, label, ok: false }))]);
+  return { target, dir: "toEng", prompt: target.korean.trim(), options: options.map(({ word, label }) => ({ word, label })), correctSlot: options.findIndex((o) => o.ok) };
+}
+// 레슨 단어를 한 번씩, 섞은 순서로 문제로 만든다. 철자 보기를 만들 수 없는 단어는 건너뛴다.
+function buildBaseQuestions(words: VocabWord[]): MoleQuestion[] | null {
+  const valid = validWords(words);
+  const qs = shuffleList(valid.filter(spellable))
+    .map((w) => buildSpellingQuestion(w, valid))
+    .filter((q): q is MoleQuestion => !!q);
+  return qs.length >= 3 ? qs : null;
 }
 const slotIdx = (n: number) => Array.from({ length: n }, (_, i) => i);
 
@@ -329,7 +370,7 @@ export default function MoleGame({
   const levelRef = useRef<0 | 1 | 2>(0);
   const evolved = level >= 1;
   const [goldKey, setGoldKey] = useState(0); // 최종 진화 때 은은한 금색 빛
-  const [hint, setHint] = useState(false);
+  const [, setHint] = useState(false); // 정답 위치를 알려 주지 않으므로 화면에는 쓰지 않는다
   const [combo, setCombo] = useState(0);
   const [banner, setBanner] = useState<Banner | null>(null);
   const [reveal, setReveal] = useState<{ english: string; korean: string } | null>(null);
@@ -597,9 +638,12 @@ export default function MoleGame({
       g.baseDone += 1;
       if (problem && !retryRegistered.current.has(cq.target.id)) {
         retryRegistered.current.add(cq.target.id);
-        const rq: MoleQuestion = { ...buildChoiceQuestion(cq.target, wordPool, cq.dir === "toEng" ? "toKor" : "toEng"), retry: true };
-        const at = Math.min(qIndex + 3, queueRef.current.length); // 다른 문제 2개를 끝낸 뒤. 남은 문제가 부족하면 맨 뒤
-        queueRef.current.splice(at, 0, rq);
+        const rb = buildSpellingQuestion(cq.target, wordPool);
+        if (rb) {
+          const rq: MoleQuestion = { ...rb, retry: true };
+          const at = Math.min(qIndex + 3, queueRef.current.length); // 다른 문제 2개를 끝낸 뒤. 남은 문제가 부족하면 맨 뒤
+          queueRef.current.splice(at, 0, rq);
+        }
       }
     } else {
       g.retryDone += 1;
@@ -900,7 +944,7 @@ export default function MoleGame({
       tapSpell(slot);
       return;
     }
-    if (slot >= 3) return;
+    if (slot >= cq.options.length) return;
     setPhase("busy");
     setHandsOn(false);
     unlockAudio();
@@ -915,7 +959,7 @@ export default function MoleGame({
       swing(T, () => onCorrect(slot, T, firstPick));
     } else {
       // 오답: 망치는 두더지 옆 흙에. 망치가 내려오는 순간 두더지는 피한다.
-      const side = slot === 2 ? -1 : 1;
+      const side = slot >= 2 ? -1 : 1;
       const T = { x: sl.x + side * L.ringW * 0.43, y: sl.y + 6 * L.sh };
       swing(T, () => onWrong(slot, T, firstPick));
       later(T_WINDUP + 10, () => {
@@ -1351,7 +1395,7 @@ export default function MoleGame({
       style={stageBase}
       className="mg-stage"
       role="group"
-      aria-label="두더지 잡기. 정답 단어가 쓰인 두더지를 눌러요. 키보드는 Tab으로 두더지를 고르고 Enter나 Space로 눌러요."
+      aria-label="두더지 잡기. 철자가 맞는 두더지를 눌러요. 키보드는 Tab으로 두더지를 고르고 Enter나 Space로 눌러요."
       tabIndex={0}
       onKeyDown={onStageKey}
       onPointerDownCapture={onStageDownCapture}
@@ -1413,7 +1457,7 @@ export default function MoleGame({
                   style={anchorIn(slot)}
                 >
                   <div
-                    className={hint && slot === q.correctSlot ? "mg-hint" : undefined}
+                    className={undefined}
                     style={{
                       position: "absolute",
                       left: 0,
@@ -1650,7 +1694,7 @@ export default function MoleGame({
       {/* 첫 안내 */}
       {stage === "play" && handsOn && (
         <p style={{ position: "absolute", left: 0, right: 0, bottom: 14, zIndex: 11, textShadow: "0 2px 6px rgba(0,0,0,.6)" }} className="text-center text-base font-bold pointer-events-none">
-          정답 단어가 쓰인 두더지를 톡!
+          철자가 맞는 두더지를 톡!
         </p>
       )}
 
@@ -1671,7 +1715,7 @@ export default function MoleGame({
             ) : (
               <>
                 <p className="text-2xl font-black leading-snug" style={{ wordBreak: "keep-all" }}>
-                  정답 단어가 쓰인 두더지를 톡 눌러 잡아봐!
+                  철자가 맞는 두더지를 톡 눌러 잡아봐!
                 </p>
                 <button onClick={start} disabled={!loaded} className="mg-btn w-full min-h-[56px] rounded-full bg-sky-600 text-white font-black text-xl active:scale-95 transition disabled:opacity-60">
                   {loaded ? "시작!" : "불러오는 중…"}
