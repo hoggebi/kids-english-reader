@@ -45,6 +45,10 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: "royal_gem_crown", name: "오색 보석 왕관", price: 1200, slot: "prop", asset: "/shop/royal_gem_crown.png", animation: "none", rare: true, isNew: true, defaultPlacement: { x: 0.5, y: 0.2, scale: 0.32, layer: "front" } },
   { id: "golden_wings", name: "황금 빛 날개", price: 1800, slot: "prop", asset: "/shop/golden_wings.png", animation: "none", rare: true, isNew: true, defaultPlacement: { x: 0.5, y: 0.45, scale: 0.85, layer: "back" } },
   { id: "arcane_crystal_orb", name: "마법 수정구", price: 1500, slot: "prop", asset: "/shop/arcane_crystal_orb.png", animation: "none", rare: true, isNew: true, defaultPlacement: { x: 0.8, y: 0.65, scale: 0.3, layer: "front" } },
+  // ---- 프리미엄 효과 3종(효과 슬롯 그대로). 모든 친구가 같은 소유권을 공유한다.
+  { id: "golden_guardian_sigil", name: "황금 수호진", price: 4000, slot: "effect", asset: "/shop/golden_guardian_sigil.png", animation: "pulse", rare: true, isNew: true },
+  { id: "storm_king_thunder", name: "폭풍왕의 번개", price: 5000, slot: "effect", asset: "/shop/storm_king_thunder.png", animation: "pulse", rare: true, isNew: true },
+  { id: "constellation_sovereign", name: "별자리 군주의 오라", price: 6000, slot: "effect", asset: "/shop/constellation_sovereign.png", animation: "pulse", rare: true, isNew: true },
 ];
 
 export const SHOP_BY_ID: Record<string, ShopItem> = Object.fromEntries(SHOP_ITEMS.map((i) => [i.id, i]));
