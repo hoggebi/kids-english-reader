@@ -439,7 +439,6 @@ export default function Home() {
           <VocabList
             sets={vocabSets.filter((s) => !isLessonSet(s))}
             onSelect={handleVocabSelect}
-            onAdd={() => setVocabView("add")}
             onDelete={handleVocabDelete}
             onRename={handleVocabRename}
           />

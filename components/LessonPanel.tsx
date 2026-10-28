@@ -133,6 +133,7 @@ export default function LessonPanel({
   onStart: (set: VocabSet) => void;
 }) {
   const [reviewing, setReviewing] = useState(false);
+  const [folderOpen, setFolderOpen] = useState(true);
   const lessonSets = sets.filter((s) => LESSON_NUMBERS.some((l) => s.id === lessonSetId(l)));
   const confirmed = plan !== null && plan.confirmedAt !== null && lessonSets.length === LESSON_NUMBERS.length;
 
@@ -238,31 +239,53 @@ export default function LessonPanel({
         )}
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <div className="grid grid-cols-4 sm:grid-cols-7 gap-2" data-testid="lesson-chips">
-          {LESSON_NUMBERS.map((l) => {
-            const st = lessonStatus(plan, l);
-            const set = lessonSets.find((s) => s.id === lessonSetId(l));
-            return (
-              <button
-                key={l}
-                disabled={!set}
-                onClick={() => set && onStart(set)}
-                className={`min-h-[48px] rounded-xl border px-2 py-1 text-center transition active:scale-95 ${
-                  st === "current"
-                    ? "border-sky-500 bg-sky-50 text-sky-900"
-                    : st === "completed"
-                      ? "border-gray-300 bg-gray-100 text-gray-700"
-                      : "border-gray-200 bg-white text-gray-800"
-                }`}
-                aria-label={`Lesson ${l}${st === "completed" ? " 완료, 다시 하기" : st === "current" ? " 지금 Lesson" : ""}`}
-              >
-                <span className="block text-sm font-bold">Lesson {l}</span>
-                <span className="block text-[11px] text-gray-500">{st === "completed" ? "완료 ✓" : "\u00a0"}</span>
-              </button>
-            );
-          })}
-        </div>
+      {/* Lesson 목록: 청크북과 같은 SEED1_A2 폴더로 묶는다(열고 닫기) */}
+      <div className="rounded-2xl bg-white border-2 border-amber-200 overflow-hidden" data-testid="lesson-folder">
+        <button
+          type="button"
+          onClick={() => setFolderOpen((o) => !o)}
+          aria-expanded={folderOpen}
+          className="w-full min-h-[56px] flex items-center gap-3 px-4 py-2 bg-amber-50 text-left active:bg-amber-100 transition"
+        >
+          <span className="text-2xl" aria-hidden>
+            {folderOpen ? "📂" : "📁"}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-base font-black text-gray-800 truncate">SEED1_A2</span>
+            <span className="block text-xs text-gray-500">Lesson {LESSON_NUMBERS.length}개</span>
+          </span>
+          <span className="text-gray-500 font-bold" aria-hidden>
+            {folderOpen ? "▾" : "▸"}
+          </span>
+        </button>
+        {folderOpen && (
+          <div className="p-3">
+            <div className="grid grid-cols-4 sm:grid-cols-7 gap-2" data-testid="lesson-chips">
+              {LESSON_NUMBERS.map((l) => {
+                const st = lessonStatus(plan, l);
+                const set = lessonSets.find((s) => s.id === lessonSetId(l));
+                return (
+                  <button
+                    key={l}
+                    disabled={!set}
+                    onClick={() => set && onStart(set)}
+                    className={`min-h-[48px] rounded-xl border px-2 py-1 text-center transition active:scale-95 ${
+                      st === "current"
+                        ? "border-sky-500 bg-sky-50 text-sky-900"
+                        : st === "completed"
+                          ? "border-gray-300 bg-gray-100 text-gray-700"
+                          : "border-gray-200 bg-white text-gray-800"
+                    }`}
+                    aria-label={`Lesson ${l}${st === "completed" ? " 완료, 다시 하기" : st === "current" ? " 지금 Lesson" : ""}`}
+                  >
+                    <span className="block text-sm font-bold">Lesson {l}</span>
+                    <span className="block text-[11px] text-gray-500">{st === "completed" ? "완료 ✓" : "\u00a0"}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       <button onClick={() => setReviewing(true)} className="self-start min-h-[44px] text-xs text-gray-500 underline">
