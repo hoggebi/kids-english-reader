@@ -341,6 +341,294 @@ function ReadListen({
   );
 }
 
+// ================= 따라 읽기 (A3) =================
+// 한 줄 듣기 → 따라 말할 틈 → 다음 줄. 본문 전체를 두 바퀴 돈다. 두 바퀴를 모두 마치면 읽기 완료.
+// 건너뛰기 버튼은 두지 않는다(그냥 넘기지 않도록). 틈의 길이는 방금 들은 문장 길이에 맞춘다.
+const SHADOW_ROUNDS = 2;
+type ShadowPhase = "idle" | "listen" | "repeat" | "paused" | "done";
+
+function ShadowRead({
+  lesson,
+  text,
+  onWrite,
+  onBack,
+}: {
+  lesson: number;
+  text: LessonText;
+  onWrite: () => void;
+  onBack: () => void;
+}) {
+  const lines = text.body;
+  const [idx, setIdx] = useState(-1);
+  const [round, setRound] = useState(1);
+  const [phase, setPhase] = useState<ShadowPhase>("idle");
+  const [gapMs, setGapMs] = useState(0);
+  const [petTick, setPetTick] = useState(0);
+  const [cheer, setCheer] = useState<string | null>(null);
+  const token = useRef(0);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const waitDone = useRef<(() => void) | null>(null);
+  const pos = useRef({ round: 1, idx: 0 });
+  const rowRefs = useRef<(HTMLSpanElement | null)[]>([]);
+  const packRef = useRef<VoicePack | null>(null);
+  const supported = speakSupported();
+
+  useEffect(() => {
+    let alive = true;
+    void loadVoicePack().then((p) => {
+      if (alive) packRef.current = p;
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const stopAll = useCallback(() => {
+    token.current += 1;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    waitDone.current?.();
+    waitDone.current = null;
+    stopVoice();
+    try {
+      window.speechSynthesis?.cancel();
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  useEffect(() => stopAll, [stopAll]);
+
+  // 한 문장을 읽어 주고, 걸린 시간(ms)을 돌려준다. 녹음이 있으면 녹음, 없으면 기기 음성.
+  const speak = useCallback(
+    (i: number, tk: number) =>
+      new Promise<number>((resolve) => {
+        const t0 = Date.now();
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          if (timer.current) clearTimeout(timer.current);
+          const took = Date.now() - t0;
+          resolve(took < 400 ? lines[i].en.length * 70 : took); // 바로 끝나면 글자 수로 어림한다
+        };
+        const tts = () => {
+          if (!speakSupported()) {
+            finish();
+            return;
+          }
+          const u = new SpeechSynthesisUtterance(lines[i].en);
+          u.lang = "en-US";
+          u.rate = READ_RATE;
+          u.onend = finish;
+          u.onerror = finish;
+          timer.current = setTimeout(finish, 2500 + lines[i].en.length * 160);
+          window.speechSynthesis.speak(u);
+        };
+        const pack = packRef.current;
+        const section = lines[i].section;
+        const ordinal = lines.slice(0, i).filter((l) => l.section === section).length;
+        const ids = pack ? voiceIdsFor(pack, lesson, section, ordinal, lines[i].en) : null;
+        if (pack && ids) {
+          void playVoiceIds(pack, ids).then((ok) => {
+            if (tk !== token.current) return finish();
+            if (ok) finish();
+            else tts();
+          });
+          return;
+        }
+        tts();
+      }),
+    [lines, lesson],
+  );
+
+  const wait = useCallback(
+    (ms: number) =>
+      new Promise<void>((resolve) => {
+        waitDone.current = resolve;
+        timer.current = setTimeout(() => {
+          waitDone.current = null;
+          resolve();
+        }, ms);
+      }),
+    [],
+  );
+
+  const play = useCallback(
+    async (startRound: number, startIdx: number) => {
+      if ((!speakSupported() && !packRef.current) || lines.length === 0) return;
+      stopAll();
+      const tk = token.current;
+      for (let r = startRound; r <= SHADOW_ROUNDS; r++) {
+        setRound(r);
+        for (let i = r === startRound ? startIdx : 0; i < lines.length; i++) {
+          if (tk !== token.current) return;
+          pos.current = { round: r, idx: i };
+          setIdx(i);
+          setPhase("listen");
+          const dur = await speak(i, tk);
+          if (tk !== token.current) return;
+          const gap = Math.max(2200, Math.round(dur * 1.15) + 900);
+          setGapMs(gap);
+          setPhase("repeat");
+          await wait(gap);
+          if (tk !== token.current) return;
+        }
+      }
+      if (tk !== token.current) return;
+      setPhase("done");
+      setIdx(-1);
+      bumpListens(lesson);
+      const nowDone = markLessonRead(lesson);
+      const r = earnCoins(COINS_LISTEN, "chapter");
+      setCheer(nowDone ? `Lesson ${lessonNo(lesson)} 완료 ✓ 잘했어, 호야!` : cheerFor(r, "(따라 읽기 두 바퀴!)"));
+      setPetTick((n) => n + 1);
+      autoPush();
+    },
+    [lines, lesson, stopAll, speak, wait],
+  );
+
+  function pause() {
+    stopAll();
+    setPhase("paused");
+  }
+
+  // 읽는 문장이 화면 밖에 있을 때만 스크롤
+  useEffect(() => {
+    if (idx < 0 || (phase !== "listen" && phase !== "repeat")) return;
+    const el = rowRefs.current[idx];
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (r.top < 72 || r.bottom > window.innerHeight - 140) {
+      const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      el.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
+    }
+  }, [idx, phase]);
+
+  const active = phase === "listen" || phase === "repeat" || phase === "paused";
+  const rowClass = (i: number) =>
+    `rounded px-1 transition-colors duration-200 ${
+      i === idx && phase === "listen"
+        ? "bg-sky-100 font-bold text-sky-900 underline decoration-sky-400 decoration-2 underline-offset-4"
+        : i === idx && phase === "repeat"
+          ? "bg-amber-100 font-bold text-amber-900"
+          : ""
+    }`;
+  const renderLine = (l: BodyLine, i: number) => (
+    <div key={i} className="flex flex-col">
+      <span
+        ref={(el) => {
+          rowRefs.current[i] = el;
+        }}
+        className={`${rowClass(i)} self-start text-xl leading-snug`}
+      >
+        {l.en}
+      </span>
+      <span className={`px-1 text-sm ${i === idx ? "text-sky-700" : "text-gray-500"}`}>{l.ko}</span>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col gap-3" data-testid="shadow-read">
+      <style>{"@keyframes shadowgap{from{width:0}to{width:100%}}@media (prefers-reduced-motion: reduce){.shadowgap{animation:none!important;width:100%!important}}"}</style>
+      <div className="flex items-center justify-between gap-2">
+        <button onClick={() => { stopAll(); onBack(); }} className="min-h-[44px] text-sm text-gray-500 underline">
+          ← Lesson {lessonNo(lesson)}
+        </button>
+        <p className="text-sm font-bold text-gray-700">따라 읽기</p>
+        <span className="w-16" aria-hidden />
+      </div>
+
+      <PetCompanion tick={petTick} message={cheer} popping={cheer !== null && phase === "done"} />
+
+      {!supported && <p className="text-sm text-amber-700">이 기기에서는 음성을 쓸 수 없어요. 화면의 문장을 소리 내어 읽어 보세요.</p>}
+
+      {/* 지금 할 일 */}
+      <div
+        className={`sticky top-2 z-10 rounded-2xl border-2 p-3 flex flex-col gap-2 ${
+          phase === "repeat" ? "bg-amber-50 border-amber-300" : "bg-sky-50 border-sky-200"
+        }`}
+        data-testid="shadow-status"
+        role="status"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <p className={`text-lg font-bold ${phase === "repeat" ? "text-amber-800" : "text-sky-800"}`}>
+            {phase === "idle" && "한 줄 듣고, 따라 말해요"}
+            {phase === "listen" && "👂 잘 들어요"}
+            {phase === "repeat" && "🎤 내 차례! 따라 말해요"}
+            {phase === "paused" && "⏸ 멈췄어요"}
+            {phase === "done" && "두 바퀴 다 했어요! 🎉"}
+          </p>
+          {active && (
+            <p className="text-xs font-bold text-gray-500">
+              {round}/{SHADOW_ROUNDS}바퀴 · {Math.max(idx, 0) + 1}/{lines.length}줄
+            </p>
+          )}
+        </div>
+        {phase === "repeat" && (
+          <div className="h-2 rounded-full bg-amber-100 overflow-hidden" aria-hidden>
+            <div
+              key={`${round}-${idx}`}
+              className="shadowgap h-full rounded-full bg-amber-400"
+              style={{ animation: `shadowgap ${gapMs}ms linear forwards` }}
+            />
+          </div>
+        )}
+        {phase === "idle" && <p className="text-sm text-sky-700">본문을 처음부터 끝까지 두 바퀴 따라 읽어요.</p>}
+      </div>
+
+      <div className="rounded-2xl bg-gray-50 p-5 flex flex-col gap-3" data-testid="body-card">
+        {lines.map((l, i) => (l.section === "passage" ? renderLine(l, i) : null))}
+      </div>
+      {lines.some((l) => l.section === "dialogue") && (
+        <div className="rounded-2xl bg-gray-50 p-5 flex flex-col gap-3">
+          <p className="text-xs font-bold text-gray-400">대화 연습</p>
+          {lines.map((l, i) => (l.section === "dialogue" ? renderLine(l, i) : null))}
+        </div>
+      )}
+
+      {phase === "done" && (
+        <div className="rounded-2xl bg-sky-50 border-2 border-sky-200 p-4 flex flex-col gap-3" data-testid="after-shadow">
+          <p className="text-lg font-bold text-sky-800">이제 써 볼까요?</p>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={onWrite} className="min-h-[48px] px-5 rounded-full bg-sky-600 text-white text-sm font-bold active:scale-95 transition">
+              문장 보고 쓰기
+            </button>
+            <button
+              onClick={() => void play(1, 0)}
+              className="min-h-[48px] px-5 rounded-full bg-white border-2 border-sky-300 text-sky-700 text-sm font-bold active:scale-95 transition"
+            >
+              처음부터 다시
+            </button>
+          </div>
+        </div>
+      )}
+
+      {phase !== "done" && (
+        <div className="sticky bottom-3 z-10 flex items-center justify-center gap-2 rounded-full bg-white/95 border border-gray-200 p-2 shadow-lg self-center">
+          {phase === "listen" || phase === "repeat" ? (
+            <button onClick={pause} className="min-h-[44px] px-5 rounded-full bg-gray-700 text-white text-sm font-bold active:scale-95 transition">
+              ⏸ 일시정지
+            </button>
+          ) : (
+            <button
+              onClick={() => void play(phase === "paused" ? pos.current.round : 1, phase === "paused" ? pos.current.idx : 0)}
+              disabled={!supported}
+              className="min-h-[44px] px-5 rounded-full bg-sky-600 text-white text-sm font-bold disabled:opacity-50 active:scale-95 transition"
+            >
+              ▶ {phase === "paused" ? "이어서" : "시작"}
+            </button>
+          )}
+          {phase === "paused" && (
+            <button onClick={() => void play(1, 0)} className="min-h-[44px] px-4 rounded-full bg-gray-500 text-white text-sm font-bold active:scale-95 transition">
+              ↺ 처음부터
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ================= 문장 보고 쓰기 =================
 function WritingActivity({
   lesson,
@@ -828,6 +1116,8 @@ export default function ChunkLessonView({
   const notReady = builtin && isA3Lesson(lesson) && (!text || text.body.length === 0);
 
   // ----- 하위 화면 -----
+  if (mode === "read" && text && confirmed && isA3Lesson(lesson))
+    return <ShadowRead lesson={lesson} text={text} onWrite={() => setMode("write")} onBack={() => setMode("home")} />;
   if (mode === "read" && text && confirmed)
     return <ReadListen lesson={lesson} text={text} onWrite={() => setMode("write")} onBack={() => setMode("home")} onOpenPage={onOpenPage} />;
   if (mode === "write" && text && confirmed) return <WritingActivity lesson={lesson} text={text} onBack={() => setMode("home")} />;
