@@ -467,7 +467,7 @@ function ShadowRead({
           setPhase("listen");
           const dur = await speak(i, tk);
           if (tk !== token.current) return;
-          const gap = Math.max(2200, Math.round(dur * 1.15) + 900);
+          const gap = Math.max(2800, Math.round(dur * 1.4) + 1200);
           setGapMs(gap);
           setPhase("repeat");
           await wait(gap);

@@ -131,7 +131,23 @@
     "L8_dialogue_01": "/audio/L8_dialogue_01.mp3",
     "L8_dialogue_02": "/audio/L8_dialogue_02.mp3",
     "L8_dialogue_03": "/audio/L8_dialogue_03.mp3",
-    "L8_dialogue_04": "/audio/L8_dialogue_04.mp3"
+    "L8_dialogue_04": "/audio/L8_dialogue_04.mp3",
+    "L101_body_01": "/audio/L101_body_01.mp3",
+    "L101_body_02": "/audio/L101_body_02.mp3",
+    "L101_body_03": "/audio/L101_body_03.mp3",
+    "L101_body_04": "/audio/L101_body_04.mp3",
+    "L101_body_05_1": "/audio/L101_body_05_1.mp3",
+    "L101_body_05_2": "/audio/L101_body_05_2.mp3",
+    "L101_body_06": "/audio/L101_body_06.mp3",
+    "L101_body_07": "/audio/L101_body_07.mp3",
+    "L101_body_08": "/audio/L101_body_08.mp3",
+    "L101_body_09": "/audio/L101_body_09.mp3",
+    "L101_body_10": "/audio/L101_body_10.mp3",
+    "L101_body_11": "/audio/L101_body_11.mp3",
+    "L101_dialogue_01": "/audio/L101_dialogue_01.mp3",
+    "L101_dialogue_02": "/audio/L101_dialogue_02.mp3",
+    "L101_dialogue_03": "/audio/L101_dialogue_03.mp3",
+    "L101_dialogue_04": "/audio/L101_dialogue_04.mp3"
   },
   "sentences": {
     "L2_body_01": [
@@ -483,6 +499,52 @@
     ],
     "L8_dialogue_04": [
       "L8_dialogue_04"
+    ],
+    "L101_body_01": [
+      "L101_body_01"
+    ],
+    "L101_body_02": [
+      "L101_body_02"
+    ],
+    "L101_body_03": [
+      "L101_body_03"
+    ],
+    "L101_body_04": [
+      "L101_body_04"
+    ],
+    "L101_body_05": [
+      "L101_body_05_1",
+      "L101_body_05_2"
+    ],
+    "L101_body_06": [
+      "L101_body_06"
+    ],
+    "L101_body_07": [
+      "L101_body_07"
+    ],
+    "L101_body_08": [
+      "L101_body_08"
+    ],
+    "L101_body_09": [
+      "L101_body_09"
+    ],
+    "L101_body_10": [
+      "L101_body_10"
+    ],
+    "L101_body_11": [
+      "L101_body_11"
+    ],
+    "L101_dialogue_01": [
+      "L101_dialogue_01"
+    ],
+    "L101_dialogue_02": [
+      "L101_dialogue_02"
+    ],
+    "L101_dialogue_03": [
+      "L101_dialogue_03"
+    ],
+    "L101_dialogue_04": [
+      "L101_dialogue_04"
     ]
   },
   "lessons": {
@@ -658,6 +720,28 @@
         "L8_dialogue_02",
         "L8_dialogue_03",
         "L8_dialogue_04"
+      ]
+    },
+    "101": {
+      "body": [
+        "L101_body_01",
+        "L101_body_02",
+        "L101_body_03",
+        "L101_body_04",
+        "L101_body_05_1",
+        "L101_body_05_2",
+        "L101_body_06",
+        "L101_body_07",
+        "L101_body_08",
+        "L101_body_09",
+        "L101_body_10",
+        "L101_body_11"
+      ],
+      "dialogue": [
+        "L101_dialogue_01",
+        "L101_dialogue_02",
+        "L101_dialogue_03",
+        "L101_dialogue_04"
       ]
     }
   }
