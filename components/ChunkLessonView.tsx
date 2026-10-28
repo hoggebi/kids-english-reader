@@ -19,6 +19,7 @@ import {
   type WritingItem,
 } from "@/lib/chunkLesson";
 import { builtinRoles } from "@/lib/chunkbookBuiltin";
+import { isA3Lesson, lessonNo } from "@/lib/chunkbookA3";
 import { clearBookText, loadBookText, saveBookText } from "@/lib/chunkBookText";
 import { autoPush } from "@/lib/sync";
 import { COINS_LISTEN, COINS_SENTENCE, completeLesson, earnCoins, markLessonRead } from "@/lib/pet";
@@ -122,7 +123,7 @@ function ReadListen({
           const nowDone = markLessonRead(lesson);
           // 끝까지 한 바퀴 들을 때마다 경험치 +2
           const r = earnCoins(COINS_LISTEN, "chapter");
-          setCheer(nowDone ? `Lesson ${lesson} 완료 ✓ 잘했어, 호야!` : cheerFor(r, "(듣기 한 바퀴!)"));
+          setCheer(nowDone ? `Lesson ${lessonNo(lesson)} 완료 ✓ 잘했어, 호야!` : cheerFor(r, "(듣기 한 바퀴!)"));
           setPetTick((n) => n + 1);
           autoPush();
           return;
@@ -200,12 +201,16 @@ function ReadListen({
     <div className="flex flex-col gap-3" data-testid="read-listen">
       <div className="flex items-center justify-between gap-2">
         <button onClick={() => { stopAll(); onBack(); }} className="min-h-[44px] text-sm text-gray-500 underline">
-          ← Lesson {lesson}
+          ← Lesson {lessonNo(lesson)}
         </button>
         <p className="text-sm font-bold text-gray-700">읽고 듣기</p>
-        <button onClick={() => onOpenPage(text.bodyPages[0])} className="min-h-[44px] text-xs text-sky-700 underline">
-          원본 페이지 보기
-        </button>
+        {isA3Lesson(lesson) ? (
+          <span className="w-16" aria-hidden />
+        ) : (
+          <button onClick={() => onOpenPage(text.bodyPages[0])} className="min-h-[44px] text-xs text-sky-700 underline">
+            원본 페이지 보기
+          </button>
+        )}
       </div>
 
       <PetCompanion tick={petTick} message={cheer} popping={cheer !== null && status === "ended"} />
@@ -389,8 +394,8 @@ function WritingActivity({
       if (act.pos + delta >= n) {
         const done = completeLesson(lesson, (loadActivity(lesson)?.listens ?? 0) > 0);
         if (done.graduated) msg = "다 컸어! 새 친구를 만나러 가자! 도감을 확인해 봐!";
-        else if (done.grew) msg = `와! Lesson ${lesson} 끝! 나 쑥 자랐어! ${done.firstStamp ? "완료 ✓ " : ""}🪙 +${done.coins}`;
-        else if (done.firstStamp) msg = `Lesson ${lesson} 완료 ✓ 잘했어, 호야!`;
+        else if (done.grew) msg = `와! Lesson ${lessonNo(lesson)} 끝! 나 쑥 자랐어! ${done.firstStamp ? "완료 ✓ " : ""}🪙 +${done.coins}`;
+        else if (done.firstStamp) msg = `Lesson ${lessonNo(lesson)} 완료 ✓ 잘했어, 호야!`;
       }
       setCheer(msg);
       setPetTick((t) => t + 1);
@@ -436,7 +441,7 @@ function WritingActivity({
           <PetCompanion tick={petTick} message={cheer} popping />
         </div>
         <p className="text-2xl font-bold text-sky-600">다 썼어요! 🎉</p>
-        <p className="text-sm text-gray-500">Lesson {lesson}의 문장 {n}개를 모두 마쳤어요.</p>
+        <p className="text-sm text-gray-500">Lesson {lessonNo(lesson)}의 문장 {n}개를 모두 마쳤어요.</p>
         <div className="flex flex-wrap justify-center gap-2">
           <button onClick={restart} className="min-h-[48px] px-5 rounded-full bg-sky-600 text-white text-sm font-bold">
             다시 시작
@@ -459,7 +464,7 @@ function WritingActivity({
       </div>
       <div className="w-full flex items-center justify-between">
         <button onClick={() => { stop(); onBack(); }} className="min-h-[44px] text-sm text-gray-500 underline">
-          ← Lesson {lesson}
+          ← Lesson {lessonNo(lesson)}
         </button>
         <span className="text-sm font-bold text-gray-700" data-testid="write-progress">
           {act.pos + 1} / {n}
@@ -647,7 +652,7 @@ function RolesEditor({
   const [writing, setWriting] = useState<number | null>(roles.writing);
   return (
     <div className="flex flex-col gap-3 rounded-2xl border-2 border-amber-300 bg-amber-50 p-4" data-testid="roles-editor">
-      <p className="font-bold text-amber-900">Lesson {lesson} 페이지 역할</p>
+      <p className="font-bold text-amber-900">Lesson {lessonNo(lesson)} 페이지 역할</p>
       <p className="text-xs text-amber-800">PDF에서 본문(읽고 듣기)과 문장쓰기 페이지를 골라 주세요. 쪽 위치만으로 정하지 않고 실제 내용을 보고 정해요.</p>
       <ul className="flex flex-col gap-1">
         {lessonDef.pages.map((p, i) => (
@@ -819,6 +824,8 @@ export default function ChunkLessonView({
   }
 
   const confirmed = text?.status === "confirmed";
+  // A3처럼 내용을 단계적으로 채우는 내장 Lesson: 본문이 아직 없으면 준비 중으로 보여 준다.
+  const notReady = builtin && isA3Lesson(lesson) && (!text || text.body.length === 0);
 
   // ----- 하위 화면 -----
   if (mode === "read" && text && confirmed)
@@ -852,14 +859,20 @@ export default function ChunkLessonView({
   return (
     <div className="flex flex-col gap-3 rounded-2xl bg-gray-50 p-4" data-testid="lesson-home">
       <div className="flex items-baseline justify-between gap-2">
-        <p className="text-lg font-bold text-gray-900">Lesson {lesson}</p>
-        <p className="text-xs text-gray-500">
-          본문 {roles.body.map(label).join(", ") || "미정"} · 문장쓰기 {roles.writing ? label(roles.writing) : "미정"}
-          {roleState.custom && " · 직접 수정함"}
-        </p>
+        <p className="text-lg font-bold text-gray-900">Lesson {lessonNo(lesson)}</p>
+        {!isA3Lesson(lesson) && (
+          <p className="text-xs text-gray-500">
+            본문 {roles.body.map(label).join(", ") || "미정"} · 문장쓰기 {roles.writing ? label(roles.writing) : "미정"}
+            {roleState.custom && " · 직접 수정함"}
+          </p>
+        )}
       </div>
 
-      {confirmed ? (
+      {notReady ? (
+        <p className="rounded-xl bg-white border border-gray-200 p-4 text-sm font-bold text-gray-500" data-testid="lesson-not-ready">
+          이 Lesson 내용은 준비 중이에요.
+        </p>
+      ) : confirmed ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <button onClick={() => setMode("read")} className="min-h-[56px] rounded-full bg-sky-600 text-white font-bold text-base active:scale-95 transition">
             🔊 읽고 듣기
@@ -905,10 +918,12 @@ export default function ChunkLessonView({
       )}
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-        <button onClick={() => onOpenVocab(lesson)} className="min-h-[44px] font-bold text-sky-700 underline">
-          📖 이 Lesson 단어 학습하기
-        </button>
-        {text && (
+        {!isA3Lesson(lesson) && (
+          <button onClick={() => onOpenVocab(lesson)} className="min-h-[44px] font-bold text-sky-700 underline">
+            📖 이 Lesson 단어 학습하기
+          </button>
+        )}
+        {text && !notReady && (
           <button onClick={() => { setDraft(null); setMode("review"); }} className="min-h-[44px] text-gray-600 underline">
             본문·문장쓰기 확인/수정
           </button>

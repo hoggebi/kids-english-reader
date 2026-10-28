@@ -20,7 +20,7 @@ import {
 } from "@/lib/chunkbook";
 import { BUILTIN_BOOK, builtinPageUrl } from "@/lib/chunkbookBuiltin";
 import { getDoneLessons } from "@/lib/pet";
-import EmptyLessonFolder from "./EmptyLessonFolder";
+import { BUILTIN_BOOK_A3, isA3Lesson, lessonNo } from "@/lib/chunkbookA3";
 
 type PdfDoc = Awaited<ReturnType<typeof openPdf>>;
 
@@ -95,7 +95,7 @@ function PageThumb({ doc, docKey, page, label, onOpen }: { doc: PdfDoc; docKey: 
   );
 }
 
-function BuiltinThumb({ page, label, onOpen }: { page: number; label: string; onOpen: () => void }) {
+function BuiltinThumb({ page, label, onOpen, urlOf }: { page: number; label: string; onOpen: () => void; urlOf: (page: number) => string }) {
   return (
     <button
       onClick={onOpen}
@@ -104,7 +104,7 @@ function BuiltinThumb({ page, label, onOpen }: { page: number; label: string; on
     >
       <div className="w-full aspect-[3/4] bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={builtinPageUrl(page)} alt={`${label} 미리보기`} loading="lazy" className="w-full h-full object-contain" />
+        <img src={urlOf(page)} alt={`${label} 미리보기`} loading="lazy" className="w-full h-full object-contain" />
       </div>
       <span className="text-xs font-bold text-gray-700">{label}</span>
     </button>
@@ -238,6 +238,7 @@ export default function ChunkbookPanel({
   const [fileStateRaw, setFileState] = useState<"checking" | "ok" | "missing">("checking");
   const [selected, setSelected] = useState<number | null>(null);
   const [folderOpen, setFolderOpen] = useState(true);
+  const [a3Open, setA3Open] = useState(true);
   const [viewer, setViewer] = useState<number | null>(null);
   const [doneLessons, setDoneLessonsState] = useState<number[]>([]);
   const [draft, setDraft] = useState<{ lesson: number; start: number; end: number }[] | null>(null);
@@ -318,7 +319,11 @@ export default function ChunkbookPanel({
   }, []);
 
   const lessonList = book?.lessons ?? [];
-  const current = lessonList.find((l) => l.lesson === selected) ?? null;
+  // 선택한 Lesson이 A3(SEED1_A3)이면 A3 내장 교재로, 아니면 위의 교재로 보여 준다.
+  const selA3 = selected !== null && isA3Lesson(selected);
+  const activeBook: ChunkbookMeta = selA3 ? BUILTIN_BOOK_A3 : book;
+  const activeBuiltin = selA3 || isBuiltin;
+  const current = (selA3 ? BUILTIN_BOOK_A3.lessons : lessonList).find((l) => l.lesson === selected) ?? null;
   const viewerItems = useMemo(
     () => (current ? current.pages.map((p, i) => ({ page: p, label: current.labels[i] ?? `p.${p}` })) : []),
     [current],
@@ -609,14 +614,54 @@ export default function ChunkbookPanel({
         )}
       </div>
 
-      {/* 새 교재 폴더(틀만, 내용은 나중에) */}
-      <EmptyLessonFolder />
+      {/* SEED1_A3 폴더: Lesson 1~8 (내용은 Lesson 단위로 채우는 중) */}
+      <div className="rounded-2xl bg-white border-2 border-amber-200 overflow-hidden" data-testid="lesson-folder-a3">
+        <button
+          type="button"
+          onClick={() => setA3Open((o) => !o)}
+          aria-expanded={a3Open}
+          className="w-full min-h-[56px] flex items-center gap-3 px-4 py-2 bg-amber-50 text-left active:bg-amber-100 transition"
+        >
+          <span className="text-2xl" aria-hidden>
+            {a3Open ? "📂" : "📁"}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-base font-black text-gray-800 truncate">SEED1_A3</span>
+            <span className="block text-xs text-gray-500">Lesson {BUILTIN_BOOK_A3.lessons.length}개</span>
+          </span>
+          <span className="text-gray-500 font-bold" aria-hidden>
+            {a3Open ? "▾" : "▸"}
+          </span>
+        </button>
+        {a3Open && (
+          <div className="p-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" data-testid="lesson-list-a3">
+              {BUILTIN_BOOK_A3.lessons.map((l) => {
+                return (
+                  <button
+                    key={l.lesson}
+                    onClick={() => setSelected((cur) => (cur === l.lesson ? null : l.lesson))}
+                    aria-pressed={selected === l.lesson}
+                    aria-label={`Lesson ${lessonNo(l.lesson)}${doneLessons.includes(l.lesson) ? " 완료" : ""}`}
+                    className={`min-h-[56px] rounded-2xl border-2 px-3 py-2 text-left transition active:scale-95 ${
+                      selected === l.lesson ? "border-sky-500 bg-sky-50" : "border-transparent bg-gray-50"
+                    }`}
+                  >
+                    <p className="text-sm font-bold text-gray-800">Lesson {lessonNo(l.lesson)}</p>
+                    {doneLessons.includes(l.lesson) && <p className="text-xs font-bold text-sky-700">완료 ✓</p>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Lesson 활동: 읽고 듣기 / 문장 보고 쓰기 */}
       {current && (
         <ChunkLessonView
-          key={`${book.id}-${current.lesson}`}
-          book={book}
+          key={`${activeBook.id}-${current.lesson}`}
+          book={activeBook}
           lessonDef={current}
           doc={doc}
           fileOk={fileState === "ok"}
@@ -629,13 +674,13 @@ export default function ChunkbookPanel({
       )}
 
       {/* 원본 페이지 보기 */}
-      {current && (isBuiltin || (doc && fileState === "ok")) && (
+      {current && !selA3 && (activeBuiltin || (doc && fileState === "ok")) && (
         <div className="flex flex-col gap-2">
-          <p className="text-sm font-bold text-gray-700">Lesson {current.lesson} 원본 페이지</p>
+          <p className="text-sm font-bold text-gray-700">Lesson {lessonNo(current.lesson)} 원본 페이지</p>
           <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2" data-testid="page-grid">
             {current.pages.map((p, i) => (
-              isBuiltin ? (
-                <BuiltinThumb key={`${book.id}-${p}`} page={p} label={current.labels[i] ?? `p.${p}`} onOpen={() => setViewer(i)} />
+              activeBuiltin ? (
+                <BuiltinThumb key={`${activeBook.id}-${p}`} urlOf={builtinPageUrl} page={p} label={current.labels[i] ?? `p.${p}`} onOpen={() => setViewer(i)} />
               ) : (
                 doc && (
                   <PageThumb
@@ -652,15 +697,15 @@ export default function ChunkbookPanel({
           </div>
         </div>
       )}
-      {current && !isBuiltin && fileState === "checking" && <p className="text-sm text-gray-500">파일을 여는 중…</p>}
+      {current && !activeBuiltin && fileState === "checking" && <p className="text-sm text-gray-500">파일을 여는 중…</p>}
 
-      {viewer !== null && (isBuiltin || doc) && current && (
+      {viewer !== null && !selA3 && (activeBuiltin || doc) && current && (
         <PageViewer
-          doc={doc}
+          doc={activeBuiltin ? null : doc}
           directUrl={isBuiltin ? builtinPageUrl : undefined}
           items={viewerItems}
           index={viewer}
-          total={book.pageCount}
+          total={activeBook.pageCount}
           onIndex={setViewer}
           onClose={() => setViewer(null)}
         />

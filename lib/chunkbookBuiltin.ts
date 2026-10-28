@@ -7,6 +7,7 @@
 
 import type { ChunkbookMeta } from "./chunkbook";
 import type { BodyLine, PageRoles, WritingItem } from "./chunkLesson";
+import { a3Roles, a3SeedBody, a3SeedWriting, isA3Lesson } from "./chunkbookA3.ts";
 
 export const BUILTIN_BOOK_ID = "builtin-a2";
 export const BUILTIN_LESSONS = [2, 3, 4, 5, 6, 7, 8] as const;
@@ -33,6 +34,7 @@ export const BUILTIN_BOOK: ChunkbookMeta = {
 export const builtinPageUrl = (page: number) => `/chunkbook/a2/p${String(page).padStart(2, "0")}.jpg`;
 
 export function builtinRoles(lesson: number): PageRoles {
+  if (isA3Lesson(lesson)) return a3Roles(lesson);
   const p = firstPage(lesson);
   return { body: [p], writing: p + 1 };
 }
@@ -236,6 +238,7 @@ const SEEDS: Record<number, Seed> = {
 };
 
 export function builtinSeedBody(lesson: number): BodyLine[] {
+  if (isA3Lesson(lesson)) return a3SeedBody(lesson);
   const s = SEEDS[lesson];
   if (!s) return [];
   return [
@@ -245,5 +248,6 @@ export function builtinSeedBody(lesson: number): BodyLine[] {
 }
 
 export function builtinSeedWriting(lesson: number): WritingItem[] {
+  if (isA3Lesson(lesson)) return a3SeedWriting(lesson);
   return (SEEDS[lesson]?.writing ?? []).map(([en, ko]) => ({ en, ko }));
 }
