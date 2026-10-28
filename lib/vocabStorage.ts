@@ -1,12 +1,17 @@
 "use client";
 import type { VocabSet, VocabWord, VocabDailySession, VocabStudyMode } from "./types";
 import { lessonFromSetId } from "./lessonData";
+import { a3FromSetId } from "./lessonDataA3";
 import { localDateKey } from "./lessonPlanCore";
 import { loadLessonPlanRaw, recordLessonGamePlayed } from "./lessonPlan";
 
 const VOCAB_KEY = "chunkbook-v2-vocab-sets";
 const SESSION_KEY_PREFIX = "chunkbook-v2-vocab-session-";
 const GAMES_PLAYED_PREFIX = "chunkbook-v2-vocab-games-";
+const A3_STUDY_DONE_KEY = "chunkbook-v2-a3-study-done";
+
+// Lesson 묶음(A2: lesson-N, A3: a3-lesson-N)은 같은 학습 흐름(소개 → 철자 시연 → 글자 눌러 완성)을 쓴다.
+const isLessonLikeSetId = (setId: string) => lessonFromSetId(setId) !== null || a3FromSetId(setId) !== null;
 
 // 박스별 복습 간격(일). 3주 완주 목표에 맞춰 촘촘하게 설정.
 const BOX_INTERVAL_DAYS: Record<number, number> = { 1: 1, 2: 2, 3: 3, 4: 5 };
@@ -160,12 +165,12 @@ export function loadTodaySession(setId: string): VocabDailySession | null {
     if (!raw) return null;
     const s = JSON.parse(raw) as VocabDailySession;
     // 날짜 바뀌면 무효. 단, Lesson 묶음은 학습을 다 마치지 않았으면 날짜가 바뀌어도 이어서 한다.
-    const resumable = lessonFromSetId(setId) !== null && s.phase === "study" && s.cursor < s.cards.length;
+    const resumable = isLessonLikeSetId(setId) && s.phase === "study" && s.cursor < s.cards.length;
     if (s.dateKey !== todayKey() && !resumable) return null;
     // 예전 버전(flash/listen/game phase 등)으로 저장된 캐시면 무효 처리하고 새로 만들게 함
     const hasUnknownMode = s.cards.some((c) => !VALID_STUDY_MODES.includes(c.mode));
     // Lesson 묶음은 새 학습 흐름("teach")만 쓴다. 이전 구성(expose/문제 카드)으로 저장된 세션은 새로 만든다.
-    if (lessonFromSetId(setId) !== null && s.cards.some((c) => c.mode !== "teach")) return null;
+    if (isLessonLikeSetId(setId) && s.cards.some((c) => c.mode !== "teach")) return null;
     const hasUnknownPhase = s.phase !== "study" && s.phase !== "done";
     if (hasUnknownMode || hasUnknownPhase) return null;
     return s;
@@ -191,7 +196,7 @@ function shuffle<T>(arr: T[]): T[] {
 // 단어당 항상 2개: 노출(expose) 보장 + 나머지(뜻고르기/영어고르기/스펠링) 중 랜덤 1개 테스트
 // (신규/복습 상관없이 항상 "단어 알려주기 → 문제풀기" 순서를 보장)
 export function buildDailySession(set: VocabSet): VocabDailySession {
-  const isLesson = lessonFromSetId(set.id) !== null;
+  const isLesson = isLessonLikeSetId(set.id);
   // Lesson 묶음은 하루 10개 제한 없이 그 Lesson의 전체 학습 단어를 쓴다(추가 단어 포함).
   const dailyWords = isLesson ? set.words : selectDailyWords(set);
   const testModes: VocabStudyMode[] = ["meaning", "toEnglish", "spell"];
@@ -278,6 +283,44 @@ export function lessonGamesPlayed(setId: string): string[] {
     /* ignore */
   }
   return [...kinds];
+}
+
+// A3 Lesson 게임 기록: A2와 달리 회차 시작일(진행 계획)과 상관없이 지금까지 마친 게임 종류를 모두 센다.
+export function a3GamesPlayed(setId: string): string[] {
+  if (typeof window === "undefined") return [];
+  const prefix = `${GAMES_PLAYED_PREFIX}${setId}-`;
+  const kinds = new Set<string>();
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith(prefix)) continue;
+      (JSON.parse(localStorage.getItem(k) ?? "[]") as string[]).forEach((x) => kinds.add(x));
+    }
+  } catch {
+    /* ignore */
+  }
+  return [...kinds];
+}
+
+// A3 Lesson의 학습(카드) 완료 기록. A3 세트가 아니면 아무 일도 안 한다.
+export function a3StudyDoneLessons(): number[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const list = JSON.parse(localStorage.getItem(A3_STUDY_DONE_KEY) ?? "[]") as unknown;
+    return Array.isArray(list) ? list.filter((n): n is number => typeof n === "number") : [];
+  } catch {
+    return [];
+  }
+}
+export function recordA3StudyDone(setId: string) {
+  const lesson = a3FromSetId(setId);
+  if (lesson === null || typeof window === "undefined") return;
+  const done = a3StudyDoneLessons();
+  if (!done.includes(lesson)) localStorage.setItem(A3_STUDY_DONE_KEY, JSON.stringify([...done, lesson]));
+}
+export function a3StudyDone(setId: string): boolean {
+  const lesson = a3FromSetId(setId);
+  return lesson !== null && a3StudyDoneLessons().includes(lesson);
 }
 
 export function recordVocabGamePlayed(
