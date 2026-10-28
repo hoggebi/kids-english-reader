@@ -345,6 +345,7 @@ function ReadListen({
 // 한 줄 듣기 → 따라 말할 틈 → 다음 줄. 본문 전체를 두 바퀴 돈다. 두 바퀴를 모두 마치면 읽기 완료.
 // 건너뛰기 버튼은 두지 않는다(그냥 넘기지 않도록). 틈의 길이는 방금 들은 문장 길이에 맞춘다.
 const SHADOW_ROUNDS = 2;
+const SHADOW_VOICE_RATE = 0.9; // 녹음 음성을 약간 느리게(따라 말하기 쉽게)
 type ShadowPhase = "idle" | "listen" | "repeat" | "paused" | "done";
 
 function ShadowRead({
@@ -429,7 +430,7 @@ function ShadowRead({
         const ordinal = lines.slice(0, i).filter((l) => l.section === section).length;
         const ids = pack ? voiceIdsFor(pack, lesson, section, ordinal, lines[i].en) : null;
         if (pack && ids) {
-          void playVoiceIds(pack, ids).then((ok) => {
+          void playVoiceIds(pack, ids, SHADOW_VOICE_RATE).then((ok) => {
             if (tk !== token.current) return finish();
             if (ok) finish();
             else tts();

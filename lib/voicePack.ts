@@ -53,7 +53,7 @@ export function stopVoice() {
 
 // 조각을 순서대로 재생한다. 끝까지 들었으면 true, 오류면 false, 중간에 멈추거나 다른 재생이 시작되면 취소되어 resolve하지 않는다.
 // 첫 조각의 play()는 사용자 조작 안에서 바로 호출되어야 iPad/Safari에서 재생된다(첫 await 전에 호출).
-export function playVoiceIds(pack: VoicePack, ids: string[]): Promise<boolean> {
+export function playVoiceIds(pack: VoicePack, ids: string[], rate = 1): Promise<boolean> {
   stopVoice();
   if (!audio) {
     audio = new Audio();
@@ -88,7 +88,8 @@ export function playVoiceIds(pack: VoicePack, ids: string[]): Promise<boolean> {
         resolve(false);
       };
       el.src = it.audioUrl;
-      el.playbackRate = 1; // 목소리와 속도가 이미 녹음에 들어 있다
+      el.preservesPitch = true; // 느리게 해도 목소리 높이는 그대로
+      el.playbackRate = rate; // 기본은 1: 목소리와 속도가 이미 녹음에 들어 있다
       el.play().catch(() => {
         if (token !== generation) return;
         cleanup();
