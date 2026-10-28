@@ -16,14 +16,22 @@ for (const l of BUILTIN_BOOK_A3.lessons) assert.deepEqual(a3Roles(l.lesson), { b
 assert.deepEqual(builtinRoles(101), a3Roles(101));
 // A2 데이터는 그대로
 assert.ok(builtinSeedBody(2).length > 0);
-// Lesson 1: 내용이 있고, 문장쓰기 4개는 모두 본문 문장이다
-assert.ok(a3Ready(101));
-assert.ok(!a3Ready(102));
-const body = a3SeedBody(101);
-assert.equal(body.filter((b) => b.section === "passage").length, 11);
-assert.equal(body.filter((b) => b.section === "dialogue").length, 4);
-assert.ok(body.every((b) => b.en.trim() && b.ko.trim()));
-const w = a3SeedWriting(101);
-assert.equal(w.length, 4);
-for (const x of w) assert.ok(body.some((b) => letters(b.en).includes(letters(x.en))), x.en);
+// 내용이 채워진 Lesson: 본문·대화 줄 수, 문장쓰기 4개는 모두 본문 문장이다
+const COUNTS = { 1: [11, 4], 2: [10, 4], 3: [12, 4], 4: [10, 4], 5: [11, 4], 6: [13, 4], 7: [13, 4], 8: [13, 4] };
+// 교재의 문장쓰기 정답이 본문 문장 그대로가 아니라 본문 표현으로 만든 문장인 경우(빈칸 "hide in trees")
+const COMPOSED = new Set(["The spots help leopards hide in trees."]);
+for (const [n, [passage, dialogue]] of Object.entries(COUNTS)) {
+  const id = 100 + Number(n);
+  assert.ok(a3Ready(id), `Lesson ${n} ready`);
+  const body = a3SeedBody(id);
+  assert.equal(body.filter((b) => b.section === "passage").length, passage, `Lesson ${n} passage`);
+  assert.equal(body.filter((b) => b.section === "dialogue").length, dialogue, `Lesson ${n} dialogue`);
+  assert.ok(body.every((b) => b.en.trim() && b.ko.trim()), `Lesson ${n} empty text`);
+  const w = a3SeedWriting(id);
+  assert.equal(w.length, 4, `Lesson ${n} writing`);
+  for (const x of w) {
+    assert.ok(x.ko.trim());
+    if (!COMPOSED.has(x.en)) assert.ok(body.some((b) => letters(b.en).includes(letters(x.en))), x.en);
+  }
+}
 console.log("chunkbookA3 ok");
