@@ -20,6 +20,7 @@ import {
 } from "@/lib/chunkbook";
 import { BUILTIN_BOOK, builtinPageUrl } from "@/lib/chunkbookBuiltin";
 import { getDoneLessons } from "@/lib/pet";
+import EmptyLessonFolder from "./EmptyLessonFolder";
 
 type PdfDoc = Awaited<ReturnType<typeof openPdf>>;
 
@@ -607,6 +608,9 @@ export default function ChunkbookPanel({
           </div>
         )}
       </div>
+
+      {/* 새 교재 폴더(틀만, 내용은 나중에) */}
+      <EmptyLessonFolder />
 
       {/* Lesson 활동: 읽고 듣기 / 문장 보고 쓰기 */}
       {current && (

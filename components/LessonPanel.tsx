@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { VocabSet } from "@/lib/types";
+import EmptyLessonFolder from "./EmptyLessonFolder";
 import { LESSON_DEFS, LESSON_NUMBERS, lessonSetId } from "@/lib/lessonData";
 import { confirmLessons, draftKey, reconcileLessonGameDone, restartLessonPlan, type LessonPlan, type MeaningDraft } from "@/lib/lessonPlan";
 import { lessonStatus } from "@/lib/lessonPlanCore";
@@ -164,7 +165,8 @@ export default function LessonPanel({
   // ---------- 시작 전 ----------
   if (!confirmed || !plan) {
     return (
-      <div className="w-full max-w-4xl rounded-2xl bg-sky-50 border-2 border-sky-200 p-4 flex flex-col gap-2" data-testid="lesson-intro">
+      <div className="w-full max-w-4xl flex flex-col gap-3">
+      <div className="rounded-2xl bg-sky-50 border-2 border-sky-200 p-4 flex flex-col gap-2" data-testid="lesson-intro">
         <p className="text-base font-bold text-sky-900">청크북 Lesson 학습</p>
         <p className="text-sm text-sky-800">
           Lesson 2부터 8까지, 하루에 한 Lesson씩 핵심 단어를 학습하고 게임해요. 시작하기 전에 단어 뜻을 한 번 확인해 주세요.
@@ -172,6 +174,8 @@ export default function LessonPanel({
         <button onClick={() => setReviewing(true)} className="self-start min-h-[48px] px-5 rounded-full bg-sky-600 text-white font-bold">
           Lesson 단어 확인하고 시작
         </button>
+      </div>
+      <EmptyLessonFolder />
       </div>
     );
   }
@@ -287,6 +291,9 @@ export default function LessonPanel({
           </div>
         )}
       </div>
+
+      {/* 새 교재 폴더(틀만, 내용은 나중에) */}
+      <EmptyLessonFolder />
 
       <button onClick={() => setReviewing(true)} className="self-start min-h-[44px] text-xs text-gray-500 underline">
         Lesson 단어 뜻 확인·수정
