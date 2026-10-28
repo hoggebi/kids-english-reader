@@ -511,7 +511,7 @@ function ShadowRead({
       i === idx && phase === "listen"
         ? "bg-sky-100 font-bold text-sky-900 underline decoration-sky-400 decoration-2 underline-offset-4"
         : i === idx && phase === "repeat"
-          ? "bg-amber-100 font-bold text-amber-900"
+          ? "bg-amber-100 font-bold text-gray-800"
           : ""
     }`;
   const renderLine = (l: BodyLine, i: number) => (
@@ -552,7 +552,7 @@ function ShadowRead({
         role="status"
       >
         <div className="flex items-center justify-between gap-2">
-          <p className={`text-lg font-bold ${phase === "repeat" ? "text-amber-800" : "text-sky-800"}`}>
+          <p className={`text-lg font-bold ${phase === "repeat" ? "text-gray-700" : "text-sky-800"}`}>
             {phase === "idle" && "한 줄 듣고, 따라 말해요"}
             {phase === "listen" && "👂 잘 들어요"}
             {phase === "repeat" && "🎤 내 차례! 따라 말해요"}
