@@ -21,7 +21,7 @@ import {
 import { builtinRoles } from "@/lib/chunkbookBuiltin";
 import { clearBookText, loadBookText, saveBookText } from "@/lib/chunkBookText";
 import { autoPush } from "@/lib/sync";
-import { COINS_LISTEN, COINS_SENTENCE, completeLesson, earnCoins } from "@/lib/pet";
+import { COINS_LISTEN, COINS_SENTENCE, completeLesson, earnCoins, markLessonRead } from "@/lib/pet";
 import PetCompanion from "./PetCompanion";
 import { loadVoicePack, playVoiceIds, stopVoice, voiceIdsFor, type VoicePack } from "@/lib/voicePack";
 
@@ -119,9 +119,10 @@ function ReadListen({
           setStatus("ended");
           setEndedThisVisit((n) => n + 1);
           setListens(bumpListens(lesson));
+          const nowDone = markLessonRead(lesson);
           // 끝까지 한 바퀴 들을 때마다 경험치 +2
           const r = earnCoins(COINS_LISTEN, "chapter");
-          setCheer(cheerFor(r, "(듣기 한 바퀴!)"));
+          setCheer(nowDone ? `Lesson ${lesson} 완료 ✓ 잘했어, 호야!` : cheerFor(r, "(듣기 한 바퀴!)"));
           setPetTick((n) => n + 1);
           autoPush();
           return;
@@ -386,10 +387,10 @@ function WritingActivity({
       const r = earnCoins(COINS_SENTENCE, "chapter");
       let msg = cheerFor(r);
       if (act.pos + delta >= n) {
-        const done = completeLesson(lesson);
+        const done = completeLesson(lesson, (loadActivity(lesson)?.listens ?? 0) > 0);
         if (done.graduated) msg = "다 컸어! 새 친구를 만나러 가자! 도감을 확인해 봐!";
-        else if (done.grew) msg = `와! Lesson ${lesson} 끝! 나 쑥 자랐어! ${done.firstStamp ? "도장 ⭐ " : ""}🪙 +${done.coins}`;
-        else if (done.firstStamp) msg = `Lesson ${lesson} 도장 ⭐ 잘했어, 호야!`;
+        else if (done.grew) msg = `와! Lesson ${lesson} 끝! 나 쑥 자랐어! ${done.firstStamp ? "완료 ✓ " : ""}🪙 +${done.coins}`;
+        else if (done.firstStamp) msg = `Lesson ${lesson} 완료 ✓ 잘했어, 호야!`;
       }
       setCheer(msg);
       setPetTick((t) => t + 1);

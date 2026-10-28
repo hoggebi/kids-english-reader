@@ -5,14 +5,12 @@ import {
   CHAPTER_SPECIES,
   MAX_STAGE,
   VOCAB_SPECIES,
-  getDoneLessons,
   getPetImagePath,
   loadPet,
   type PetState,
   type PetTrack,
   type Species,
 } from "@/lib/pet";
-import { BUILTIN_LESSONS } from "@/lib/chunkbookBuiltin";
 import { friendKey, loadShop } from "@/lib/shop";
 import DecoratedPet from "./DecoratedPet";
 
@@ -89,13 +87,11 @@ function Shelf({
 export default function FriendDex({ onDecorate }: { onDecorate?: (track: PetTrack, generation: number) => void }) {
   const [chapterPet, setChapterPet] = useState<PetState | null>(null);
   const [vocabPet, setVocabPet] = useState<PetState | null>(null);
-  const [lessons, setLessons] = useState<number[]>([]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 저장소(localStorage)를 마운트 후에만 읽을 수 있다
     setChapterPet(loadPet("chapter"));
     setVocabPet(loadPet("vocab"));
-    setLessons(getDoneLessons());
   }, []);
 
   if (!chapterPet || !vocabPet) return null;
@@ -106,31 +102,6 @@ export default function FriendDex({ onDecorate }: { onDecorate?: (track: PetTrac
         <p className="text-2xl font-bold text-sky-600">친구 도감</p>
         <p className="text-sm text-gray-500">공부하면서 만난 친구들이 여기에 모여요.</p>
       </div>
-
-      <section className="rounded-2xl bg-gray-50 p-4 flex flex-col gap-3">
-        <div className="flex items-baseline justify-between">
-          <h3 className="text-lg font-bold text-gray-800">청크북 도장</h3>
-          <span className="text-sm font-bold text-sky-600">
-            {BUILTIN_LESSONS.filter((l) => lessons.includes(l)).length}/{BUILTIN_LESSONS.length}
-          </span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {BUILTIN_LESSONS.map((l) => {
-            const done = lessons.includes(l);
-            return (
-              <div
-                key={l}
-                className={`w-20 h-20 rounded-full flex flex-col items-center justify-center text-sm font-bold ${
-                  done ? "bg-sky-600 text-white" : "bg-gray-200 text-gray-400"
-                }`}
-              >
-                <span className="text-xl">{done ? "⭐" : "·"}</span>
-                <span>Lesson {l}</span>
-              </div>
-            );
-          })}
-        </div>
-      </section>
 
       <Shelf title="챕터·청크북 친구" track="chapter" species={CHAPTER_SPECIES} pet={chapterPet} onDecorate={onDecorate} />
       <Shelf title="단어장 친구" track="vocab" species={VOCAB_SPECIES} pet={vocabPet} onDecorate={onDecorate} />

@@ -19,6 +19,7 @@ import {
   storageEstimate,
 } from "@/lib/chunkbook";
 import { BUILTIN_BOOK, builtinPageUrl } from "@/lib/chunkbookBuiltin";
+import { getDoneLessons } from "@/lib/pet";
 
 type PdfDoc = Awaited<ReturnType<typeof openPdf>>;
 
@@ -237,6 +238,7 @@ export default function ChunkbookPanel({
   const [selected, setSelected] = useState<number | null>(null);
   const [folderOpen, setFolderOpen] = useState(true);
   const [viewer, setViewer] = useState<number | null>(null);
+  const [doneLessons, setDoneLessonsState] = useState<number[]>([]);
   const [draft, setDraft] = useState<{ lesson: number; start: number; end: number }[] | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
   const docRef = useRef<PdfDoc | null>(null);
@@ -301,6 +303,17 @@ export default function ChunkbookPanel({
     return () => {
       void destroyPdf(docRef.current);
     };
+  }, []);
+
+  // Lesson 완료(✓) 표시: 읽기+쓰기를 마치면 저장소에 기록되므로, 화면을 열거나 Lesson을 바꿀 때 다시 읽는다.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 저장소(localStorage)를 마운트 후에만 읽을 수 있다
+    setDoneLessonsState(getDoneLessons());
+  }, [selected]);
+  useEffect(() => {
+    const refresh = () => setDoneLessonsState(getDoneLessons());
+    window.addEventListener("lessons-changed", refresh);
+    return () => window.removeEventListener("lessons-changed", refresh);
   }, []);
 
   const lessonList = book?.lessons ?? [];
@@ -580,12 +593,14 @@ export default function ChunkbookPanel({
                   key={l.lesson}
                   onClick={() => setSelected((cur) => (cur === l.lesson ? null : l.lesson))}
                   aria-pressed={selected === l.lesson}
+                  aria-label={`Lesson ${l.lesson}${doneLessons.includes(l.lesson) ? " 완료" : ""}`}
                   className={`min-h-[56px] rounded-2xl border-2 px-3 py-2 text-left transition active:scale-95 ${
                     selected === l.lesson ? "border-sky-500 bg-sky-50" : "border-transparent bg-gray-50"
                   }`}
                 >
                   <p className="text-sm font-bold text-gray-800">Lesson {l.lesson}</p>
                   <p className="text-xs text-gray-500">{l.pages.length}쪽</p>
+                  {doneLessons.includes(l.lesson) && <p className="text-xs font-bold text-sky-700">완료 ✓</p>}
                 </button>
               ))}
             </div>

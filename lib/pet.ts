@@ -820,6 +820,7 @@ export function getDoneLessons(): number[] {
 export function setDoneLessons(lessons: number[]) {
   if (typeof window === "undefined") return;
   localStorage.setItem(DONE_LESSONS_KEY, JSON.stringify(Array.from(new Set(lessons))));
+  window.dispatchEvent(new Event("lessons-changed"));
 }
 
 // 캐릭터를 한 단계 키운다. 8단계를 넘으면 다음 친구가 1단계로 시작한다.
@@ -858,9 +859,29 @@ export function earnCoins(amount: number, _track: PetTrack = "chapter", opts: { 
   return { granted, capped, total };
 }
 
-// Lesson 한 번을 끝까지 마치면 캐릭터가 바로 자란다. 같은 Lesson은 하루에 한 번만 자라고,
-// 도장(⭐)은 처음 마칠 때 한 번만 찍힌다.
-export function completeLesson(lesson: number): GrowResult & { firstStamp: boolean } {
+// 청크북 Lesson 완료(✓)는 "읽고 듣기"와 "문장 쓰기"를 둘 다 마쳐야 찍힌다.
+const WRITE_DONE_KEY = "chunk-write-done";
+function getWrittenLessons(): number[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const list = JSON.parse(localStorage.getItem(WRITE_DONE_KEY) ?? "[]") as unknown;
+    return Array.isArray(list) ? list.filter((n): n is number => typeof n === "number") : [];
+  } catch {
+    return [];
+  }
+}
+
+// 읽기를 마쳤을 때 호출. 쓰기도 이미 마친 Lesson이면 완료 처리하고 true를 돌려준다.
+export function markLessonRead(lesson: number): boolean {
+  const done = getDoneLessons();
+  if (done.includes(lesson) || !getWrittenLessons().includes(lesson)) return false;
+  setDoneLessons([...done, lesson]);
+  return true;
+}
+
+// Lesson 한 번을 끝까지 쓰면 캐릭터가 바로 자란다. 같은 Lesson은 하루에 한 번만 자란다.
+// readDone: 이 Lesson의 읽고 듣기를 한 번 이상 마쳤는지. firstStamp는 이번에 처음 완료(✓)된 경우.
+export function completeLesson(lesson: number, readDone: boolean): GrowResult & { firstStamp: boolean } {
   const pet = loadPet("chapter");
   let lastDays: Record<string, string> = {};
   try {
@@ -869,8 +890,10 @@ export function completeLesson(lesson: number): GrowResult & { firstStamp: boole
     lastDays = {};
   }
   const today = dayKey();
+  const written = getWrittenLessons();
+  if (!written.includes(lesson)) localStorage.setItem(WRITE_DONE_KEY, JSON.stringify([...written, lesson]));
   const done = getDoneLessons();
-  const firstStamp = !done.includes(lesson);
+  const firstStamp = readDone && !done.includes(lesson);
   if (firstStamp) setDoneLessons([...done, lesson]);
   if (lastDays[String(lesson)] === today) return { pet, grew: false, graduated: false, coins: 0, firstStamp };
   lastDays[String(lesson)] = today;
