@@ -44,7 +44,7 @@ export const A3_WORDS: Record<number, [string, string][]> = {
     ["second", "(아주) 잠깐"],
   ],
   4: [
-    ["either", "~도 (역시)"],
+    ["either", "도 (역시)"],
     ["expression", "표현"],
     ["hand", "손, 도움"],
     ["head", "머리"],
@@ -70,8 +70,8 @@ export const A3_WORDS: Record<number, [string, string][]> = {
   6: [
     ["better", "더 좋은"],
     ["clever", "똑똑한"],
-    ["coding", "코딩 (프로그램의 코드를 작성하는 일)"],
-    ["pattern", "(반복되는) 패턴"],
+    ["coding", "코딩"],
+    ["pattern", "무늬"],
     ["repeat", "반복하다"],
     ["stop", "멈추다"],
     ["tidy", "깔끔한"],
