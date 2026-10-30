@@ -349,14 +349,26 @@ export function recordVocabGamePlayed(
 }
 
 // A2 Lesson(2~8)마다의 학습(카드) 완료 기록. 진행 계획은 "오늘의 Lesson" 하나만 세므로, 칩의 완료 ✓는 Lesson별로 따로 센다.
+// 이 기록이 생기기 전에 공부한 Lesson도 반영하려고, 마지막 학습 세션이 "완료"로 남아 있으면 학습 완료로 본다.
 export function a2StudyDoneLessons(): number[] {
   if (typeof window === "undefined") return [];
+  const done = new Set<number>();
   try {
     const list = JSON.parse(localStorage.getItem(A2_STUDY_DONE_KEY) ?? "[]") as unknown;
-    return Array.isArray(list) ? list.filter((n): n is number => typeof n === "number") : [];
+    if (Array.isArray(list)) list.forEach((n) => typeof n === "number" && done.add(n));
   } catch {
-    return [];
+    /* ignore */
   }
+  for (let lesson = 1; lesson <= 20; lesson++) {
+    if (done.has(lesson)) continue;
+    try {
+      const raw = localStorage.getItem(sessionKey(`lesson-${lesson}`));
+      if (raw && (JSON.parse(raw) as VocabDailySession).phase === "done") done.add(lesson);
+    } catch {
+      /* ignore */
+    }
+  }
+  return [...done];
 }
 export function recordA2StudyDone(setId: string) {
   const lesson = lessonFromSetId(setId);
