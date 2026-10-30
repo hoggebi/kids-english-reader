@@ -12,13 +12,18 @@ import { A3_NUMBERS, a3SetId } from "@/lib/lessonDataA3";
 function A3Folder({ sets, onStart }: { sets: VocabSet[]; onStart: (set: VocabSet) => void }) {
   const [open, setOpen] = useState(true);
   const [done, setDone] = useState<number[]>([]);
+  const [studied, setStudied] = useState<number[]>([]);
   useEffect(() => {
-    const ok = a3StudyDoneLessons().filter((n) => {
+    const study: number[] = [];
+    const ok: number[] = [];
+    for (const n of A3_NUMBERS) {
       const played = a3GamesPlayed(a3SetId(n));
-      return LESSON_GAME_KINDS.every((k) => played.includes(k));
-    });
+      if (LESSON_GAME_KINDS.every((k) => played.includes(k))) ok.push(n);
+      else if (played.length > 0 || a3StudyDoneLessons().includes(n)) study.push(n);
+    }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 저장소(localStorage)를 마운트 후에만 읽을 수 있다
     setDone(ok);
+    setStudied(study);
   }, [sets]);
   return (
     <div className="rounded-2xl bg-white border-2 border-amber-200 overflow-hidden" data-testid="lesson-folder-a3">
@@ -56,7 +61,7 @@ function A3Folder({ sets, onStart }: { sets: VocabSet[]; onStart: (set: VocabSet
                   aria-label={`Lesson ${n}${isDone ? " 완료, 다시 하기" : ""}`}
                 >
                   <span className="block text-sm font-bold">Lesson {n}</span>
-                  <span className="block text-[11px] text-gray-500">{isDone ? "완료 ✓" : "\u00a0"}</span>
+                  <span className="block text-[11px] text-gray-500">{isDone ? "완료 ✓" : studied.includes(n) ? "학습 ✓" : "\u00a0"}</span>
                 </button>
               );
             })}
@@ -195,14 +200,20 @@ export default function LessonPanel({
   const [reviewing, setReviewing] = useState(false);
   const [folderOpen, setFolderOpen] = useState(true);
   // 진행 계획은 "오늘의 Lesson"만 세므로, 다른 Lesson도 학습 카드와 게임 3종을 모두 마치면 칩에 완료 ✓를 보인다.
+  // 게임은 그날의 학습을 끝내야 열리므로, 게임 기록이 있으면 학습도 마친 것으로 본다.
   const [doneByRecord, setDoneByRecord] = useState<number[]>([]);
+  const [studyByRecord, setStudyByRecord] = useState<number[]>([]);
   useEffect(() => {
-    const ok = a2StudyDoneLessons().filter((n) => {
+    const study: number[] = [];
+    const done: number[] = [];
+    for (const n of LESSON_NUMBERS) {
       const played = a3GamesPlayed(lessonSetId(n));
-      return LESSON_GAME_KINDS.every((k) => played.includes(k));
-    });
+      if (LESSON_GAME_KINDS.every((k) => played.includes(k))) done.push(n);
+      else if (played.length > 0 || a2StudyDoneLessons().includes(n)) study.push(n);
+    }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 저장소(localStorage)를 마운트 후에만 읽을 수 있다
-    setDoneByRecord(ok);
+    setDoneByRecord(done);
+    setStudyByRecord(study);
   }, [sets, plan]);
   const lessonSets = sets.filter((s) => LESSON_NUMBERS.some((l) => s.id === lessonSetId(l)));
   const confirmed = plan !== null && plan.confirmedAt !== null && lessonSets.length === LESSON_NUMBERS.length;
@@ -250,67 +261,24 @@ export default function LessonPanel({
   }
 
   // ---------- 진행 중 ----------
-  const current = plan.currentLesson;
-  const currentSet = lessonSets.find((s) => s.id === lessonSetId(current)) ?? null;
-  const doneToday = plan.completedOn !== null;
-  const progress = plan.progress && plan.progress.lesson === current ? plan.progress : null;
-  const studyDone = !!progress?.studyDone || doneToday;
-  // 게임 완료는 다트·두더지·몬스터 3가지를 모두 마쳤을 때만. 하나라도 남았으면 "진행 중"으로 보여 준다.
-  // 마친 게임 종류 = 진행 계획(동기화됨)에 기록된 것 + 이 기기에 남은 기록. 3종을 모두 마치면 게임 완료.
-  const gamesPlayed = Array.from(
-    new Set([...(progress?.games ?? []), ...(currentSet ? lessonGamesPlayed(currentSet.id) : [])]),
-  ).filter((k) => (LESSON_GAME_KINDS as readonly string[]).includes(k));
-  const gameDone = !!progress?.gameDone || doneToday;
-  const gameStarted = gamesPlayed.length > 0;
-  const actionLabel = doneToday && gameDone ? "다시 하기" : progress?.studyDone || studyDone ? "이어서 하기" : "학습 시작";
-
+  // 위쪽 안내 카드는 없앴다: 청크북처럼 아래 폴더에서 Lesson을 눌러 시작한다.
   return (
     <div className="w-full max-w-4xl flex flex-col gap-3" data-testid="lesson-panel">
-      {/* 위계: 라벨(12) → Lesson 이름(18) → 상태·메타(12) → 행동 버튼(14, 오른쪽 작게) */}
-      <div className="rounded-2xl bg-sky-50 border border-sky-200 px-4 py-3">
-        {plan.finished ? (
-          <div className="flex flex-col gap-2">
-            <p className="text-base font-bold text-sky-900">🎉 Lesson 8까지 모두 완료했어요 ({plan.cycle}회차)</p>
-            <p className="text-xs text-sky-800">자동으로 다시 시작하지 않아요. 아래에서 보고 싶은 Lesson을 고르거나, 처음부터 새로 시작할 수 있어요. (단어별 학습 기록은 그대로 남아요)</p>
-            <button
-              onClick={() => {
-                if (!confirm("Lesson 2부터 다시 시작할까요? Lesson 완료 기록만 새로 시작하고, 단어별 학습 기록은 그대로 남아요.")) return;
-                onPlanChange(restartLessonPlan());
-              }}
-              className="self-start min-h-[44px] px-4 rounded-full bg-sky-600 text-white text-sm font-bold"
-            >
-              Lesson 2부터 다시 시작
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-lg font-bold text-gray-900 leading-tight">
-                Lesson {current}
-                {currentSet && <span className="ml-2 text-xs font-normal text-gray-500">단어 {currentSet.words.length}개</span>}
-              </p>
-              <p className="mt-0.5 text-xs text-gray-500">
-                <span className={studyDone ? "font-bold text-sky-700" : ""}>학습 {studyDone ? "완료 ✓" : "전"}</span>
-                <span className="mx-1.5 text-gray-300">·</span>
-                <span className={gameDone ? "font-bold text-sky-700" : gameStarted ? "font-bold text-amber-700" : ""}>
-                  게임 {gameDone ? "완료 ✓" : gameStarted ? `진행 중 ${gamesPlayed.length}/${LESSON_GAME_KINDS.length}` : "전"}
-                </span>
-              </p>
-              {doneToday && gameDone && (
-                <p className="mt-1 text-xs text-sky-800">오늘 Lesson {current}을 마쳤어요. 다음 학습일에 Lesson {Math.min(8, current + 1)}로 넘어가요.</p>
-              )}
-            </div>
-            {currentSet && (
-              <button
-                onClick={() => onStart(currentSet)}
-                className="shrink-0 min-h-[44px] px-4 rounded-full bg-sky-600 text-white text-sm font-bold active:scale-95 transition"
-              >
-                {actionLabel}
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+      {plan.finished && (
+        <div className="rounded-2xl bg-sky-50 border border-sky-200 px-4 py-3 flex flex-col gap-2">
+          <p className="text-base font-bold text-sky-900">🎉 Lesson 8까지 모두 완료했어요 ({plan.cycle}회차)</p>
+          <p className="text-xs text-sky-800">자동으로 다시 시작하지 않아요. 아래에서 보고 싶은 Lesson을 고르거나, 처음부터 새로 시작할 수 있어요. (단어별 학습 기록은 그대로 남아요)</p>
+          <button
+            onClick={() => {
+              if (!confirm("Lesson 2부터 다시 시작할까요? Lesson 완료 기록만 새로 시작하고, 단어별 학습 기록은 그대로 남아요.")) return;
+              onPlanChange(restartLessonPlan());
+            }}
+            className="self-start min-h-[44px] px-4 rounded-full bg-sky-600 text-white text-sm font-bold"
+          >
+            Lesson 2부터 다시 시작
+          </button>
+        </div>
+      )}
 
       {/* Lesson 목록: 청크북과 같은 SEED1_A2 폴더로 묶는다(열고 닫기) */}
       <div className="rounded-2xl bg-white border-2 border-amber-200 overflow-hidden" data-testid="lesson-folder">
@@ -352,7 +320,7 @@ export default function LessonPanel({
                     aria-label={`Lesson ${l}${st === "completed" ? " 완료, 다시 하기" : st === "current" ? " 지금 Lesson" : ""}`}
                   >
                     <span className="block text-sm font-bold">Lesson {l}</span>
-                    <span className="block text-[11px] text-gray-500">{st === "completed" ? "완료 ✓" : "\u00a0"}</span>
+                    <span className="block text-[11px] text-gray-500">{st === "completed" ? "완료 ✓" : studyByRecord.includes(l) ? "학습 ✓" : "\u00a0"}</span>
                   </button>
                 );
               })}
