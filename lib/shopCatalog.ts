@@ -1,4 +1,4 @@
-// 친구 꾸미기 상점 카탈로그(상품 23종: 기본 12종 + 2차 확장 8종 + 화려한 소품 3종). 상품 id와 가격은 서버(app/api/shop)도 같은 값을 쓴다.
+// 친구 꾸미기 상점 카탈로그(상품 32종: 기본 12종 + 2차 확장 8종 + 화려한 소품 3종 + 프리미엄 효과 3종 + 소품 3종 + 배경 3종). 상품 id와 가격은 서버(app/api/shop)도 같은 값을 쓴다.
 // 이미지는 public/shop/ 에 있고, 글자·가격은 이미지에 합성하지 않고 화면(UI)에서 보여준다.
 
 export type ShopSlot = "background" | "prop" | "effect";
@@ -49,6 +49,14 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: "golden_guardian_sigil", name: "황금 수호진", price: 4000, slot: "effect", asset: "/shop/golden_guardian_sigil.png", animation: "pulse", rare: true, isNew: true },
   { id: "storm_king_thunder", name: "폭풍왕의 번개", price: 5000, slot: "effect", asset: "/shop/storm_king_thunder.png", animation: "pulse", rare: true, isNew: true },
   { id: "constellation_sovereign", name: "별자리 군주의 오라", price: 6000, slot: "effect", asset: "/shop/constellation_sovereign.png", animation: "pulse", rare: true, isNew: true },
+  // ---- 소품 3종(탐험가 망원경·수정 방패·탐험 비행선, 소품 슬롯 그대로). 위치·크기·앞뒤는 '꾸미기 → 위치 바꾸기'에서 바꿀 수 있다.
+  { id: "explorer_star_telescope", name: "탐험가 별빛 망원경", price: 1400, slot: "prop", asset: "/shop/explorer_star_telescope.png", animation: "none", isNew: true, defaultPlacement: { x: 0.82, y: 0.7, scale: 0.26, layer: "front" } },
+  { id: "crystal_guardian_shield", name: "수정 수호방패", price: 2000, slot: "prop", asset: "/shop/crystal_guardian_shield.png", animation: "float", rare: true, isNew: true, defaultPlacement: { x: 0.8, y: 0.53, scale: 0.28, layer: "front" } },
+  { id: "starlight_explorer_airship", name: "별빛 탐험 비행선", price: 2400, slot: "prop", asset: "/shop/starlight_explorer_airship.png", animation: "float", rare: true, isNew: true, defaultPlacement: { x: 0.8, y: 0.26, scale: 0.3, layer: "front" } },
+  // ---- 배경 3종(배경 슬롯 그대로)
+  { id: "cloud_island_garden", name: "구름섬 정원", price: 1600, slot: "background", asset: "/shop/cloud_island_garden.jpg", animation: "none", isNew: true },
+  { id: "prismatic_crystal_cavern", name: "오색 수정 동굴", price: 2000, slot: "background", asset: "/shop/prismatic_crystal_cavern.jpg", animation: "none", rare: true, isNew: true },
+  { id: "moonlit_guardian_citadel", name: "달빛 수호성", price: 2400, slot: "background", asset: "/shop/moonlit_guardian_citadel.jpg", animation: "none", rare: true, isNew: true },
 ];
 
 export const SHOP_BY_ID: Record<string, ShopItem> = Object.fromEntries(SHOP_ITEMS.map((i) => [i.id, i]));
