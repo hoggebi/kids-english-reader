@@ -9,6 +9,7 @@ const VOCAB_KEY = "chunkbook-v2-vocab-sets";
 const SESSION_KEY_PREFIX = "chunkbook-v2-vocab-session-";
 const GAMES_PLAYED_PREFIX = "chunkbook-v2-vocab-games-";
 const A3_STUDY_DONE_KEY = "chunkbook-v2-a3-study-done";
+const A2_STUDY_DONE_KEY = "chunkbook-v2-a2-study-done";
 
 // Lesson 묶음(A2: lesson-N, A3: a3-lesson-N)은 같은 학습 흐름(소개 → 철자 시연 → 글자 눌러 완성)을 쓴다.
 const isLessonLikeSetId = (setId: string) => lessonFromSetId(setId) !== null || a3FromSetId(setId) !== null;
@@ -345,4 +346,21 @@ export function recordVocabGamePlayed(
   const all = LESSON_GAME_KINDS.every((k) => total.includes(k));
 
   return { allGamesDoneToday: all };
+}
+
+// A2 Lesson(2~8)마다의 학습(카드) 완료 기록. 진행 계획은 "오늘의 Lesson" 하나만 세므로, 칩의 완료 ✓는 Lesson별로 따로 센다.
+export function a2StudyDoneLessons(): number[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const list = JSON.parse(localStorage.getItem(A2_STUDY_DONE_KEY) ?? "[]") as unknown;
+    return Array.isArray(list) ? list.filter((n): n is number => typeof n === "number") : [];
+  } catch {
+    return [];
+  }
+}
+export function recordA2StudyDone(setId: string) {
+  const lesson = lessonFromSetId(setId);
+  if (lesson === null || typeof window === "undefined") return;
+  const done = a2StudyDoneLessons();
+  if (!done.includes(lesson)) localStorage.setItem(A2_STUDY_DONE_KEY, JSON.stringify([...done, lesson]));
 }

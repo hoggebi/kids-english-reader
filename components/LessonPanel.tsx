@@ -5,7 +5,7 @@ import type { VocabSet } from "@/lib/types";
 import { LESSON_DEFS, LESSON_NUMBERS, lessonSetId } from "@/lib/lessonData";
 import { confirmLessons, draftKey, reconcileLessonGameDone, restartLessonPlan, type LessonPlan, type MeaningDraft } from "@/lib/lessonPlan";
 import { lessonStatus } from "@/lib/lessonPlanCore";
-import { LESSON_GAME_KINDS, a3GamesPlayed, a3StudyDoneLessons, lessonGamesPlayed } from "@/lib/vocabStorage";
+import { LESSON_GAME_KINDS, a2StudyDoneLessons, a3GamesPlayed, a3StudyDoneLessons, lessonGamesPlayed } from "@/lib/vocabStorage";
 import { A3_NUMBERS, a3SetId } from "@/lib/lessonDataA3";
 
 // SEED1_A3 폴더: Lesson 1~8. 학습 카드와 게임 3종(다트·두더지·몬스터)을 모두 마치면 완료 ✓.
@@ -194,6 +194,16 @@ export default function LessonPanel({
 }) {
   const [reviewing, setReviewing] = useState(false);
   const [folderOpen, setFolderOpen] = useState(true);
+  // 진행 계획은 "오늘의 Lesson"만 세므로, 다른 Lesson도 학습 카드와 게임 3종을 모두 마치면 칩에 완료 ✓를 보인다.
+  const [doneByRecord, setDoneByRecord] = useState<number[]>([]);
+  useEffect(() => {
+    const ok = a2StudyDoneLessons().filter((n) => {
+      const played = a3GamesPlayed(lessonSetId(n));
+      return LESSON_GAME_KINDS.every((k) => played.includes(k));
+    });
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 저장소(localStorage)를 마운트 후에만 읽을 수 있다
+    setDoneByRecord(ok);
+  }, [sets, plan]);
   const lessonSets = sets.filter((s) => LESSON_NUMBERS.some((l) => s.id === lessonSetId(l)));
   const confirmed = plan !== null && plan.confirmedAt !== null && lessonSets.length === LESSON_NUMBERS.length;
 
@@ -325,7 +335,7 @@ export default function LessonPanel({
           <div className="p-3">
             <div className="grid grid-cols-4 sm:grid-cols-7 gap-2" data-testid="lesson-chips">
               {LESSON_NUMBERS.map((l) => {
-                const st = lessonStatus(plan, l);
+                const st = lessonStatus(plan, l) === "completed" || doneByRecord.includes(l) ? "completed" : lessonStatus(plan, l);
                 const set = lessonSets.find((s) => s.id === lessonSetId(l));
                 return (
                   <button

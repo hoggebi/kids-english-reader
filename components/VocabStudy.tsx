@@ -11,6 +11,7 @@ import {
   extendDailySession,
   getMoreStudyCandidates,
   a3StudyDone,
+  recordA2StudyDone,
   recordA3StudyDone,
 } from "@/lib/vocabStorage";
 import { autoPush } from "@/lib/sync";
@@ -230,6 +231,7 @@ export default function VocabStudy({ set, onBack }: { set: VocabSet; onBack: () 
     setSession(updated);
     if (finished) {
       recordLessonStudyDone(set.id); // Lesson 진행 기록(학습 완료). Lesson 묶음이 아니면 아무 일도 안 한다
+      recordA2StudyDone(set.id); // A2 Lesson별 학습 완료 기록(칩의 완료 ✓용)
       recordA3StudyDone(set.id); // A3 Lesson 학습 완료 기록(A3 세트가 아니면 아무 일도 안 한다)
       setMode("hub");
       autoPush();
