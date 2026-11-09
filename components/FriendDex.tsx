@@ -64,7 +64,7 @@ function Shelf({
                   forceScene
                 />
               )}
-              <p className="text-sm font-bold text-gray-800">{state === "locked" ? "???" : SPECIES_NAME(sp)}</p>
+              <p className="text-sm font-bold text-gray-800 text-center break-keep">{state === "locked" ? "???" : SPECIES_NAME(sp)}</p>
               <p className={`text-xs font-bold ${state === "done" ? "text-sky-600" : "text-gray-400"}`}>
                 {state === "done" ? "다 키웠어요 🎉" : state === "growing" ? `키우는 중 ${pet.stage}/${MAX_STAGE}단계` : "곧 만나요"}
               </p>

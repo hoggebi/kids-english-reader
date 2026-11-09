@@ -24,6 +24,7 @@ import { clearBookText, loadBookText, saveBookText } from "@/lib/chunkBookText";
 import { autoPush } from "@/lib/sync";
 import { COINS_LISTEN, COINS_SENTENCE, completeLesson, earnCoins, markLessonRead } from "@/lib/pet";
 import PetCompanion from "./PetCompanion";
+import A3TypingActivity from "./A3TypingActivity";
 import { loadVoicePack, playVoiceIds, stopVoice, voiceIdsFor, type VoicePack } from "@/lib/voicePack";
 
 const CHEERS = ["잘했어, 호야!", "우와, 대단해!", "나도 신나!", "호야 최고야!", "한 번 더 해볼까?"];
@@ -592,7 +593,7 @@ function ShadowRead({
           <p className="text-lg font-bold text-sky-800">이제 써 볼까요?</p>
           <div className="flex flex-wrap gap-2">
             <button onClick={onWrite} className="min-h-[48px] px-5 rounded-full bg-sky-600 text-white text-sm font-bold active:scale-95 transition">
-              문장 보고 쓰기
+              영어 타이핑
             </button>
             <button
               onClick={() => void play(1, 0)}
@@ -1121,6 +1122,9 @@ export default function ChunkLessonView({
     return <ShadowRead lesson={lesson} text={text} onWrite={() => setMode("write")} onBack={() => setMode("home")} />;
   if (mode === "read" && text && confirmed)
     return <ReadListen lesson={lesson} text={text} onWrite={() => setMode("write")} onBack={() => setMode("home")} onOpenPage={onOpenPage} />;
+  // SEED1_A3 내장 Lesson만 앱 안 타이핑으로 쓴다. 그 외 교재는 기존 문장 보고 쓰기 그대로.
+  if (mode === "write" && text && confirmed && builtin && isA3Lesson(lesson))
+    return <A3TypingActivity lesson={lesson} text={text} onBack={() => setMode("home")} />;
   if (mode === "write" && text && confirmed) return <WritingActivity lesson={lesson} text={text} onBack={() => setMode("home")} />;
   if (mode === "review" && (draft || text))
     return <TextReview text={(draft ?? text) as LessonText} onSave={confirmText} onCancel={() => { setDraft(null); setMode("home"); }} />;
@@ -1169,7 +1173,7 @@ export default function ChunkLessonView({
             🔊 읽고 듣기
           </button>
           <button onClick={() => setMode("write")} className="min-h-[56px] rounded-full bg-gray-700 text-white font-bold text-base active:scale-95 transition">
-            ✍️ 문장 보고 쓰기
+            {builtin && isA3Lesson(lesson) ? "⌨️ 영어 타이핑" : "✍️ 문장 보고 쓰기"}
           </button>
         </div>
       ) : (

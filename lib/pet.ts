@@ -547,7 +547,64 @@ const RHINO_STAGES: StageInfo[] = [
   }
 ];
 
-// 챕터(영어책 읽기): 흑표범 → 늑대 → 오랑우탄 → 불곰 → 코모도왕도마뱀 → 코뿔소
+const GROWTH_TALK = ["호야, 함께 읽으니 힘이 나!", "우리 한 걸음씩 자라고 있어!", "다음 이야기도 같이 읽자!"];
+
+const ANACONDA_STAGES: StageInfo[] = [
+  { name: "아기 아나콘다", desc: "커다란 눈으로 수줍게 웃는 작고 통통한 아기예요.", talk: GROWTH_TALK },
+  { name: "호기심 많은 아나콘다", desc: "머리를 들고 몸을 구불구불 흔들며 세상을 살펴요.", talk: GROWTH_TALK },
+  { name: "씩씩한 어린 아나콘다", desc: "길어진 몸을 두 번 감고 주위를 또렷하게 바라봐요.", talk: GROWTH_TALK },
+  { name: "날렵한 청소년 아나콘다", desc: "튼튼해진 목을 세우고 몸을 S자로 들어 올려요.", talk: GROWTH_TALK },
+  { name: "늠름한 성체 아나콘다", desc: "굵은 몸을 감고 머리를 높이 들면 작은 초록빛이 피어나요.", talk: GROWTH_TALK },
+  { name: "에메랄드빛 아나콘다", desc: "비늘이 빛나고 몸 주위에 초록 안개가 피어올라요.", talk: GROWTH_TALK },
+  { name: "에메랄드 회오리 아나콘다", desc: "수정 볏을 세우고 초록 안개 회오리를 일으켜요.", talk: GROWTH_TALK },
+  { name: "에메랄드 수호자 아나콘다", desc: "왕관을 쓰고 거대한 안개 소용돌이로 친구들을 지키는 수호자예요.", talk: GROWTH_TALK },
+];
+
+const MOOSE_STAGES: StageInfo[] = [
+  { name: "아기 무스", desc: "커다란 귀와 동그란 눈을 가진 수줍은 아기예요.", talk: GROWTH_TALK },
+  { name: "폴짝이는 어린 무스", desc: "한 발을 들고 뛰놀아요. 작은 뿔이 돋기 시작했어요.", talk: GROWTH_TALK },
+  { name: "호기심 많은 무스", desc: "다리가 길어지고 작은 가지뿔로 숲을 탐험해요.", talk: GROWTH_TALK },
+  { name: "늠름한 청소년 무스", desc: "가슴이 넓어지고 넓적한 뿔을 당당하게 들어요.", talk: GROWTH_TALK },
+  { name: "우람한 성체 무스", desc: "넓은 어깨와 커다란 뿔 끝에 서리 결정이 맺혀요.", talk: GROWTH_TALK },
+  { name: "얼음뿔 무스", desc: "뿔이 푸른 얼음으로 변하고 눈바람이 살짝 일어요.", talk: GROWTH_TALK },
+  { name: "눈보라 수호자 무스", desc: "거대한 얼음뿔을 앞세워 눈보라와 함께 달려요.", talk: GROWTH_TALK },
+  { name: "빙하의 제왕 무스", desc: "웅장한 얼음뿔과 소용돌이치는 눈보라를 다스리는 제왕이에요.", talk: GROWTH_TALK },
+];
+
+const HERCULES_BEETLE_STAGES: StageInfo[] = [
+  { name: "아기 헤라클레스장수풍뎅이", desc: "몸을 동그랗게 만 작고 귀여운 애벌레예요.", talk: GROWTH_TALK },
+  { name: "통통한 헤라클레스장수풍뎅이", desc: "통통해진 애벌레가 머리를 들고 즐겁게 꼬물거려요.", talk: GROWTH_TALK },
+  { name: "갓 어른이 된 헤라클레스장수풍뎅이", desc: "작은 뿔과 올리브빛 등껍질이 생겼어요.", talk: GROWTH_TALK },
+  { name: "씩씩한 헤라클레스장수풍뎅이", desc: "뿔이 길어지고 여섯 다리로 힘차게 앞으로 나아가요.", talk: GROWTH_TALK },
+  { name: "힘센 성체 헤라클레스장수풍뎅이", desc: "집게 같은 긴 뿔에 금빛 불꽃이 반짝여요.", talk: GROWTH_TALK },
+  { name: "황금 갑옷 헤라클레스장수풍뎅이", desc: "금빛 껍질을 두르고 작은 번개를 일으켜요.", talk: GROWTH_TALK },
+  { name: "번개 날개 헤라클레스장수풍뎅이", desc: "날개를 활짝 펴고 번개를 휘감아요.", talk: GROWTH_TALK },
+  { name: "황금 천둥 수호자 헤라클레스장수풍뎅이", desc: "번개 소용돌이 속을 날며 친구들을 지키는 수호자예요.", talk: GROWTH_TALK },
+];
+
+const AFRICAN_ELEPHANT_STAGES: StageInfo[] = [
+  { name: "아기 아프리카코끼리", desc: "부채 같은 큰 귀와 짧은 코를 가진 통통한 아기예요.", talk: GROWTH_TALK },
+  { name: "장난꾸러기 아프리카코끼리", desc: "코를 번쩍 들고 한 발을 들며 즐겁게 놀아요.", talk: GROWTH_TALK },
+  { name: "호기심 많은 아프리카코끼리", desc: "다리와 코가 길어지고 작은 상아가 돋았어요.", talk: GROWTH_TALK },
+  { name: "씩씩한 청소년 아프리카코끼리", desc: "코를 높이 들고 힘차게 나팔 소리를 내요.", talk: GROWTH_TALK },
+  { name: "든든한 성체 아프리카코끼리", desc: "긴 상아를 뽐내며 발밑에 금빛 먼지를 일으켜요.", talk: GROWTH_TALK },
+  { name: "대지의 수호 아프리카코끼리", desc: "쿵쿵 걸으면 상아가 금빛으로 빛나고 땅이 일렁여요.", talk: GROWTH_TALK },
+  { name: "황금 충격파 아프리카코끼리", desc: "앞발을 들어 금빛 충격파와 돌 조각을 일으켜요.", talk: GROWTH_TALK },
+  { name: "대지의 제왕 아프리카코끼리", desc: "황금 상아와 소용돌이치는 충격파로 땅을 다스리는 제왕이에요.", talk: GROWTH_TALK },
+];
+
+const HARPY_EAGLE_STAGES: StageInfo[] = [
+  { name: "아기 하피수리", desc: "보송보송한 솜털과 호기심 가득한 눈을 가진 아기예요.", talk: GROWTH_TALK },
+  { name: "날개 펴는 어린 하피수리", desc: "작은 날개를 펴고 머리를 갸웃거리며 웃어요.", talk: GROWTH_TALK },
+  { name: "또렷한 어린 하피수리", desc: "두 갈래 머리깃이 자라고 날개를 반쯤 펴고 서 있어요.", talk: GROWTH_TALK },
+  { name: "씩씩한 청소년 하피수리", desc: "튼튼한 다리와 발톱으로 당당하게 버티고 서요.", talk: GROWTH_TALK },
+  { name: "늠름한 성체 하피수리", desc: "곧게 서면 깃털 주위로 하늘빛이 반짝여요.", talk: GROWTH_TALK },
+  { name: "바람 타는 하피수리", desc: "넓은 날개를 펴고 바람을 타며 날아올라요.", talk: GROWTH_TALK },
+  { name: "폭풍 수호자 하피수리", desc: "활짝 편 날개로 바람과 번개를 휘감아요.", talk: GROWTH_TALK },
+  { name: "천공의 폭풍 하피수리", desc: "하늘의 힘을 모아 폭풍을 다스리는 가장 강한 친구예요.", talk: GROWTH_TALK },
+];
+
+// 챕터(영어책 읽기): 흑표범 → 늑대 → 오랑우탄 → 불곰 → 코모도왕도마뱀 → 코뿔소 → 아나콘다 → 무스 → 헤라클레스장수풍뎅이 → 아프리카코끼리 → 하피수리
 export const CHAPTER_SPECIES: Species[] = [
   { imagePrefix: "bp", stages: PANTHER_STAGES },
   { imagePrefix: "w", stages: WOLF_STAGES },
@@ -555,6 +612,11 @@ export const CHAPTER_SPECIES: Species[] = [
   { imagePrefix: "bb", stages: BROWN_BEAR_STAGES },
   { imagePrefix: "kd", stages: KOMODO_DRAGON_STAGES },
   { imagePrefix: "rh", stages: RHINO_STAGES },
+  { imagePrefix: "an", stages: ANACONDA_STAGES },
+  { imagePrefix: "mo", stages: MOOSE_STAGES },
+  { imagePrefix: "hb", stages: HERCULES_BEETLE_STAGES },
+  { imagePrefix: "ae", stages: AFRICAN_ELEPHANT_STAGES },
+  { imagePrefix: "he", stages: HARPY_EAGLE_STAGES },
 ];
 
 // 단어장: 여우(기존 진행 유지) → 호랑이 → 독수리 → 상어
@@ -946,6 +1008,9 @@ function getWrittenLessons(): number[] {
     return [];
   }
 }
+
+// 완료(✓) 기록은 기기 간에 동기화되므로 함께 본다(다른 기기에서 끝낸 Lesson에 보상을 또 주지 않기 위해).
+export const isLessonWritten = (lesson: number) => getWrittenLessons().includes(lesson) || getDoneLessons().includes(lesson);
 
 // 읽기를 마쳤을 때 호출. 쓰기도 이미 마친 Lesson이면 완료 처리하고 true를 돌려준다.
 export function markLessonRead(lesson: number): boolean {
