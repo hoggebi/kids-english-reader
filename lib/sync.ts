@@ -17,10 +17,12 @@ import {
   type PageRoles,
 } from "./chunkLesson";
 import { applyShopFromSync, exportShopForSync, refreshShopFromServer } from "./shop";
+import { lessonsReadyToStamp, loadProgress, mergeProgress, saveProgress, type SyncProgress } from "./syncProgress";
 import type { Chapter, VocabSet } from "./types";
 
 const SYNC_CODE_KEY = "chunkbook-v2-sync-code";
 const SYNC_REV_KEY = "chunkbook-v2-sync-rev";
+const SYNC_DIRTY_KEY = "chunkbook-v2-sync-dirty"; // 서버에 아직 못 올린 변경이 있다는 표시(앱을 닫아도 남는다)
 
 // 마지막으로 서버에서 받아본(또는 성공적으로 저장한) 버전 번호. 이 값보다 서버가 이미 앞서 있으면
 // 서버가 push를 거부한다 — 즉, 오래 안 열어봤거나 방금 받아오기(pull)에 실패한 기기가 옛날 값으로
@@ -76,6 +78,7 @@ type SyncPayload = {
   coins?: number; // 지금까지 모은 코인 합계
   shop?: { equipped: Record<string, Partial<Record<"background" | "prop" | "effect", string>>>; goal: string | null; placements?: unknown }; // 친구별 장착과 목표 아이템(보유·잔액은 서버 /api/shop이 기준)
   doneLessons?: number[]; // 끝까지 마친 청크북 Lesson(도장)
+  progress?: SyncProgress; // Lesson 진도(쓰기 완료·읽기 횟수·단어 학습 완료·A3 타이핑)
 };
 
 function currentPayload(): SyncPayload {
@@ -94,6 +97,7 @@ function currentPayload(): SyncPayload {
     coins: loadCoinsTotal(),
     shop: exportShopForSync(),
     doneLessons: getDoneLessons(),
+    progress: loadProgress(),
   };
 }
 
@@ -125,11 +129,19 @@ function applyServerPayload(data: Partial<SyncPayload> | null) {
   if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("coins-changed", { detail: { granted: 0 } }));
   // 도장은 줄어들면 안 되므로 합친다.
   if (Array.isArray(data.doneLessons)) setDoneLessons([...getDoneLessons(), ...data.doneLessons]);
+  if (data.progress) {
+    const merged = mergeProgress(loadProgress(), data.progress);
+    saveProgress(merged);
+    const ready = lessonsReadyToStamp(merged, getDoneLessons());
+    if (ready.length > 0) setDoneLessons([...getDoneLessons(), ...ready]);
+  }
 }
 
 // 지금 내 기기 상태를 서버에 올림. 단, 내가 마지막으로 받아본 버전보다 서버가 이미 앞서 있으면
 // (= 다른 기기가 그 사이 더 최신 정보를 올려둠) 덮어쓰지 않고, 그 최신 정보를 대신 받아와 반영한다.
-export async function pushSync(code: string): Promise<{ ok: boolean; error?: string; conflict?: boolean }> {
+type PushResult = { ok: boolean; error?: string; conflict?: boolean };
+
+async function pushSync(code: string): Promise<PushResult> {
   try {
     // 주의: keepalive 옵션은 일부러 안 씀 — Safari(특히 아이패드) WebKit의 fetch keepalive
     // 구현에 알려진 버그가 많아서(화면 복귀 직후 요청 실패, 이동 시 CORS로 조용히 실패 등),
@@ -162,38 +174,83 @@ export async function pushSync(code: string): Promise<{ ok: boolean; error?: str
   }
 }
 
-// 서버에서 최신 상태를 받아와 내 기기 값을 그대로 덮어씀 (서버가 유일한 정답).
+// ---------- 저장 순서 관리 ----------
+// 저장을 한 번에 하나씩만 보낸다. 동시에 보내면 뒤의 저장이 앞의 저장에 밀려 충돌(409)로 버려진다.
+// 실패하면 다시 시도하고, 그래도 안 되면 표시를 남겨 다음 받아오기 때 먼저 올린다.
+let pushing: Promise<PushResult> | null = null;
+let queued = false;
+let pushEpoch = 0; // 저장이 끝날 때마다 증가. 받아오는 사이 저장이 끝났으면 그 응답은 이미 낡은 값이다.
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const isDirty = () => typeof window !== "undefined" && localStorage.getItem(SYNC_DIRTY_KEY) === "1";
+
+export const SYNC_STATUS_EVENT = "sync-status";
+
+async function drainPush(code: string): Promise<PushResult> {
+  let last: PushResult = { ok: true };
+  do {
+    queued = false;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      last = await pushSync(code);
+      if (last.ok) break;
+      // 충돌이면 최신 값을 이미 합쳤으므로 바로 다시 올린다. 네트워크 오류는 잠깐 기다린다.
+      if (!last.conflict && attempt < 2) await wait(1000 * (attempt + 1));
+    }
+  } while (queued && last.ok);
+  return last;
+}
+
+function flushPush(code: string): Promise<PushResult> {
+  localStorage.setItem(SYNC_DIRTY_KEY, "1");
+  if (pushing) {
+    queued = true;
+    return pushing;
+  }
+  pushing = drainPush(code).then((r) => {
+    pushing = null;
+    pushEpoch++;
+    if (r.ok) localStorage.removeItem(SYNC_DIRTY_KEY);
+    window.dispatchEvent(new CustomEvent(SYNC_STATUS_EVENT, { detail: { ok: r.ok, error: r.error } }));
+    return r;
+  });
+  return pushing;
+}
+
+const localSnapshot = (ok: boolean) => ({
+  ok,
+  chapters: loadChapters(),
+  pet: loadPet("chapter"),
+  vocabPet: loadPet("vocab"),
+  vocabSets: loadVocabSets(),
+  chunkbooks: loadChunkbooks(),
+});
+
+// 서버에서 최신 상태를 받아와 내 기기 값과 합친다.
 // 서버에 아직 아무것도 없으면(새로 만든 코드 등) 내 기기 값을 그대로 둔다.
-export async function pullSync(code: string): Promise<{
-  ok: boolean;
-  chapters: Chapter[];
-  pet: PetState;
-  vocabPet: PetState;
-  vocabSets: VocabSet[];
-  chunkbooks: ChunkbookMeta[];
-}> {
+export async function pullSync(code: string): Promise<ReturnType<typeof localSnapshot>> {
+  // 못 올린 변경이 있으면 먼저 올린다(받아온 값이 이 기기의 새 진도를 덮지 않도록).
+  if (pushing || isDirty()) {
+    const r = await flushPush(code);
+    if (!r.ok) return localSnapshot(false);
+  }
+  const epoch = pushEpoch;
   let ok = false;
   try {
     const res = await fetch(`/api/sync?code=${encodeURIComponent(code)}`, {
       cache: "no-store",
     });
     const json = await res.json();
-    applyServerPayload(json.data as Partial<SyncPayload> | null);
-    if (typeof json.rev === "number") setLastRev(json.rev);
+    // 받아오는 사이 이 기기가 저장했다면 이 응답은 그보다 옛날 값이므로 쓰지 않는다.
+    if (!pushing && epoch === pushEpoch) {
+      applyServerPayload(json.data as Partial<SyncPayload> | null);
+      if (typeof json.rev === "number") setLastRev(json.rev);
+    }
     ok = true;
   } catch {
     // 네트워크 오류 등은 조용히 무시하고 지금 내 기기 값을 그대로 반환
     // (ok=false로 알려줘서, 호출한 쪽이 이 오래된 값을 그대로 다시 push해버리지 않게 한다)
   }
-
-  return {
-    ok,
-    chapters: loadChapters(),
-    pet: loadPet("chapter"),
-    vocabPet: loadPet("vocab"),
-    vocabSets: loadVocabSets(),
-    chunkbooks: loadChunkbooks(),
-  };
+  return localSnapshot(ok);
 }
 
 // 받아오고(pull) 나서, 화면에 반영된 최신 상태를 다시 서버에 올림(push) — 양쪽 기기를 완전히 맞춤.
@@ -206,12 +263,12 @@ export async function syncNow(code: string) {
   if (!pulled.ok) {
     return { ...pulled, pushOk: false, pushError: "네트워크 오류로 최신 정보를 받아오지 못해, 저장은 건너뛰었어요." };
   }
-  const pushResult = await pushSync(code);
+  const pushResult = await flushPush(code);
   return { ...pulled, pushOk: pushResult.ok, pushError: pushResult.error };
 }
 
 // 동기화 코드가 설정돼 있으면, 지금 상태를 서버에 올림 (변경이 생길 때마다 호출)
 export async function autoPush() {
   const code = getSyncCode();
-  if (code) await pushSync(code);
+  if (code) await flushPush(code);
 }

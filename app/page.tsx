@@ -31,6 +31,7 @@ import {
   syncNow,
   autoPush,
   pullSync,
+  SYNC_STATUS_EVENT,
 } from "@/lib/sync";
 import ChapterList from "@/components/ChapterList";
 import ChapterUpload from "@/components/ChapterUpload";
@@ -90,6 +91,7 @@ export default function Home() {
   const [syncCode, setSyncCodeState] = useState<string | null>(null);
   const [joinInput, setJoinInput] = useState("");
   const [syncing, setSyncing] = useState(false);
+  const [syncFailed, setSyncFailed] = useState(false); // 마지막 저장이 서버에 올라가지 못했는지
   const [showJoinBox, setShowJoinBox] = useState(false);
   const [showSyncPanel, setShowSyncPanel] = useState(false); // 동기화 설정 패널은 필요할 때만 펼친다
 
@@ -163,6 +165,12 @@ export default function Home() {
     const t = setTimeout(() => setSyncMessage(null), 4000);
     return () => clearTimeout(t);
   }, [syncMessage]);
+
+  useEffect(() => {
+    const onStatus = (e: Event) => setSyncFailed(!(e as CustomEvent<{ ok: boolean }>).detail.ok);
+    window.addEventListener(SYNC_STATUS_EVENT, onStatus);
+    return () => window.removeEventListener(SYNC_STATUS_EVENT, onStatus);
+  }, []);
 
   // 다른 기기가 바꾼 내용을 자동으로 반영: 앱을 켜놓은 동안 주기적으로,
   // 그리고 화면(탭)에 돌아올 때마다 조용히 서버에서 받아와 합친다 (화면에 메시지는 안 띄움).
@@ -548,14 +556,14 @@ export default function Home() {
         className={`rounded-full text-xs font-bold px-3 py-1 ${
           syncing
             ? "bg-sky-100 text-sky-700"
-            : syncCode && syncMessage?.startsWith("⚠️")
+            : syncCode && (syncFailed || syncMessage?.startsWith("⚠️"))
             ? "bg-amber-100 text-amber-800"
             : syncCode
             ? "bg-sky-100 text-sky-700"
             : "bg-gray-100 text-gray-500"
         }`}
       >
-        {syncing ? "동기화 중…" : syncCode ? `✓ 동기화됨 · ${syncCode}` : "동기화 꺼짐"} {showSyncPanel ? "▴" : "▾"}
+        {syncing ? "동기화 중…" : syncCode ? (syncFailed ? `⚠️ 저장 대기 중 · ${syncCode}` : `✓ 동기화됨 · ${syncCode}`) : "동기화 꺼짐"} {showSyncPanel ? "▴" : "▾"}
       </button>
       {syncMessage && <span className="text-xs text-gray-500">{syncMessage}</span>}
       </footer>
