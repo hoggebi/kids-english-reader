@@ -252,6 +252,9 @@ export default function LessonPanel({
   if (!confirmed || !plan) {
     return (
       <div className="w-full max-w-4xl flex flex-col gap-3">
+      {/* 교재 폴더는 최근에 만든 순서대로(위가 최신): SEED1_B1 → SEED1_A3 → SEED1_A2 */}
+      <SeedFolder book={SEED_B1} sets={sets} onStart={onStart} />
+      <SeedFolder book={SEED_A3} sets={sets} onStart={onStart} />
       <div className="rounded-2xl bg-sky-50 border-2 border-sky-200 p-4 flex flex-col gap-2" data-testid="lesson-intro">
         <p className="text-base font-bold text-sky-900">청크북 Lesson 학습</p>
         <p className="text-sm text-sky-800">
@@ -261,8 +264,6 @@ export default function LessonPanel({
           Lesson 단어 확인하고 시작
         </button>
       </div>
-      <SeedFolder book={SEED_A3} sets={sets} onStart={onStart} />
-      <SeedFolder book={SEED_B1} sets={sets} onStart={onStart} />
       </div>
     );
   }
@@ -271,6 +272,10 @@ export default function LessonPanel({
   // 위쪽 안내 카드는 없앴다: 청크북처럼 아래 폴더에서 Lesson을 눌러 시작한다.
   return (
     <div className="w-full max-w-4xl flex flex-col gap-3" data-testid="lesson-panel">
+      {/* 교재 폴더는 최근에 만든 순서대로(위가 최신): SEED1_B1 → SEED1_A3 → SEED1_A2 */}
+      <SeedFolder book={SEED_B1} sets={sets} onStart={onStart} />
+      <SeedFolder book={SEED_A3} sets={sets} onStart={onStart} />
+
       {plan.finished && (
         <div className="rounded-2xl bg-sky-50 border border-sky-200 px-4 py-3 flex flex-col gap-2">
           <p className="text-base font-bold text-sky-900">🎉 Lesson 8까지 모두 완료했어요 ({plan.cycle}회차)</p>
@@ -336,9 +341,6 @@ export default function LessonPanel({
         )}
       </div>
 
-      {/* 새 교재 폴더 */}
-      <SeedFolder book={SEED_A3} sets={sets} onStart={onStart} />
-      <SeedFolder book={SEED_B1} sets={sets} onStart={onStart} />
 
       <button onClick={() => setReviewing(true)} className="self-start min-h-[44px] text-xs text-gray-500 underline">
         Lesson 단어 뜻 확인·수정

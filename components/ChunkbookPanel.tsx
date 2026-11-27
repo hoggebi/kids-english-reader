@@ -575,43 +575,45 @@ export default function ChunkbookPanel({
         </div>
       )}
 
-      {/* Lesson 목록: 한 폴더로 묶는다(열고 닫기) */}
-      <div className="rounded-2xl bg-white border-2 border-amber-200 overflow-hidden" data-testid="lesson-folder">
+      {/* 교재 폴더는 최근에 만든 순서대로(위가 최신): SEED1_B1 → SEED1_A3 → SEED1_A2 */}
+      {/* SEED1_B1 폴더: Lesson 1~8 (내용은 Lesson 단위로 채우는 중) */}
+      <div className="rounded-2xl bg-white border-2 border-amber-200 overflow-hidden" data-testid="lesson-folder-b1">
         <button
           type="button"
-          onClick={() => setFolderOpen((o) => !o)}
-          aria-expanded={folderOpen}
+          onClick={() => setB1Open((o) => !o)}
+          aria-expanded={b1Open}
           className="w-full min-h-[56px] flex items-center gap-3 px-4 py-2 bg-amber-50 text-left active:bg-amber-100 transition"
         >
           <span className="text-2xl" aria-hidden>
-            {folderOpen ? "📂" : "📁"}
+            {b1Open ? "📂" : "📁"}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-base font-black text-gray-800 truncate">{isBuiltin ? "SEED1_A2" : book.title}</span>
-            <span className="block text-xs text-gray-500">Lesson {lessonList.length}개</span>
+            <span className="block text-base font-black text-gray-800 truncate">SEED1_B1</span>
+            <span className="block text-xs text-gray-500">Lesson {BUILTIN_BOOK_B1.lessons.length}개</span>
           </span>
           <span className="text-gray-500 font-bold" aria-hidden>
-            {folderOpen ? "▾" : "▸"}
+            {b1Open ? "▾" : "▸"}
           </span>
         </button>
-        {folderOpen && (
+        {b1Open && (
           <div className="p-3">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" data-testid="lesson-list">
-              {lessonList.map((l) => (
-                <button
-                  key={l.lesson}
-                  onClick={() => setSelected((cur) => (cur === l.lesson ? null : l.lesson))}
-                  aria-pressed={selected === l.lesson}
-                  aria-label={`Lesson ${l.lesson}${doneLessons.includes(l.lesson) ? " 완료" : ""}`}
-                  className={`min-h-[56px] rounded-2xl border-2 px-3 py-2 text-left transition active:scale-95 ${
-                    selected === l.lesson ? "border-sky-500 bg-sky-50" : "border-transparent bg-gray-50"
-                  }`}
-                >
-                  <p className="text-sm font-bold text-gray-800">Lesson {l.lesson}</p>
-                  <p className="text-xs text-gray-500">{l.pages.length}쪽</p>
-                  {doneLessons.includes(l.lesson) && <p className="text-xs font-bold text-sky-700">완료 ✓</p>}
-                </button>
-              ))}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" data-testid="lesson-list-b1">
+              {BUILTIN_BOOK_B1.lessons.map((l) => {
+                return (
+                  <button
+                    key={l.lesson}
+                    onClick={() => setSelected((cur) => (cur === l.lesson ? null : l.lesson))}
+                    aria-pressed={selected === l.lesson}
+                    aria-label={`Lesson ${lessonNo(l.lesson)}${doneLessons.includes(l.lesson) ? " 완료" : ""}`}
+                    className={`min-h-[56px] rounded-2xl border-2 px-3 py-2 text-left transition active:scale-95 ${
+                      selected === l.lesson ? "border-sky-500 bg-sky-50" : "border-transparent bg-gray-50"
+                    }`}
+                  >
+                    <p className="text-sm font-bold text-gray-800">Lesson {lessonNo(l.lesson)}</p>
+                    {doneLessons.includes(l.lesson) && <p className="text-xs font-bold text-sky-700">완료 ✓</p>}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
@@ -660,44 +662,43 @@ export default function ChunkbookPanel({
         )}
       </div>
 
-      {/* SEED1_B1 폴더: Lesson 1~8 (내용은 Lesson 단위로 채우는 중) */}
-      <div className="rounded-2xl bg-white border-2 border-amber-200 overflow-hidden" data-testid="lesson-folder-b1">
+      {/* Lesson 목록: 한 폴더로 묶는다(열고 닫기) */}
+      <div className="rounded-2xl bg-white border-2 border-amber-200 overflow-hidden" data-testid="lesson-folder">
         <button
           type="button"
-          onClick={() => setB1Open((o) => !o)}
-          aria-expanded={b1Open}
+          onClick={() => setFolderOpen((o) => !o)}
+          aria-expanded={folderOpen}
           className="w-full min-h-[56px] flex items-center gap-3 px-4 py-2 bg-amber-50 text-left active:bg-amber-100 transition"
         >
           <span className="text-2xl" aria-hidden>
-            {b1Open ? "📂" : "📁"}
+            {folderOpen ? "📂" : "📁"}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-base font-black text-gray-800 truncate">SEED1_B1</span>
-            <span className="block text-xs text-gray-500">Lesson {BUILTIN_BOOK_B1.lessons.length}개</span>
+            <span className="block text-base font-black text-gray-800 truncate">{isBuiltin ? "SEED1_A2" : book.title}</span>
+            <span className="block text-xs text-gray-500">Lesson {lessonList.length}개</span>
           </span>
           <span className="text-gray-500 font-bold" aria-hidden>
-            {b1Open ? "▾" : "▸"}
+            {folderOpen ? "▾" : "▸"}
           </span>
         </button>
-        {b1Open && (
+        {folderOpen && (
           <div className="p-3">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" data-testid="lesson-list-b1">
-              {BUILTIN_BOOK_B1.lessons.map((l) => {
-                return (
-                  <button
-                    key={l.lesson}
-                    onClick={() => setSelected((cur) => (cur === l.lesson ? null : l.lesson))}
-                    aria-pressed={selected === l.lesson}
-                    aria-label={`Lesson ${lessonNo(l.lesson)}${doneLessons.includes(l.lesson) ? " 완료" : ""}`}
-                    className={`min-h-[56px] rounded-2xl border-2 px-3 py-2 text-left transition active:scale-95 ${
-                      selected === l.lesson ? "border-sky-500 bg-sky-50" : "border-transparent bg-gray-50"
-                    }`}
-                  >
-                    <p className="text-sm font-bold text-gray-800">Lesson {lessonNo(l.lesson)}</p>
-                    {doneLessons.includes(l.lesson) && <p className="text-xs font-bold text-sky-700">완료 ✓</p>}
-                  </button>
-                );
-              })}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" data-testid="lesson-list">
+              {lessonList.map((l) => (
+                <button
+                  key={l.lesson}
+                  onClick={() => setSelected((cur) => (cur === l.lesson ? null : l.lesson))}
+                  aria-pressed={selected === l.lesson}
+                  aria-label={`Lesson ${l.lesson}${doneLessons.includes(l.lesson) ? " 완료" : ""}`}
+                  className={`min-h-[56px] rounded-2xl border-2 px-3 py-2 text-left transition active:scale-95 ${
+                    selected === l.lesson ? "border-sky-500 bg-sky-50" : "border-transparent bg-gray-50"
+                  }`}
+                >
+                  <p className="text-sm font-bold text-gray-800">Lesson {l.lesson}</p>
+                  <p className="text-xs text-gray-500">{l.pages.length}쪽</p>
+                  {doneLessons.includes(l.lesson) && <p className="text-xs font-bold text-sky-700">완료 ✓</p>}
+                </button>
+              ))}
             </div>
           </div>
         )}
