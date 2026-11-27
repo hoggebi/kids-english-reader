@@ -23,7 +23,6 @@ import {
 import { builtinRoles } from "@/lib/chunkbookBuiltin";
 import { isA3Lesson, lessonNo } from "@/lib/chunkbookA3";
 import { localDateKey } from "@/lib/lessonPlanCore";
-import { isB1Lesson } from "@/lib/chunkbookB1";
 import { clearBookText, loadBookText, saveBookText } from "@/lib/chunkBookText";
 import { autoPush } from "@/lib/sync";
 import { COINS_LISTEN, COINS_SENTENCE, completeLesson, earnCoins, markLessonRead } from "@/lib/pet";
@@ -350,9 +349,9 @@ function ReadListen({
 // 한 줄 듣기 → 따라 말할 틈 → 다음 줄. 본문 전체를 두 바퀴 돈다. 두 바퀴를 모두 마치면 읽기 완료.
 // 건너뛰기 버튼은 두지 않는다(그냥 넘기지 않도록). 틈의 길이는 방금 들은 문장 길이에 맞춘다.
 const SHADOW_ROUNDS = 2;
-const SHADOW_VOICE_RATE = 0.9; // 녹음 음성을 약간 느리게(따라 말하기 쉽게)
-// B1 녹음은 녹음 전에 쓰던 기기 음성(READ_RATE 0.63배) 속도에 맞춘다: 녹음 약 2.6단어/초 × 0.7 ≈ 1.8단어/초.
-const B1_SHADOW_VOICE_RATE = 0.7;
+// 녹음 음성을 약간 느리게(따라 말하기 쉽게). A2·A3·B1 모두 같다.
+// 0.7배처럼 많이 늦추면 브라우저가 소리를 늘려서 목소리가 늘어지게 들린다(2026-11-27 B1에서 확인) — 0.9보다 낮추지 않는다.
+const SHADOW_VOICE_RATE = 0.9;
 type ShadowPhase = "idle" | "listen" | "repeat" | "paused" | "done";
 
 function ShadowRead({
@@ -437,7 +436,7 @@ function ShadowRead({
         const ordinal = lines.slice(0, i).filter((l) => l.section === section).length;
         const ids = pack ? voiceIdsFor(pack, lesson, section, ordinal, lines[i].en) : null;
         if (pack && ids) {
-          void playVoiceIds(pack, ids, isB1Lesson(lesson) ? B1_SHADOW_VOICE_RATE : SHADOW_VOICE_RATE).then((ok) => {
+          void playVoiceIds(pack, ids, SHADOW_VOICE_RATE).then((ok) => {
             if (tk !== token.current) return finish();
             if (ok) finish();
             else tts();
