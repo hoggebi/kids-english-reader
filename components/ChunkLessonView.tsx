@@ -1114,6 +1114,10 @@ export default function ChunkLessonView({
   }
 
   const confirmed = text?.status === "confirmed";
+  // A3·B1 내장 Lesson은 읽고 듣기(따라 읽기)를 한 번 끝까지 마쳐야 영어 타이핑이 열린다.
+  // 화면을 그릴 때마다 저장된 기록을 읽으므로, 읽고 듣기를 마치고 홈으로 돌아오면 바로 보인다(Lesson을 고른 뒤에만 그려진다).
+  const seedStyle = builtin && isA3Lesson(lesson);
+  const readDone = typeof window !== "undefined" && (loadActivity(lesson)?.listens ?? 0) > 0;
   // A3처럼 내용을 단계적으로 채우는 내장 Lesson: 본문이 아직 없으면 준비 중으로 보여 준다.
   const notReady = builtin && isA3Lesson(lesson) && (!text || text.body.length === 0);
 
@@ -1168,13 +1172,20 @@ export default function ChunkLessonView({
           이 Lesson 내용은 준비 중이에요.
         </p>
       ) : confirmed ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <button onClick={() => setMode("read")} className="min-h-[56px] rounded-full bg-sky-600 text-white font-bold text-base active:scale-95 transition">
-            🔊 읽고 듣기
-          </button>
-          <button onClick={() => setMode("write")} className="min-h-[56px] rounded-full bg-gray-700 text-white font-bold text-base active:scale-95 transition">
-            {builtin && isA3Lesson(lesson) ? "⌨️ 영어 타이핑" : "✍️ 문장 보고 쓰기"}
-          </button>
+        <div className="flex flex-col gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button onClick={() => setMode("read")} className="min-h-[56px] rounded-full bg-sky-600 text-white font-bold text-base active:scale-95 transition">
+              🔊 읽고 듣기
+            </button>
+            {(!seedStyle || readDone) && (
+              <button onClick={() => setMode("write")} className="min-h-[56px] rounded-full bg-gray-700 text-white font-bold text-base active:scale-95 transition">
+                {seedStyle ? "⌨️ 영어 타이핑" : "✍️ 문장 보고 쓰기"}
+              </button>
+            )}
+          </div>
+          {seedStyle && !readDone && (
+            <p className="text-xs text-gray-500" data-testid="typing-locked">읽고 듣기를 끝까지 하면 ⌨️ 영어 타이핑이 열려요.</p>
+          )}
         </div>
       ) : (
         <div className="rounded-xl bg-white border border-sky-200 p-3 flex flex-col gap-2">

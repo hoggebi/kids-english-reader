@@ -241,6 +241,7 @@ export default function ChunkbookPanel({
   const [folderOpen, setFolderOpen] = useState(true);
   const [a3Open, setA3Open] = useState(true);
   const [b1Open, setB1Open] = useState(true);
+  const activityRef = useRef<HTMLDivElement>(null);
   const [viewer, setViewer] = useState<number | null>(null);
   const [doneLessons, setDoneLessonsState] = useState<number[]>([]);
   const [draft, setDraft] = useState<{ lesson: number; start: number; end: number }[] | null>(null);
@@ -308,6 +309,12 @@ export default function ChunkbookPanel({
       void destroyPdf(docRef.current);
     };
   }, []);
+
+  // Lesson을 고르면 위쪽의 Lesson 활동 화면이 보이도록 스크롤한다(폴더는 활동 화면 아래에 있다).
+  useEffect(() => {
+    if (selected === null) return;
+    activityRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [selected]);
 
   // Lesson 완료(✓) 표시: 읽기+쓰기를 마치면 저장소에 기록되므로, 화면을 열거나 Lesson을 바꿀 때 다시 읽는다.
   useEffect(() => {
@@ -575,6 +582,49 @@ export default function ChunkbookPanel({
         </div>
       )}
 
+      {/* Lesson 활동(읽고 듣기 / 영어 타이핑·문장 보고 쓰기): 폴더 목록보다 위에 보여 준다. Lesson을 고르면 이 자리로 스크롤한다. */}
+      <div ref={activityRef} className="scroll-mt-4" />
+      {current && (
+        <ChunkLessonView
+          key={`${activeBook.id}-${current.lesson}`}
+          book={activeBook}
+          lessonDef={current}
+          doc={doc}
+          fileOk={fileState === "ok"}
+          onOpenVocab={(l) => onOpenVocab?.(l)}
+          onOpenPage={(p) => {
+            const i = current.pages.indexOf(p);
+            if (i >= 0) setViewer(i);
+          }}
+        />
+      )}
+
+      {/* 원본 페이지 보기 */}
+      {current && !selA3 && (activeBuiltin || (doc && fileState === "ok")) && (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm font-bold text-gray-700">Lesson {lessonNo(current.lesson)} 원본 페이지</p>
+          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2" data-testid="page-grid">
+            {current.pages.map((p, i) => (
+              activeBuiltin ? (
+                <BuiltinThumb key={`${activeBook.id}-${p}`} urlOf={builtinPageUrl} page={p} label={current.labels[i] ?? `p.${p}`} onOpen={() => setViewer(i)} />
+              ) : (
+                doc && (
+                  <PageThumb
+                    key={`${book.id}-${p}`}
+                    doc={doc}
+                    docKey={book.id}
+                    page={p}
+                    label={current.labels[i] ?? `p.${p}`}
+                    onOpen={() => setViewer(i)}
+                  />
+                )
+              )
+            ))}
+          </div>
+        </div>
+      )}
+      {current && !activeBuiltin && fileState === "checking" && <p className="text-sm text-gray-500">파일을 여는 중…</p>}
+
       {/* 교재 폴더는 최근에 만든 순서대로(위가 최신): SEED1_B1 → SEED1_A3 → SEED1_A2 */}
       {/* SEED1_B1 폴더: Lesson 1~8 (내용은 Lesson 단위로 채우는 중) */}
       <div className="rounded-2xl bg-white border-2 border-amber-200 overflow-hidden" data-testid="lesson-folder-b1">
@@ -704,47 +754,6 @@ export default function ChunkbookPanel({
         )}
       </div>
 
-      {/* Lesson 활동: 읽고 듣기 / 문장 보고 쓰기 */}
-      {current && (
-        <ChunkLessonView
-          key={`${activeBook.id}-${current.lesson}`}
-          book={activeBook}
-          lessonDef={current}
-          doc={doc}
-          fileOk={fileState === "ok"}
-          onOpenVocab={(l) => onOpenVocab?.(l)}
-          onOpenPage={(p) => {
-            const i = current.pages.indexOf(p);
-            if (i >= 0) setViewer(i);
-          }}
-        />
-      )}
-
-      {/* 원본 페이지 보기 */}
-      {current && !selA3 && (activeBuiltin || (doc && fileState === "ok")) && (
-        <div className="flex flex-col gap-2">
-          <p className="text-sm font-bold text-gray-700">Lesson {lessonNo(current.lesson)} 원본 페이지</p>
-          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2" data-testid="page-grid">
-            {current.pages.map((p, i) => (
-              activeBuiltin ? (
-                <BuiltinThumb key={`${activeBook.id}-${p}`} urlOf={builtinPageUrl} page={p} label={current.labels[i] ?? `p.${p}`} onOpen={() => setViewer(i)} />
-              ) : (
-                doc && (
-                  <PageThumb
-                    key={`${book.id}-${p}`}
-                    doc={doc}
-                    docKey={book.id}
-                    page={p}
-                    label={current.labels[i] ?? `p.${p}`}
-                    onOpen={() => setViewer(i)}
-                  />
-                )
-              )
-            ))}
-          </div>
-        </div>
-      )}
-      {current && !activeBuiltin && fileState === "checking" && <p className="text-sm text-gray-500">파일을 여는 중…</p>}
 
       {viewer !== null && !selA3 && (activeBuiltin || doc) && current && (
         <PageViewer
