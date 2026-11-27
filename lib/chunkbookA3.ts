@@ -7,13 +7,15 @@
 
 import type { ChunkbookMeta } from "./chunkbook";
 import type { BodyLine, PageRoles, WritingItem } from "./chunkLesson";
+import { b1Roles, b1SeedBody, b1SeedWriting, isB1Lesson } from "./chunkbookB1.ts";
 
 export const A3_OFFSET = 100;
 export const BUILTIN_BOOK_ID_A3 = "builtin-a3";
 export const A3_LESSONS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
 
+// isA3Lesson은 "A3 방식의 내장 교재(A3·B1)"인지를 뜻한다(B1은 201~208, chunkbookB1.ts). 화면·활동이 같다.
 export const isA3Lesson = (lesson: number) => lesson > A3_OFFSET;
-export const lessonNo = (lesson: number) => (isA3Lesson(lesson) ? lesson - A3_OFFSET : lesson);
+export const lessonNo = (lesson: number) => (isA3Lesson(lesson) ? lesson % A3_OFFSET : lesson);
 export const a3Internal = (n: number) => n + A3_OFFSET;
 
 export const A3_TITLES: Record<number, string> = {
@@ -50,6 +52,7 @@ export const BUILTIN_BOOK_A3: ChunkbookMeta = {
 };
 
 export function a3Roles(lesson: number): PageRoles {
+  if (isB1Lesson(lesson)) return b1Roles(lesson);
   const p = firstPage(lessonNo(lesson));
   return { body: [p], writing: p + 2 };
 }
@@ -282,6 +285,7 @@ const SEEDS: Record<number, Seed> = {
 };
 
 export function a3SeedBody(lesson: number): BodyLine[] {
+  if (isB1Lesson(lesson)) return b1SeedBody(lesson);
   const s = SEEDS[lessonNo(lesson)];
   if (!s) return [];
   return [
@@ -291,6 +295,7 @@ export function a3SeedBody(lesson: number): BodyLine[] {
 }
 
 export function a3SeedWriting(lesson: number): WritingItem[] {
+  if (isB1Lesson(lesson)) return b1SeedWriting(lesson);
   return (SEEDS[lessonNo(lesson)]?.writing ?? []).map(([en, ko]) => ({ en, ko }));
 }
 

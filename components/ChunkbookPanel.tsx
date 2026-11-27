@@ -21,6 +21,7 @@ import {
 import { BUILTIN_BOOK, builtinPageUrl } from "@/lib/chunkbookBuiltin";
 import { getDoneLessons } from "@/lib/pet";
 import { BUILTIN_BOOK_A3, isA3Lesson, lessonNo } from "@/lib/chunkbookA3";
+import { BUILTIN_BOOK_B1, isB1Lesson } from "@/lib/chunkbookB1";
 
 type PdfDoc = Awaited<ReturnType<typeof openPdf>>;
 
@@ -239,6 +240,7 @@ export default function ChunkbookPanel({
   const [selected, setSelected] = useState<number | null>(null);
   const [folderOpen, setFolderOpen] = useState(true);
   const [a3Open, setA3Open] = useState(true);
+  const [b1Open, setB1Open] = useState(true);
   const [viewer, setViewer] = useState<number | null>(null);
   const [doneLessons, setDoneLessonsState] = useState<number[]>([]);
   const [draft, setDraft] = useState<{ lesson: number; start: number; end: number }[] | null>(null);
@@ -319,11 +321,12 @@ export default function ChunkbookPanel({
   }, []);
 
   const lessonList = book?.lessons ?? [];
-  // 선택한 Lesson이 A3(SEED1_A3)이면 A3 내장 교재로, 아니면 위의 교재로 보여 준다.
-  const selA3 = selected !== null && isA3Lesson(selected);
-  const activeBook: ChunkbookMeta = selA3 ? BUILTIN_BOOK_A3 : book;
+  // 선택한 Lesson이 A3(SEED1_A3)·B1(SEED1_B1)이면 그 내장 교재로, 아니면 위의 교재로 보여 준다.
+  const selA3 = selected !== null && isA3Lesson(selected); // A3·B1 둘 다(같은 화면·활동)
+  const seedBook: ChunkbookMeta | null = selA3 ? (isB1Lesson(selected) ? BUILTIN_BOOK_B1 : BUILTIN_BOOK_A3) : null;
+  const activeBook: ChunkbookMeta = seedBook ?? book;
   const activeBuiltin = selA3 || isBuiltin;
-  const current = (selA3 ? BUILTIN_BOOK_A3.lessons : lessonList).find((l) => l.lesson === selected) ?? null;
+  const current = (seedBook ? seedBook.lessons : lessonList).find((l) => l.lesson === selected) ?? null;
   const viewerItems = useMemo(
     () => (current ? current.pages.map((p, i) => ({ page: p, label: current.labels[i] ?? `p.${p}` })) : []),
     [current],
@@ -637,6 +640,49 @@ export default function ChunkbookPanel({
           <div className="p-3">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" data-testid="lesson-list-a3">
               {BUILTIN_BOOK_A3.lessons.map((l) => {
+                return (
+                  <button
+                    key={l.lesson}
+                    onClick={() => setSelected((cur) => (cur === l.lesson ? null : l.lesson))}
+                    aria-pressed={selected === l.lesson}
+                    aria-label={`Lesson ${lessonNo(l.lesson)}${doneLessons.includes(l.lesson) ? " 완료" : ""}`}
+                    className={`min-h-[56px] rounded-2xl border-2 px-3 py-2 text-left transition active:scale-95 ${
+                      selected === l.lesson ? "border-sky-500 bg-sky-50" : "border-transparent bg-gray-50"
+                    }`}
+                  >
+                    <p className="text-sm font-bold text-gray-800">Lesson {lessonNo(l.lesson)}</p>
+                    {doneLessons.includes(l.lesson) && <p className="text-xs font-bold text-sky-700">완료 ✓</p>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* SEED1_B1 폴더: Lesson 1~8 (내용은 Lesson 단위로 채우는 중) */}
+      <div className="rounded-2xl bg-white border-2 border-amber-200 overflow-hidden" data-testid="lesson-folder-b1">
+        <button
+          type="button"
+          onClick={() => setB1Open((o) => !o)}
+          aria-expanded={b1Open}
+          className="w-full min-h-[56px] flex items-center gap-3 px-4 py-2 bg-amber-50 text-left active:bg-amber-100 transition"
+        >
+          <span className="text-2xl" aria-hidden>
+            {b1Open ? "📂" : "📁"}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-base font-black text-gray-800 truncate">SEED1_B1</span>
+            <span className="block text-xs text-gray-500">Lesson {BUILTIN_BOOK_B1.lessons.length}개</span>
+          </span>
+          <span className="text-gray-500 font-bold" aria-hidden>
+            {b1Open ? "▾" : "▸"}
+          </span>
+        </button>
+        {b1Open && (
+          <div className="p-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" data-testid="lesson-list-b1">
+              {BUILTIN_BOOK_B1.lessons.map((l) => {
                 return (
                   <button
                     key={l.lesson}
