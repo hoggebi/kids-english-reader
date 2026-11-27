@@ -5,6 +5,8 @@ import type { ChunkLesson, ChunkbookMeta } from "@/lib/chunkbook";
 import { renderPageBase64, type PdfDoc as PdfDocLike } from "@/lib/chunkbook";
 import {
   bumpListens,
+  markReadToday,
+  readOnDay,
   isValidOrder,
   loadActivity,
   resetRoleOverride,
@@ -20,6 +22,8 @@ import {
 } from "@/lib/chunkLesson";
 import { builtinRoles } from "@/lib/chunkbookBuiltin";
 import { isA3Lesson, lessonNo } from "@/lib/chunkbookA3";
+import { localDateKey } from "@/lib/lessonPlanCore";
+import { isB1Lesson } from "@/lib/chunkbookB1";
 import { clearBookText, loadBookText, saveBookText } from "@/lib/chunkBookText";
 import { autoPush } from "@/lib/sync";
 import { COINS_LISTEN, COINS_SENTENCE, completeLesson, earnCoins, markLessonRead } from "@/lib/pet";
@@ -347,6 +351,8 @@ function ReadListen({
 // 건너뛰기 버튼은 두지 않는다(그냥 넘기지 않도록). 틈의 길이는 방금 들은 문장 길이에 맞춘다.
 const SHADOW_ROUNDS = 2;
 const SHADOW_VOICE_RATE = 0.9; // 녹음 음성을 약간 느리게(따라 말하기 쉽게)
+// B1 녹음은 녹음 전에 쓰던 기기 음성(READ_RATE 0.63배) 속도에 맞춘다: 녹음 약 2.6단어/초 × 0.7 ≈ 1.8단어/초.
+const B1_SHADOW_VOICE_RATE = 0.7;
 type ShadowPhase = "idle" | "listen" | "repeat" | "paused" | "done";
 
 function ShadowRead({
@@ -431,7 +437,7 @@ function ShadowRead({
         const ordinal = lines.slice(0, i).filter((l) => l.section === section).length;
         const ids = pack ? voiceIdsFor(pack, lesson, section, ordinal, lines[i].en) : null;
         if (pack && ids) {
-          void playVoiceIds(pack, ids, SHADOW_VOICE_RATE).then((ok) => {
+          void playVoiceIds(pack, ids, isB1Lesson(lesson) ? B1_SHADOW_VOICE_RATE : SHADOW_VOICE_RATE).then((ok) => {
             if (tk !== token.current) return finish();
             if (ok) finish();
             else tts();
@@ -480,6 +486,7 @@ function ShadowRead({
       setPhase("done");
       setIdx(-1);
       bumpListens(lesson);
+      markReadToday(lesson, localDateKey());
       const nowDone = markLessonRead(lesson);
       const r = earnCoins(COINS_LISTEN, "chapter");
       setCheer(nowDone ? `Lesson ${lessonNo(lesson)} 완료 ✓ 잘했어, 호야!` : cheerFor(r, "(따라 읽기 두 바퀴!)"));
@@ -1114,10 +1121,10 @@ export default function ChunkLessonView({
   }
 
   const confirmed = text?.status === "confirmed";
-  // A3·B1 내장 Lesson은 읽고 듣기(따라 읽기)를 한 번 끝까지 마쳐야 영어 타이핑이 열린다.
+  // A3·B1 내장 Lesson은 그날 읽고 듣기(따라 읽기 두 바퀴)를 끝까지 마쳐야 영어 타이핑이 열린다(하루에 한 번).
   // 화면을 그릴 때마다 저장된 기록을 읽으므로, 읽고 듣기를 마치고 홈으로 돌아오면 바로 보인다(Lesson을 고른 뒤에만 그려진다).
   const seedStyle = builtin && isA3Lesson(lesson);
-  const readDone = typeof window !== "undefined" && (loadActivity(lesson)?.listens ?? 0) > 0;
+  const readDone = typeof window !== "undefined" && readOnDay(lesson, localDateKey());
   // A3처럼 내용을 단계적으로 채우는 내장 Lesson: 본문이 아직 없으면 준비 중으로 보여 준다.
   const notReady = builtin && isA3Lesson(lesson) && (!text || text.body.length === 0);
 
@@ -1184,7 +1191,7 @@ export default function ChunkLessonView({
             )}
           </div>
           {seedStyle && !readDone && (
-            <p className="text-xs text-gray-500" data-testid="typing-locked">읽고 듣기를 끝까지 하면 ⌨️ 영어 타이핑이 열려요.</p>
+            <p className="text-xs text-gray-500" data-testid="typing-locked">오늘 읽고 듣기를 끝까지 하면 ⌨️ 영어 타이핑이 열려요.</p>
           )}
         </div>
       ) : (

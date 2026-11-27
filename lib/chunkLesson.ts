@@ -8,6 +8,7 @@
 const TEXT_KEY = "chunkbook-v2-lesson-texts";
 const ROLE_KEY = "chunkbook-v2-lesson-page-roles";
 const ACT_KEY = "chunkbook-v2-lesson-activity";
+const READ_DAY_KEY = "chunkbook-v2-lesson-read-day"; // Lesson별로 읽고 듣기를 끝까지 마친 마지막 날짜(기기 현지 날짜)
 
 export type BodyLine = { en: string; ko: string; section: "passage" | "dialogue" };
 export type WritingItem = { ko: string; en: string };
@@ -122,6 +123,15 @@ export function saveActivity(lesson: number, a: LessonActivity) {
   const m = loadActivities();
   m[String(lesson)] = a;
   writeMap(ACT_KEY, m);
+}
+// 읽고 듣기를 끝까지 마친 날을 기록한다. A3·B1 영어 타이핑은 그날 읽고 듣기를 마쳐야 열린다(하루에 한 번).
+export function markReadToday(lesson: number, today: string) {
+  const m = readMap<string>(READ_DAY_KEY);
+  m[String(lesson)] = today;
+  writeMap(READ_DAY_KEY, m);
+}
+export function readOnDay(lesson: number, today: string): boolean {
+  return readMap<string>(READ_DAY_KEY)[String(lesson)] === today;
 }
 export function bumpListens(lesson: number) {
   const cur = loadActivity(lesson) ?? { listens: 0, order: [], pos: 0, completed: false, startedAt: 0 };
