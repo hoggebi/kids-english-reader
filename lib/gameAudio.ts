@@ -3,7 +3,22 @@
 // 두더지 게임 등에서 쓰는 가벼운 효과음(Web Audio 합성)과 TTS 도우미.
 // 오디오/음성이 지원되지 않아도 게임은 그대로 진행되도록 모든 호출을 try/catch로 감싼다.
 
+import { wordAudioUrl } from "./wordAudio";
+
 let sharedCtx: AudioContext | null = null;
+// 단어 녹음(MP3) 재생용. 새 발음을 시작하면 이전 것은 멈춘다.
+let wordEl: HTMLAudioElement | null = null;
+function stopWordAudio() {
+  try {
+    if (wordEl) {
+      wordEl.onended = null;
+      wordEl.onerror = null;
+      wordEl.pause();
+    }
+  } catch {
+    /* ignore */
+  }
+}
 function audioCtx(): AudioContext | null {
   if (typeof window === "undefined") return null;
   if (!sharedCtx) {
@@ -64,6 +79,7 @@ export function playSfx(kind: Sfx, muted: boolean) {
 }
 
 export function cancelSpeech() {
+  stopWordAudio();
   try {
     window.speechSynthesis?.cancel();
   } catch {
@@ -72,7 +88,47 @@ export function cancelSpeech() {
 }
 
 // 끝나면(또는 실패/미지원/음소거/시간초과 시) resolve. 새 발화는 이전 발화를 취소한다.
+// 영어 단어에 녹음(MP3)이 있으면 그걸 틀고, 없거나 재생이 안 되면 기기 음성으로 읽는다.
 export function speak(text: string, lang: "ko-KR" | "en-US", muted: boolean, capMs = 4500): Promise<void> {
+  stopWordAudio();
+  const url = lang === "en-US" && !muted && typeof window !== "undefined" ? wordAudioUrl(text) : null;
+  if (url) {
+    return new Promise((resolve) => {
+      let done = false;
+      const fin = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(to);
+        resolve();
+      };
+      const fallback = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(to);
+        void speakDevice(text, lang, muted, capMs).then(resolve);
+      };
+      const to = setTimeout(fin, capMs);
+      try {
+        window.speechSynthesis?.cancel();
+        if (!wordEl) {
+          wordEl = new Audio();
+          wordEl.preload = "auto";
+        }
+        const el = wordEl;
+        el.onended = fin;
+        el.onerror = fallback;
+        el.src = url;
+        el.currentTime = 0;
+        void el.play().catch(fallback);
+      } catch {
+        fallback();
+      }
+    });
+  }
+  return speakDevice(text, lang, muted, capMs);
+}
+
+function speakDevice(text: string, lang: "ko-KR" | "en-US", muted: boolean, capMs: number): Promise<void> {
   return new Promise((resolve) => {
     if (muted || typeof window === "undefined" || !("speechSynthesis" in window)) {
       resolve();

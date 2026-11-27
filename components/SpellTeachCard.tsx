@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { VocabWord } from "@/lib/types";
+import { speak as speakWord } from "@/lib/gameAudio";
 
 // Lesson 단어 학습 흐름 (한 단어당 한 카드):
 //  1) 영어·한국어 소개 → 2) 철자를 한 글자씩 나타내며 강조(시연) → 단어 전체를 두 번 강조 → 3) 영어를 숨기고 섞인 글자를 순서대로 눌러 완성
@@ -31,17 +32,9 @@ function shuffleTiles(tiles: Tile[]): Tile[] {
   return a;
 }
 
+// 단어 녹음(MP3)이 있으면 그걸, 없으면 기기 음성으로 읽는다(실패해도 학습은 진행된다).
 function speak(text: string) {
-  try {
-    if (typeof window === "undefined" || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = "en-US";
-    u.rate = 0.85;
-    window.speechSynthesis.speak(u);
-  } catch {
-    /* 음성이 안 되어도 학습은 진행된다 */
-  }
+  void speakWord(text, "en-US", false);
 }
 
 export default function SpellTeachCard({

@@ -47,6 +47,7 @@ import ChunkbookPanel from "@/components/ChunkbookPanel";
 import LessonPanel from "@/components/LessonPanel";
 import { isLessonSet, loadLessonPlan, refreshLessonSets, type LessonPlan } from "@/lib/lessonPlan";
 import { ensureA3Sets, isA3Set } from "@/lib/lessonDataA3";
+import { ensureB1Sets, isB1Set } from "@/lib/lessonDataB1";
 
 // 챕터 탭은 일단 숨긴다. 다시 켜려면 true로 바꾸면 된다(데이터와 코드는 그대로 있다).
 const SHOW_CHAPTERS_TAB = false;
@@ -109,8 +110,10 @@ export default function Home() {
     }
     // A3 Lesson 세트(a3-lesson-1~8): 교재 단어·뜻을 그대로 쓰므로 확인 절차 없이 보장한다(학습 기록은 유지).
     const withA3 = ensureA3Sets(refreshed.sets);
-    if (withA3.changed) saveVocabSets(withA3.sets);
-    setVocabSets(withA3.sets);
+    // B1 Lesson 세트(b1-lesson-1~8)도 같은 방식으로 보장한다.
+    const withB1 = ensureB1Sets(withA3.sets);
+    if (withA3.changed || withB1.changed) saveVocabSets(withB1.sets);
+    setVocabSets(withB1.sets);
     setChunkbooks(loadChunkbooks());
     setLessonPlan(loadLessonPlan());
 
@@ -449,7 +452,7 @@ export default function Home() {
           />
 
           <VocabList
-            sets={vocabSets.filter((s) => !isLessonSet(s) && !isA3Set(s))}
+            sets={vocabSets.filter((s) => !isLessonSet(s) && !isA3Set(s) && !isB1Set(s))}
             onSelect={handleVocabSelect}
             onDelete={handleVocabDelete}
             onRename={handleVocabRename}

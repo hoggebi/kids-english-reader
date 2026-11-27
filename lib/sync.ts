@@ -8,6 +8,7 @@ import { loadLessonPlanRaw, saveLessonPlan, type LessonPlan } from "./lessonPlan
 import { mergePlans } from "./lessonPlanCore";
 import { mergeVocabSets } from "./vocabMerge";
 import { ensureA3Sets } from "./lessonDataA3";
+import { ensureB1Sets } from "./lessonDataB1";
 import {
   loadLessonTexts,
   saveLessonTexts,
@@ -112,8 +113,8 @@ function applyServerPayload(data: Partial<SyncPayload> | null) {
   if (data.pet) mergePetState(data.pet, "chapter");
   if (data.vocabPet) mergePetState(data.vocabPet, "vocab");
   // 단어별 학습 기록은 더 최근에 학습한 쪽을 써서, 오늘 학습한 내용이 오래된 서버 값에 덮이지 않게 한다.
-  // A3 Lesson 세트는 이 앱이 직접 만들므로 서버 목록에 없어도 다시 채운다(서버 값은 단어별 기록만 반영).
-  if (data.vocabSets) saveVocabSets(ensureA3Sets(mergeVocabSets(loadVocabSets(), data.vocabSets)).sets);
+  // A3·B1 Lesson 세트는 이 앱이 직접 만들므로 서버 목록에 없어도 다시 채운다(서버 값은 단어별 기록만 반영).
+  if (data.vocabSets) saveVocabSets(ensureB1Sets(ensureA3Sets(mergeVocabSets(loadVocabSets(), data.vocabSets)).sets).sets);
   if (data.chunkbooks) saveChunkbooks(data.chunkbooks);
   // 진행 계획도 더 진행된 쪽을 쓴다(오늘 학습/게임 완료 표시가 사라지지 않게).
   if (data.lessonPlan) saveLessonPlan(mergePlans(loadLessonPlanRaw(), data.lessonPlan));

@@ -13,10 +13,14 @@ import {
   a3StudyDone,
   recordA2StudyDone,
   recordA3StudyDone,
+  b1StudyDone,
+  recordB1StudyDone,
 } from "@/lib/vocabStorage";
 import { autoPush } from "@/lib/sync";
 import { isLessonSet, lessonStudyDoneByPlan, recordLessonStudyDone } from "@/lib/lessonPlan";
 import { isA3Set } from "@/lib/lessonDataA3";
+import { isB1Set } from "@/lib/lessonDataB1";
+import { speak as speakWord } from "@/lib/gameAudio";
 import VocabGame from "./VocabGame";
 import SpellTeachCard from "./SpellTeachCard";
 
@@ -31,13 +35,9 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
+// 단어 녹음(MP3)이 있으면 그걸, 없으면 기기 음성으로 읽는다.
 function speak(text: string) {
-  if (typeof window === "undefined" || !window.speechSynthesis) return;
-  window.speechSynthesis.cancel();
-  const utter = new SpeechSynthesisUtterance(text);
-  utter.lang = "en-US";
-  utter.rate = 0.85;
-  window.speechSynthesis.speak(utter);
+  void speakWord(text, "en-US", false);
 }
 
 export default function VocabStudy({ set, onBack }: { set: VocabSet; onBack: () => void }) {
@@ -50,7 +50,7 @@ export default function VocabStudy({ set, onBack }: { set: VocabSet; onBack: () 
     let next = existing ?? buildDailySession(set);
     // 진행 계획(목록의 "학습 완료 ✓")은 학습을 마쳤다고 되어 있는데 오늘의 학습 카드 기록이 없거나 덜 끝난 경우:
     // 학습 완료로 맞춰서 게임하기가 열리게 한다.
-    if (next.phase !== "done" && next.cards.length > 0 && (lessonStudyDoneByPlan(set.id) || a3StudyDone(set.id))) {
+    if (next.phase !== "done" && next.cards.length > 0 && (lessonStudyDoneByPlan(set.id) || a3StudyDone(set.id) || b1StudyDone(set.id))) {
       next = { ...next, phase: "done", cursor: next.cards.length };
       saveTodaySession(next);
     }
@@ -186,7 +186,7 @@ export default function VocabStudy({ set, onBack }: { set: VocabSet; onBack: () 
     return (
       <VocabGame
         words={gameWords}
-        moleWords={isLessonSet(set) || isA3Set(set) ? set.words : undefined}
+        moleWords={isLessonSet(set) || isA3Set(set) || isB1Set(set) ? set.words : undefined}
         setId={set.id}
         onDone={() => setMode("hub")}
         onStudyMore={handleStudyMoreFromBattle}
@@ -233,6 +233,7 @@ export default function VocabStudy({ set, onBack }: { set: VocabSet; onBack: () 
       recordLessonStudyDone(set.id); // Lesson 진행 기록(학습 완료). Lesson 묶음이 아니면 아무 일도 안 한다
       recordA2StudyDone(set.id); // A2 Lesson별 학습 완료 기록(칩의 완료 ✓용)
       recordA3StudyDone(set.id); // A3 Lesson 학습 완료 기록(A3 세트가 아니면 아무 일도 안 한다)
+      recordB1StudyDone(set.id); // B1 Lesson 학습 완료 기록(B1 세트가 아니면 아무 일도 안 한다)
       setMode("hub");
       autoPush();
     }

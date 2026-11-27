@@ -2,6 +2,7 @@
 import type { VocabSet, VocabWord, VocabDailySession, VocabStudyMode } from "./types";
 import { lessonFromSetId } from "./lessonData";
 import { a3FromSetId } from "./lessonDataA3";
+import { b1FromSetId } from "./lessonDataB1";
 import { localDateKey } from "./lessonPlanCore";
 import { loadLessonPlanRaw, recordLessonGamePlayed } from "./lessonPlan";
 
@@ -10,9 +11,10 @@ const SESSION_KEY_PREFIX = "chunkbook-v2-vocab-session-";
 const GAMES_PLAYED_PREFIX = "chunkbook-v2-vocab-games-";
 const A3_STUDY_DONE_KEY = "chunkbook-v2-a3-study-done";
 const A2_STUDY_DONE_KEY = "chunkbook-v2-a2-study-done";
+const B1_STUDY_DONE_KEY = "chunkbook-v2-b1-study-done";
 
-// Lesson 묶음(A2: lesson-N, A3: a3-lesson-N)은 같은 학습 흐름(소개 → 철자 시연 → 글자 눌러 완성)을 쓴다.
-const isLessonLikeSetId = (setId: string) => lessonFromSetId(setId) !== null || a3FromSetId(setId) !== null;
+// Lesson 묶음(A2: lesson-N, A3: a3-lesson-N, B1: b1-lesson-N)은 같은 학습 흐름(소개 → 철자 시연 → 글자 눌러 완성)을 쓴다.
+const isLessonLikeSetId = (setId: string) => lessonFromSetId(setId) !== null || a3FromSetId(setId) !== null || b1FromSetId(setId) !== null;
 
 // 박스별 복습 간격(일). 3주 완주 목표에 맞춰 촘촘하게 설정.
 const BOX_INTERVAL_DAYS: Record<number, number> = { 1: 1, 2: 2, 3: 3, 4: 5 };
@@ -322,6 +324,27 @@ export function recordA3StudyDone(setId: string) {
 export function a3StudyDone(setId: string): boolean {
   const lesson = a3FromSetId(setId);
   return lesson !== null && a3StudyDoneLessons().includes(lesson);
+}
+
+// B1 Lesson의 학습(카드) 완료 기록. B1 세트가 아니면 아무 일도 안 한다.
+export function b1StudyDoneLessons(): number[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const list = JSON.parse(localStorage.getItem(B1_STUDY_DONE_KEY) ?? "[]") as unknown;
+    return Array.isArray(list) ? list.filter((n): n is number => typeof n === "number") : [];
+  } catch {
+    return [];
+  }
+}
+export function recordB1StudyDone(setId: string) {
+  const lesson = b1FromSetId(setId);
+  if (lesson === null || typeof window === "undefined") return;
+  const done = b1StudyDoneLessons();
+  if (!done.includes(lesson)) localStorage.setItem(B1_STUDY_DONE_KEY, JSON.stringify([...done, lesson]));
+}
+export function b1StudyDone(setId: string): boolean {
+  const lesson = b1FromSetId(setId);
+  return lesson !== null && b1StudyDoneLessons().includes(lesson);
 }
 
 export function recordVocabGamePlayed(

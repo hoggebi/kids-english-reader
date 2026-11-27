@@ -5,28 +5,34 @@ import type { VocabSet } from "@/lib/types";
 import { LESSON_DEFS, LESSON_NUMBERS, lessonSetId } from "@/lib/lessonData";
 import { confirmLessons, draftKey, reconcileLessonGameDone, restartLessonPlan, type LessonPlan, type MeaningDraft } from "@/lib/lessonPlan";
 import { lessonStatus } from "@/lib/lessonPlanCore";
-import { LESSON_GAME_KINDS, a2StudyDoneLessons, a3GamesPlayed, a3StudyDoneLessons, lessonGamesPlayed } from "@/lib/vocabStorage";
+import { LESSON_GAME_KINDS, a2StudyDoneLessons, a3GamesPlayed, a3StudyDoneLessons, b1StudyDoneLessons, lessonGamesPlayed } from "@/lib/vocabStorage";
 import { A3_NUMBERS, a3SetId } from "@/lib/lessonDataA3";
+import { B1_NUMBERS, b1SetId } from "@/lib/lessonDataB1";
 
-// SEED1_A3 폴더: Lesson 1~8. 학습 카드와 게임 3종(다트·두더지·몬스터)을 모두 마치면 완료 ✓.
-function A3Folder({ sets, onStart }: { sets: VocabSet[]; onStart: (set: VocabSet) => void }) {
+type SeedBook = { name: string; numbers: number[]; setIdOf: (n: number) => string; studyDone: () => number[]; testId: string };
+const SEED_A3: SeedBook = { name: "SEED1_A3", numbers: A3_NUMBERS, setIdOf: a3SetId, studyDone: a3StudyDoneLessons, testId: "a3" };
+const SEED_B1: SeedBook = { name: "SEED1_B1", numbers: B1_NUMBERS, setIdOf: b1SetId, studyDone: b1StudyDoneLessons, testId: "b1" };
+
+// SEED1_A3·SEED1_B1 폴더: Lesson 1~8. 학습 카드와 게임 3종(다트·두더지·몬스터)을 모두 마치면 완료 ✓.
+function SeedFolder({ book, sets, onStart }: { book: SeedBook; sets: VocabSet[]; onStart: (set: VocabSet) => void }) {
   const [open, setOpen] = useState(true);
   const [done, setDone] = useState<number[]>([]);
   const [studied, setStudied] = useState<number[]>([]);
   useEffect(() => {
     const study: number[] = [];
     const ok: number[] = [];
-    for (const n of A3_NUMBERS) {
-      const played = a3GamesPlayed(a3SetId(n));
+    const studyDone = book.studyDone();
+    for (const n of book.numbers) {
+      const played = a3GamesPlayed(book.setIdOf(n));
       if (LESSON_GAME_KINDS.every((k) => played.includes(k))) ok.push(n);
-      else if (played.length > 0 || a3StudyDoneLessons().includes(n)) study.push(n);
+      else if (played.length > 0 || studyDone.includes(n)) study.push(n);
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 저장소(localStorage)를 마운트 후에만 읽을 수 있다
     setDone(ok);
     setStudied(study);
-  }, [sets]);
+  }, [sets, book]);
   return (
-    <div className="rounded-2xl bg-white border-2 border-amber-200 overflow-hidden" data-testid="lesson-folder-a3">
+    <div className="rounded-2xl bg-white border-2 border-amber-200 overflow-hidden" data-testid={`lesson-folder-${book.testId}`}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -37,8 +43,8 @@ function A3Folder({ sets, onStart }: { sets: VocabSet[]; onStart: (set: VocabSet
           {open ? "📂" : "📁"}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-base font-black text-gray-800 truncate">SEED1_A3</span>
-          <span className="block text-xs text-gray-500">Lesson {A3_NUMBERS.length}개</span>
+          <span className="block text-base font-black text-gray-800 truncate">{book.name}</span>
+          <span className="block text-xs text-gray-500">Lesson {book.numbers.length}개</span>
         </span>
         <span className="text-gray-500 font-bold" aria-hidden>
           {open ? "▾" : "▸"}
@@ -46,9 +52,9 @@ function A3Folder({ sets, onStart }: { sets: VocabSet[]; onStart: (set: VocabSet
       </button>
       {open && (
         <div className="p-3">
-          <div className="grid grid-cols-4 sm:grid-cols-8 gap-2" data-testid="lesson-chips-a3">
-            {A3_NUMBERS.map((n) => {
-              const set = sets.find((s) => s.id === a3SetId(n));
+          <div className="grid grid-cols-4 sm:grid-cols-8 gap-2" data-testid={`lesson-chips-${book.testId}`}>
+            {book.numbers.map((n) => {
+              const set = sets.find((s) => s.id === book.setIdOf(n));
               const isDone = done.includes(n);
               return (
                 <button
@@ -255,7 +261,8 @@ export default function LessonPanel({
           Lesson 단어 확인하고 시작
         </button>
       </div>
-      <A3Folder sets={sets} onStart={onStart} />
+      <SeedFolder book={SEED_A3} sets={sets} onStart={onStart} />
+      <SeedFolder book={SEED_B1} sets={sets} onStart={onStart} />
       </div>
     );
   }
@@ -329,8 +336,9 @@ export default function LessonPanel({
         )}
       </div>
 
-      {/* 새 교재 폴더(틀만, 내용은 나중에) */}
-      <A3Folder sets={sets} onStart={onStart} />
+      {/* 새 교재 폴더 */}
+      <SeedFolder book={SEED_A3} sets={sets} onStart={onStart} />
+      <SeedFolder book={SEED_B1} sets={sets} onStart={onStart} />
 
       <button onClick={() => setReviewing(true)} className="self-start min-h-[44px] text-xs text-gray-500 underline">
         Lesson 단어 뜻 확인·수정
