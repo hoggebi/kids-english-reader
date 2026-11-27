@@ -301,6 +301,10 @@ function ExposureCard({
   isLast: boolean;
   onNext: () => void;
 }) {
+  // 카드가 뜨면 듣기 버튼을 누르지 않아도 발음을 먼저 한 번 들려준다.
+  useEffect(() => {
+    speak(word.english);
+  }, [word.id, word.english]);
   return (
     <div className="flex flex-col items-center gap-4">
       <div className="w-full max-w-sm aspect-[4/3] rounded-3xl bg-gray-50 border-2 border-gray-200 flex flex-col items-center justify-center gap-3 px-6">

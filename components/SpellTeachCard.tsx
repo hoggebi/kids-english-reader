@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { VocabWord } from "@/lib/types";
-import { speak as speakWord } from "@/lib/gameAudio";
+import { cancelSpeech, speak as speakWord } from "@/lib/gameAudio";
 
 // Lesson 단어 학습 흐름 (한 단어당 한 카드):
 //  1) 영어·한국어 소개 → 2) 철자를 한 글자씩 나타내며 강조(시연) → 단어 전체를 두 번 강조 → 3) 영어를 숨기고 섞인 글자를 순서대로 눌러 완성
@@ -80,14 +80,13 @@ export default function SpellTeachCard({
   }, [phase, shown, pulse, total]);
 
   useEffect(() => {
-    return () => {
-      try {
-        window.speechSynthesis?.cancel();
-      } catch {
-        /* ignore */
-      }
-    };
+    return () => cancelSpeech(); // 기기 음성·단어 녹음 모두 멈춘다
   }, []);
+
+  // 새 단어 카드가 뜨면 듣기 버튼을 누르지 않아도 발음을 먼저 한 번 들려준다(카드를 연 탭·다음 버튼 직후라 iPad에서도 재생된다).
+  useEffect(() => {
+    speak(word.english);
+  }, [word.id, word.english]);
 
   function startDemo() {
     setShown(0);
